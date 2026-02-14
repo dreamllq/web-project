@@ -31,7 +31,7 @@ export class Notification {
   })
   type: NotificationType;
 
-  @Column({ length: 200 })
+  @Column({ type: 'varchar', length: 200 })
   title: string;
 
   @Column({ type: 'text' })

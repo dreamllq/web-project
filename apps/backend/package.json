@@ -12,11 +12,12 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
-    "typeorm": "typeorm-ts-node-commonjs",
+    "typeorm": "tsx ./node_modules/typeorm/cli.js",
     "migration:generate": "pnpm typeorm migration:generate -d src/database/data-source.ts",
     "migration:run": "pnpm typeorm migration:run -d src/database/data-source.ts",
     "migration:revert": "pnpm typeorm migration:revert -d src/database/data-source.ts",
-    "migration:show": "pnpm typeorm migration:show -d src/database/data-source.ts"
+    "migration:show": "pnpm typeorm migration:show -d src/database/data-source.ts",
+    "db:push": "tsx src/scripts/push-schema.ts"
   },
   "devDependencies": {
     "@nestjs/testing": "^11.1.13",
