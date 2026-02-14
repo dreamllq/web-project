@@ -48,6 +48,7 @@
     "@nestjs/platform-socket.io": "^11.1.13",
     "@nestjs/typeorm": "^11.0.0",
     "@nestjs/websockets": "^11.1.13",
+    "@upstash/redis": "^1.36.2",
     "axios": "^1.13.5",
     "bcrypt": "^6.0.0",
     "cache-manager": "^7.2.8",
