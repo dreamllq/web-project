@@ -7,6 +7,7 @@ import { wechatConfig } from './config/wechat.config';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { PolicyModule } from './policy/policy.module';
+import { AuditModule } from './audit/audit.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { PolicyModule } from './policy/policy.module';
     AuthModule,
     UsersModule,
     PolicyModule,
+    AuditModule,
   ],
   controllers: [],
   providers: [],
