@@ -16,6 +16,9 @@
           <NuxtLink to="/" class="nav-link" :class="{ active: route.path === '/' }">
             {{ t('nav.home') }}
           </NuxtLink>
+          <NuxtLink to="/docs" class="nav-link" :class="{ active: route.path.startsWith('/docs') }">
+            {{ t('docs.title') }}
+          </NuxtLink>
         </nav>
 
         <!-- Right Section -->
