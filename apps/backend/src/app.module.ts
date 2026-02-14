@@ -11,6 +11,7 @@ import { PolicyModule } from './policy/policy.module';
 import { AuditModule } from './audit/audit.module';
 import { NotificationModule } from './notification/notification.module';
 import { WebsocketModule } from './websocket/websocket.module';
+import { FileModule } from './file/file.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { WebsocketModule } from './websocket/websocket.module';
     AuditModule,
     NotificationModule,
     WebsocketModule,
+    FileModule,
   ],
   controllers: [],
   providers: [],
