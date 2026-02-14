@@ -9,6 +9,7 @@ import { UsersModule } from './users/users.module';
 import { PolicyModule } from './policy/policy.module';
 import { AuditModule } from './audit/audit.module';
 import { NotificationModule } from './notification/notification.module';
+import { WebsocketModule } from './websocket/websocket.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { NotificationModule } from './notification/notification.module';
     PolicyModule,
     AuditModule,
     NotificationModule,
+    WebsocketModule,
   ],
   controllers: [],
   providers: [],

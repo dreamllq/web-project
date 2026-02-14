@@ -264,7 +264,7 @@ export class PolicyEvaluatorService {
    * - { "ip": { "in": ["192.168.1.0/24"] } } - IP-based conditions
    * - { "custom": { "key": "value" } } - Custom attribute matching
    */
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+   
   private evaluateConditions(
     conditions: Record<string, unknown>,
     _userAttrs: UserAttributes,
