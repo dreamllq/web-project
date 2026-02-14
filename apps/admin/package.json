@@ -1,0 +1,13 @@
+{
+  "name": "@app/admin",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Vue3 admin frontend (SPA)",
+  "scripts": {
+    "lint": "eslint src --ext .vue,.js,.ts",
+    "lint:fix": "eslint src --ext .vue,.js,.ts --fix"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3"
+  }
+}

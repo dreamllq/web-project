@@ -1,0 +1,13 @@
+{
+  "name": "@app/backend",
+  "version": "0.0.1",
+  "private": true,
+  "description": "NestJS backend service",
+  "scripts": {
+    "lint": "eslint src --ext .ts",
+    "lint:fix": "eslint src --ext .ts --fix"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3"
+  }
+}

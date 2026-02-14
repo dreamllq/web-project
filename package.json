@@ -1,0 +1,30 @@
+{
+  "name": "web-project",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Monorepo for NestJS + Vue3 4A Project",
+  "scripts": {
+    "lint": "pnpm -r lint",
+    "lint:fix": "pnpm -r lint:fix",
+    "format": "prettier --write \"**/*.{js,ts,json,md,vue}\"",
+    "format:check": "prettier --check \"**/*.{js,ts,json,md,vue}\"",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^19.7.1",
+    "@commitlint/config-conventional": "^19.7.1",
+    "@eslint/js": "^9.21.0",
+    "eslint": "^9.21.0",
+    "eslint-config-prettier": "^10.0.1",
+    "husky": "^9.1.7",
+    "prettier": "^3.5.2",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.24.1"
+  },
+  "packageManager": "pnpm@9.15.5",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  }
+}
