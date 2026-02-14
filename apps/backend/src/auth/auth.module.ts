@@ -16,6 +16,7 @@ import { DingtalkMiniprogramService } from './oauth/dingtalk-miniprogram.service
 
 @Module({
   imports: [
+    ConfigModule,
     UsersModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
@@ -65,7 +66,19 @@ import { DingtalkMiniprogramService } from './oauth/dingtalk-miniprogram.service
     HttpModule,
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, WechatOAuthService, WechatMiniprogramService, DingtalkMiniprogramService],
-  exports: [AuthService, JwtModule, WechatOAuthService, WechatMiniprogramService, DingtalkMiniprogramService],
+  providers: [
+    AuthService,
+    JwtStrategy,
+    WechatOAuthService,
+    WechatMiniprogramService,
+    DingtalkMiniprogramService,
+  ],
+  exports: [
+    AuthService,
+    JwtModule,
+    WechatOAuthService,
+    WechatMiniprogramService,
+    DingtalkMiniprogramService,
+  ],
 })
 export class AuthModule {}

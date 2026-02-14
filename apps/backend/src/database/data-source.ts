@@ -3,8 +3,8 @@ import * as dotenv from 'dotenv';
 import * as path from 'path';
 
 // Load environment variables from project root
-dotenv.config({ path: path.resolve(__dirname, '../../../.env.local') });
-dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
+dotenv.config({ path: path.resolve(__dirname, '../../../../.env.local') });
+dotenv.config({ path: path.resolve(__dirname, '../../../../.env') });
 
 // Detect if using Neon (requires SSL)
 const isNeon = process.env.DATABASE_URL?.includes('neon.tech');
