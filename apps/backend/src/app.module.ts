@@ -6,6 +6,7 @@ import { jwtConfig } from './config/jwt.config';
 import { wechatConfig } from './config/wechat.config';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
+import { PolicyModule } from './policy/policy.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { UsersModule } from './users/users.module';
     }),
     AuthModule,
     UsersModule,
+    PolicyModule,
   ],
   controllers: [],
   providers: [],
