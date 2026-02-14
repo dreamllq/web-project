@@ -1,0 +1,85 @@
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  DeleteDateColumn,
+  Index,
+  OneToMany,
+} from 'typeorm';
+import { SocialAccount } from './social-account.entity';
+import { Notification } from './notification.entity';
+import { File } from './file.entity';
+import { OAuthToken } from './oauth-token.entity';
+
+export enum UserStatus {
+  ACTIVE = 'active',
+  DISABLED = 'disabled',
+  PENDING = 'pending',
+}
+
+@Entity('users')
+export class User {
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
+
+  @Index({ unique: true })
+  @Column({ length: 50 })
+  username: string;
+
+  @Index({ unique: true })
+  @Column({ length: 255, nullable: true })
+  email: string | null;
+
+  @Index({ unique: true })
+  @Column({ length: 20, nullable: true })
+  phone: string | null;
+
+  @Column({ name: 'password_hash', length: 255, nullable: true })
+  passwordHash: string | null;
+
+  @Column({ length: 100, nullable: true })
+  nickname: string | null;
+
+  @Column({ name: 'avatar_url', length: 500, nullable: true })
+  avatarUrl: string | null;
+
+  @Column({
+    type: 'enum',
+    enum: UserStatus,
+    default: UserStatus.PENDING,
+  })
+  status: UserStatus;
+
+  @Column({ length: 10, default: 'zh-CN' })
+  locale: string;
+
+  @Column({ name: 'last_login_at', type: 'timestamp', nullable: true })
+  lastLoginAt: Date | null;
+
+  @Column({ name: 'last_login_ip', length: 45, nullable: true })
+  lastLoginIp: string | null;
+
+  @CreateDateColumn({ name: 'created_at' })
+  createdAt: Date;
+
+  @UpdateDateColumn({ name: 'updated_at' })
+  updatedAt: Date;
+
+  @DeleteDateColumn({ name: 'deleted_at' })
+  deletedAt: Date | null;
+
+  // Relations
+  @OneToMany(() => SocialAccount, (socialAccount) => socialAccount.user)
+  socialAccounts: SocialAccount[];
+
+  @OneToMany(() => Notification, (notification) => notification.user)
+  notifications: Notification[];
+
+  @OneToMany(() => File, (file) => file.user)
+  files: File[];
+
+  @OneToMany(() => OAuthToken, (token) => token.user)
+  oauthTokens: OAuthToken[];
+}
