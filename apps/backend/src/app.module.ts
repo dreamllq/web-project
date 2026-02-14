@@ -8,6 +8,7 @@ import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { PolicyModule } from './policy/policy.module';
 import { AuditModule } from './audit/audit.module';
+import { NotificationModule } from './notification/notification.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { AuditModule } from './audit/audit.module';
     UsersModule,
     PolicyModule,
     AuditModule,
+    NotificationModule,
   ],
   controllers: [],
   providers: [],
