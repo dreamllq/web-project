@@ -17,7 +17,8 @@
     "success": "操作成功",
     "error": "操作失败",
     "warning": "警告",
-    "info": "提示"
+    "info": "提示",
+    "or": "或"
   },
   "nav": {
     "home": "首页",
@@ -27,6 +28,35 @@
     "logout": "退出登录",
     "settings": "设置",
     "language": "语言"
+  },
+  "hero": {
+    "title": "安全高效的用户认证平台",
+    "description": "提供企业级的身份认证和权限管理解决方案，支持多种登录方式和细粒度的权限控制。",
+    "getStarted": "立即开始"
+  },
+  "features": {
+    "title": "核心功能",
+    "secure": {
+      "title": "安全认证",
+      "description": "基于 JWT 的安全认证机制，支持 Token 刷新和黑名单管理"
+    },
+    "oauth": {
+      "title": "OAuth 登录",
+      "description": "支持微信、钉钉等主流平台的一键登录"
+    },
+    "fast": {
+      "title": "高性能",
+      "description": "基于 Redis 缓存，毫秒级响应速度"
+    },
+    "abac": {
+      "title": "ABAC 权限",
+      "description": "基于属性的细粒度权限控制，灵活满足各种业务场景"
+    }
+  },
+  "cta": {
+    "title": "准备好开始了吗？",
+    "description": "立即注册，体验安全便捷的认证服务",
+    "button": "免费注册"
   },
   "auth": {
     "login": {
@@ -62,6 +92,13 @@
       "passwordMatch": "两次密码不一致",
       "emailInvalid": "请输入有效的邮箱地址",
       "phoneInvalid": "请输入有效的手机号"
+    },
+    "oauth": {
+      "wechatLogin": "微信登录",
+      "processing": "正在处理登录...",
+      "pleaseWait": "请稍候，正在验证您的身份",
+      "failed": "OAuth 登录失败",
+      "noToken": "未收到授权令牌"
     }
   },
   "profile": {

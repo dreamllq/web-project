@@ -10,98 +10,98 @@ export interface User {
   createdAt: string
 }
 
-export interface AuthState {
-  user: User | null
-  token: string | null
-  refreshToken: string | null
-  isAuthenticated: boolean
-}
+export const useAuthStore = defineStore('auth', () => {
+  // Use cookies for persistence (SSR-friendly)
+  const tokenCookie = useCookie('access_token', {
+    maxAge: 60 * 60 * 24 * 7, // 7 days
+    path: '/',
+    sameSite: 'lax',
+  })
 
-export const useAuthStore = defineStore('auth', {
-  state: (): AuthState => ({
-    user: null,
-    token: null,
-    refreshToken: null,
-    isAuthenticated: false,
-  }),
+  const refreshTokenCookie = useCookie('refresh_token', {
+    maxAge: 60 * 60 * 24 * 30, // 30 days
+    path: '/',
+    sameSite: 'lax',
+  })
 
-  getters: {
-    getUser: (state) => state.user,
-    getToken: (state) => state.token,
-    getRefreshToken: (state) => state.refreshToken,
-    isLoggedIn: (state) => state.isAuthenticated && !!state.token,
-  },
+  const userCookie = useCookie<User | null>('auth_user', {
+    maxAge: 60 * 60 * 24 * 7, // 7 days
+    path: '/',
+    sameSite: 'lax',
+  })
 
-  actions: {
-    setAuth(data: { user: User; token: string; refreshToken: string }) {
-      this.user = data.user
-      this.token = data.token
-      this.refreshToken = data.refreshToken
-      this.isAuthenticated = true
+  // Reactive state
+  const user = ref<User | null>(userCookie.value || null)
+  const token = ref<string | null>(tokenCookie.value || null)
+  const refreshToken = ref<string | null>(refreshTokenCookie.value || null)
 
-      // Persist to localStorage (client-side only)
-      if (import.meta.client) {
-        localStorage.setItem('auth_token', data.token)
-        localStorage.setItem('auth_refresh_token', data.refreshToken)
-        localStorage.setItem('auth_user', JSON.stringify(data.user))
-      }
-    },
+  // Computed
+  const isAuthenticated = computed(() => !!token.value)
+  const isLoggedIn = computed(() => isAuthenticated.value && !!token.value)
 
-    setToken(token: string, refreshToken: string) {
-      this.token = token
-      this.refreshToken = refreshToken
+  // Actions
+  const setAuth = (data: { user: User; token: string; refreshToken: string }) => {
+    user.value = data.user
+    token.value = data.token
+    refreshToken.value = data.refreshToken
 
-      if (import.meta.client) {
-        localStorage.setItem('auth_token', token)
-        localStorage.setItem('auth_refresh_token', refreshToken)
-      }
-    },
+    // Persist to cookies
+    tokenCookie.value = data.token
+    refreshTokenCookie.value = data.refreshToken
+    userCookie.value = data.user
+  }
 
-    setUser(user: User) {
-      this.user = user
+  const setToken = (newToken: string, newRefreshToken: string) => {
+    token.value = newToken
+    refreshToken.value = newRefreshToken
 
-      if (import.meta.client) {
-        localStorage.setItem('auth_user', JSON.stringify(user))
-      }
-    },
+    tokenCookie.value = newToken
+    refreshTokenCookie.value = newRefreshToken
+  }
 
-    clearAuth() {
-      this.user = null
-      this.token = null
-      this.refreshToken = null
-      this.isAuthenticated = false
+  const setUser = (userData: User) => {
+    user.value = userData
+    userCookie.value = userData
+  }
 
-      if (import.meta.client) {
-        localStorage.removeItem('auth_token')
-        localStorage.removeItem('auth_refresh_token')
-        localStorage.removeItem('auth_user')
-      }
-    },
+  const clearAuth = () => {
+    user.value = null
+    token.value = null
+    refreshToken.value = null
 
-    // Initialize auth state from localStorage
-    initAuth() {
-      if (import.meta.client) {
-        const token = localStorage.getItem('auth_token')
-        const refreshToken = localStorage.getItem('auth_refresh_token')
-        const userStr = localStorage.getItem('auth_user')
+    tokenCookie.value = null
+    refreshTokenCookie.value = null
+    userCookie.value = null
+  }
 
-        if (token && userStr) {
-          try {
-            const user = JSON.parse(userStr) as User
-            this.token = token
-            this.refreshToken = refreshToken
-            this.user = user
-            this.isAuthenticated = true
-          } catch (e) {
-            this.clearAuth()
-          }
-        }
-      }
-    },
+  const initAuth = () => {
+    // Cookies are automatically loaded via useCookie
+    // Just sync local state with cookie values
+    if (tokenCookie.value && userCookie.value) {
+      token.value = tokenCookie.value
+      refreshToken.value = refreshTokenCookie.value || null
+      user.value = userCookie.value
+    }
+  }
 
-    // Check if token is valid (basic check)
-    hasValidToken(): boolean {
-      return !!this.token && this.token.length > 0
-    },
-  },
+  const hasValidToken = (): boolean => {
+    return !!token.value && token.value.length > 0
+  }
+
+  // Initialize on store creation
+  initAuth()
+
+  return {
+    user,
+    token,
+    refreshToken,
+    isAuthenticated,
+    isLoggedIn,
+    setAuth,
+    setToken,
+    setUser,
+    clearAuth,
+    initAuth,
+    hasValidToken,
+  }
 })

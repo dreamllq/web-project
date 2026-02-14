@@ -17,7 +17,8 @@
     "success": "Success",
     "error": "Error",
     "warning": "Warning",
-    "info": "Info"
+    "info": "Info",
+    "or": "or"
   },
   "nav": {
     "home": "Home",
@@ -27,6 +28,35 @@
     "logout": "Logout",
     "settings": "Settings",
     "language": "Language"
+  },
+  "hero": {
+    "title": "Secure & Efficient Authentication Platform",
+    "description": "Enterprise-grade identity authentication and permission management solution with multiple login methods and fine-grained access control.",
+    "getStarted": "Get Started"
+  },
+  "features": {
+    "title": "Core Features",
+    "secure": {
+      "title": "Secure Auth",
+      "description": "JWT-based authentication with token refresh and blacklist management"
+    },
+    "oauth": {
+      "title": "OAuth Login",
+      "description": "One-click login with WeChat, DingTalk and other platforms"
+    },
+    "fast": {
+      "title": "High Performance",
+      "description": "Redis-powered caching with millisecond response times"
+    },
+    "abac": {
+      "title": "ABAC Permissions",
+      "description": "Attribute-based fine-grained access control for flexible business scenarios"
+    }
+  },
+  "cta": {
+    "title": "Ready to Get Started?",
+    "description": "Register now to experience secure and convenient authentication",
+    "button": "Free Registration"
   },
   "auth": {
     "login": {
@@ -62,6 +92,13 @@
       "passwordMatch": "Passwords do not match",
       "emailInvalid": "Please enter a valid email address",
       "phoneInvalid": "Please enter a valid phone number"
+    },
+    "oauth": {
+      "wechatLogin": "Login with WeChat",
+      "processing": "Processing login...",
+      "pleaseWait": "Please wait while we verify your identity",
+      "failed": "OAuth login failed",
+      "noToken": "No authorization token received"
     }
   },
   "profile": {

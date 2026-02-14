@@ -25,6 +25,10 @@ export interface AuthResponse {
   }
 }
 
+export interface WechatOAuthUrlResponse {
+  url: string
+}
+
 export const useAuth = () => {
   const authStore = useAuthStore()
   const api = useApi()
@@ -124,6 +128,36 @@ export const useAuth = () => {
     return true
   }
 
+  // WeChat OAuth methods
+  const getWechatLoginUrl = async (): Promise<string> => {
+    try {
+      const response = await api.get<WechatOAuthUrlResponse>('/auth/oauth/wechat/url')
+      return response.url
+    } catch (error: any) {
+      throw new Error(error.data?.message || 'Failed to get WeChat login URL')
+    }
+  }
+
+  const handleWechatLogin = async () => {
+    try {
+      const url = await getWechatLoginUrl()
+      window.location.href = url
+    } catch (error: any) {
+      throw new Error(error.data?.message || 'Failed to initiate WeChat login')
+    }
+  }
+
+  // Handle OAuth callback with tokens from URL
+  const handleOAuthCallback = (accessToken: string, refreshTokenValue: string, userData?: any) => {
+    if (accessToken) {
+      authStore.setAuth({
+        user: userData || { id: '', username: '', status: 'active' },
+        token: accessToken,
+        refreshToken: refreshTokenValue || '',
+      })
+    }
+  }
+
   // Run init on client-side
   if (import.meta.client) {
     initAuth()
@@ -140,5 +174,8 @@ export const useAuth = () => {
     fetchUser,
     requireAuth,
     initAuth,
+    getWechatLoginUrl,
+    handleWechatLogin,
+    handleOAuthCallback,
   }
 }
