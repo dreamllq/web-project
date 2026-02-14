@@ -1,10 +1,7 @@
 import { Injectable, Logger, UnauthorizedException, BadRequestException, Inject } from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
-import { ConfigService } from '@nestjs/config';
-import { JwtService } from '@nestjs/jwt';
 import { UsersService } from '../users/users.service';
-import { User } from '../entities/user.entity';
 import {
   RegisterClientDto,
   RegisterClientResponse,
@@ -29,8 +26,6 @@ export class OAuthService {
 
   constructor(
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
-    private readonly configService: ConfigService,
-    private readonly jwtService: JwtService,
     private readonly usersService: UsersService,
   ) {}
 
@@ -174,16 +169,16 @@ export class OAuthService {
     };
 
     if (tokenData.scopes.includes('email') || tokenData.scopes.includes('openid')) {
-      response.email = user.email;
+      response.email = user.email ?? undefined;
     }
 
     if (tokenData.scopes.includes('phone')) {
-      response.phone = user.phone;
+      response.phone = user.phone ?? undefined;
     }
 
     if (tokenData.scopes.includes('profile')) {
-      response.nickname = user.nickname;
-      response.avatar_url = user.avatarUrl;
+      response.nickname = user.nickname ?? undefined;
+      response.avatar_url = user.avatarUrl ?? undefined;
     }
 
     return response;

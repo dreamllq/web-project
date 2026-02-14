@@ -26,9 +26,25 @@ import { DingtalkMiniprogramService } from './oauth/dingtalk-miniprogram.service
           accessTokenExpiresIn: '15m',
           refreshTokenExpiresIn: '7d',
         };
+        // Convert string expiresIn to number (seconds)
+        // Default: 15 minutes = 900 seconds
+        let expiresInSeconds = 900;
+        const expiresInStr = jwtConfig.accessTokenExpiresIn;
+        if (typeof expiresInStr === 'string') {
+          const num = parseInt(expiresInStr.replace(/\D/g, ''), 10);
+          if (!isNaN(num)) {
+            if (expiresInStr.includes('h')) {
+              expiresInSeconds = num * 3600;
+            } else if (expiresInStr.includes('d')) {
+              expiresInSeconds = num * 86400;
+            } else {
+              expiresInSeconds = num * 60; // assume minutes
+            }
+          }
+        }
         return {
           secret: jwtConfig.secret,
-          signOptions: { expiresIn: jwtConfig.accessTokenExpiresIn },
+          signOptions: { expiresIn: expiresInSeconds },
         };
       },
       inject: [ConfigService],
