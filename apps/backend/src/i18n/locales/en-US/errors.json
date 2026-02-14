@@ -1,0 +1,37 @@
+{
+  "unauthorized": "Unauthorized access",
+  "forbidden": "Access forbidden",
+  "notFound": "Resource not found",
+  "internalError": "Internal server error",
+  "badRequest": "Bad request",
+  "conflict": "Resource conflict",
+  "tooManyRequests": "Too many requests, please try again later",
+  "serviceUnavailable": "Service temporarily unavailable",
+  "database": {
+    "connection": "Database connection failed",
+    "query": "Database query error"
+  },
+  "validation": {
+    "failed": "Validation failed",
+    "required": "This field is required",
+    "invalid": "Invalid format"
+  },
+  "user": {
+    "notFound": "User not found",
+    "alreadyExists": "User already exists",
+    "passwordMismatch": "Password mismatch",
+    "invalidCredentials": "Invalid username or password",
+    "disabled": "Account is disabled"
+  },
+  "policy": {
+    "notFound": "Policy not found",
+    "denied": "Permission denied"
+  },
+  "file": {
+    "notFound": "File not found",
+    "uploadFailed": "File upload failed",
+    "deleteFailed": "File deletion failed",
+    "sizeExceeded": "File size exceeds limit",
+    "typeNotAllowed": "File type not allowed"
+  }
+}

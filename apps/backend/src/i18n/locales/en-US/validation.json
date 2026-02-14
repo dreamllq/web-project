@@ -1,0 +1,28 @@
+{
+  "email": "Please enter a valid email address",
+  "phone": "Please enter a valid phone number",
+  "minLength": "Length must be at least {min} characters",
+  "maxLength": "Length must not exceed {max} characters",
+  "range": "Length must be between {min} and {max} characters",
+  "password": {
+    "minLength": "Password must be at least {min} characters",
+    "requireUppercase": "Password must contain uppercase letter",
+    "requireLowercase": "Password must contain lowercase letter",
+    "requireNumber": "Password must contain number",
+    "requireSpecialChar": "Password must contain special character",
+    "mismatch": "Passwords do not match"
+  },
+  "username": {
+    "minLength": "Username must be at least {min} characters",
+    "maxLength": "Username must not exceed {max} characters",
+    "pattern": "Username can only contain letters, numbers and underscores"
+  },
+  "required": "{property} is required",
+  "isString": "{property} must be a string",
+  "isNumber": "{property} must be a number",
+  "isBoolean": "{property} must be a boolean",
+  "isDate": "{property} must be a valid date",
+  "isEnum": "{property} must be a valid enum value",
+  "isArray": "{property} must be an array",
+  "isNotEmpty": "{property} must not be empty"
+}

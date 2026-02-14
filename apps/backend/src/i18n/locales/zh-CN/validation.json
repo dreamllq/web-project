@@ -1,0 +1,28 @@
+{
+  "email": "请输入有效的邮箱地址",
+  "phone": "请输入有效的手机号码",
+  "minLength": "长度不能少于 {min} 个字符",
+  "maxLength": "长度不能超过 {max} 个字符",
+  "range": "长度必须在 {min} 到 {max} 个字符之间",
+  "password": {
+    "minLength": "密码长度至少为 {min} 个字符",
+    "requireUppercase": "密码必须包含大写字母",
+    "requireLowercase": "密码必须包含小写字母",
+    "requireNumber": "密码必须包含数字",
+    "requireSpecialChar": "密码必须包含特殊字符",
+    "mismatch": "两次输入的密码不一致"
+  },
+  "username": {
+    "minLength": "用户名长度至少为 {min} 个字符",
+    "maxLength": "用户名长度不能超过 {max} 个字符",
+    "pattern": "用户名只能包含字母、数字和下划线"
+  },
+  "required": "{property} 是必填项",
+  "isString": "{property} 必须是字符串",
+  "isNumber": "{property} 必须是数字",
+  "isBoolean": "{property} 必须是布尔值",
+  "isDate": "{property} 必须是有效日期",
+  "isEnum": "{property} 必须是有效枚举值",
+  "isArray": "{property} 必须是数组",
+  "isNotEmpty": "{property} 不能为空"
+}

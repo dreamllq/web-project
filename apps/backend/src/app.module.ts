@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { databaseConfig } from './config/database.config';
 import { jwtConfig } from './config/jwt.config';
 import { wechatConfig } from './config/wechat.config';
+import { AppI18nModule } from './i18n/i18n.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { PolicyModule } from './policy/policy.module';
@@ -22,6 +23,7 @@ import { WebsocketModule } from './websocket/websocket.module';
       imports: [ConfigModule],
       useFactory: () => databaseConfig(),
     }),
+    AppI18nModule,
     AuthModule,
     UsersModule,
     PolicyModule,

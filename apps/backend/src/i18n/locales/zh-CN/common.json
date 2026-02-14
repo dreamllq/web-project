@@ -1,0 +1,18 @@
+{
+  "hello": "你好",
+  "welcome": "欢迎",
+  "goodbye": "再见",
+  "yes": "是",
+  "no": "否",
+  "confirm": "确认",
+  "cancel": "取消",
+  "save": "保存",
+  "delete": "删除",
+  "edit": "编辑",
+  "create": "创建",
+  "update": "更新",
+  "search": "搜索",
+  "loading": "加载中...",
+  "success": "操作成功",
+  "failed": "操作失败"
+}

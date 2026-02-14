@@ -1,0 +1,37 @@
+{
+  "unauthorized": "未授权访问",
+  "forbidden": "禁止访问",
+  "notFound": "资源未找到",
+  "internalError": "服务器内部错误",
+  "badRequest": "请求参数错误",
+  "conflict": "资源冲突",
+  "tooManyRequests": "请求过于频繁，请稍后再试",
+  "serviceUnavailable": "服务暂时不可用",
+  "database": {
+    "connection": "数据库连接失败",
+    "query": "数据库查询错误"
+  },
+  "validation": {
+    "failed": "数据验证失败",
+    "required": "此字段为必填项",
+    "invalid": "数据格式无效"
+  },
+  "user": {
+    "notFound": "用户不存在",
+    "alreadyExists": "用户已存在",
+    "passwordMismatch": "密码不匹配",
+    "invalidCredentials": "用户名或密码错误",
+    "disabled": "账户已被禁用"
+  },
+  "policy": {
+    "notFound": "策略不存在",
+    "denied": "权限不足"
+  },
+  "file": {
+    "notFound": "文件不存在",
+    "uploadFailed": "文件上传失败",
+    "deleteFailed": "文件删除失败",
+    "sizeExceeded": "文件大小超过限制",
+    "typeNotAllowed": "文件类型不允许"
+  }
+}
