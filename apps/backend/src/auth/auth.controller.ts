@@ -20,12 +20,16 @@ import { CurrentUser } from './decorators/current-user.decorator';
 import { Public } from './decorators/public.decorator';
 import { User } from '../entities/user.entity';
 import { WechatOAuthService } from './oauth/wechat.service';
+import { WechatMiniprogramService, WechatMiniprogramLoginDto } from './oauth/wechat-miniprogram.service';
+import { DingtalkMiniprogramService, DingtalkMiniprogramLoginDto } from './oauth/dingtalk-miniprogram.service';
 
 @Controller('auth')
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly wechatOAuthService: WechatOAuthService,
+    private readonly wechatMiniprogramService: WechatMiniprogramService,
+    private readonly dingtalkMiniprogramService: DingtalkMiniprogramService,
     private readonly configService: ConfigService,
   ) {}
 
@@ -88,5 +92,35 @@ export class AuthController {
     return res.redirect(
       `${frontendUrl}/auth/callback?access_token=${tokens.access_token}&refresh_token=${tokens.refresh_token}&expires_in=${tokens.expires_in}`,
     );
+  }
+
+  // ==================== Miniprogram OAuth Endpoints ====================
+
+  /**
+   * WeChat miniprogram login
+   * POST /api/auth/oauth/wechat-miniprogram
+   */
+  @Public()
+  @Post('oauth/wechat-miniprogram')
+  async wechatMiniprogramLogin(
+    @Body() dto: WechatMiniprogramLoginDto,
+    @Req() req: Request,
+  ) {
+    const ip = req.ip || req.socket.remoteAddress;
+    return this.wechatMiniprogramService.login(dto, ip);
+  }
+
+  /**
+   * DingTalk miniprogram login
+   * POST /api/auth/oauth/dingtalk-miniprogram
+   */
+  @Public()
+  @Post('oauth/dingtalk-miniprogram')
+  async dingtalkMiniprogramLogin(
+    @Body() dto: DingtalkMiniprogramLoginDto,
+    @Req() req: Request,
+  ) {
+    const ip = req.ip || req.socket.remoteAddress;
+    return this.dingtalkMiniprogramService.login(dto, ip);
   }
 }

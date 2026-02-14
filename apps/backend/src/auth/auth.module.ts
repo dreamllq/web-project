@@ -11,6 +11,8 @@ import { UsersModule } from '../users/users.module';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { JwtConfig } from '../config/jwt.config';
 import { WechatOAuthService } from './oauth/wechat.service';
+import { WechatMiniprogramService } from './oauth/wechat-miniprogram.service';
+import { DingtalkMiniprogramService } from './oauth/dingtalk-miniprogram.service';
 
 @Module({
   imports: [
@@ -47,7 +49,7 @@ import { WechatOAuthService } from './oauth/wechat.service';
     HttpModule,
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, WechatOAuthService],
-  exports: [AuthService, JwtModule, WechatOAuthService],
+  providers: [AuthService, JwtStrategy, WechatOAuthService, WechatMiniprogramService, DingtalkMiniprogramService],
+  exports: [AuthService, JwtModule, WechatOAuthService, WechatMiniprogramService, DingtalkMiniprogramService],
 })
 export class AuthModule {}
