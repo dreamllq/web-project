@@ -49,5 +49,25 @@ declare module '@vue/runtime-core' {
     ElSpace: DefineComponent<{}, {}, any>
     ElLink: DefineComponent<{}, {}, any>
     ElText: DefineComponent<{}, {}, any>
+    ElUpload: DefineComponent<{}, {}, any>
+    ElProgress: DefineComponent<{}, {}, any>
+    ElList: DefineComponent<{}, {}, any>
+    ElListItem: DefineComponent<{}, {}, any>
+    ElListItemMeta: DefineComponent<{}, {}, any>
+    ElPagination: DefineComponent<{}, {}, any>
+    ElRadioButton: DefineComponent<{}, {}, any>
+    ElEmpty: DefineComponent<{}, {}, any>
   }
 }
+
+// Global ElMessage function
+declare global {
+  const ElMessage: {
+    success: (message: string) => void
+    error: (message: string) => void
+    warning: (message: string) => void
+    info: (message: string) => void
+  }
+}
+
+export {}

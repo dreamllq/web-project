@@ -180,6 +180,9 @@ importers:
 
   apps/portal:
     dependencies:
+      '@element-plus/icons-vue':
+        specifier: ^2.3.2
+        version: 2.3.2(vue@3.5.28(typescript@5.9.3))
       '@element-plus/nuxt':
         specifier: ^1.0.10
         version: 1.1.5(@element-plus/icons-vue@2.3.2(vue@3.5.28(typescript@5.9.3)))(element-plus@2.13.2(vue@3.5.28(typescript@5.9.3)))(magicast@0.5.2)
