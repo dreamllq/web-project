@@ -3,11 +3,27 @@
   "version": "0.0.1",
   "private": true,
   "description": "Vue3 admin frontend (SPA)",
+  "type": "module",
   "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc -b && vite build",
+    "preview": "vite preview",
     "lint": "eslint src --ext .vue,.js,.ts",
     "lint:fix": "eslint src --ext .vue,.js,.ts --fix"
   },
+  "dependencies": {
+    "vue": "^3.5.13",
+    "vue-router": "^4.5.0",
+    "pinia": "^2.3.0",
+    "element-plus": "^2.9.1",
+    "vue-i18n": "^9.14.1",
+    "axios": "^1.7.9",
+    "@element-plus/icons-vue": "^2.3.1"
+  },
   "devDependencies": {
-    "typescript": "^5.7.3"
+    "@vitejs/plugin-vue": "^5.2.1",
+    "vite": "^6.0.5",
+    "typescript": "^5.7.3",
+    "vue-tsc": "^2.2.0"
   }
 }

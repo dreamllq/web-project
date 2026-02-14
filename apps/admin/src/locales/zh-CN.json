@@ -1,0 +1,48 @@
+{
+  "common": {
+    "appName": "4A Admin",
+    "loading": "Loading...",
+    "confirm": "Confirm",
+    "cancel": "Cancel",
+    "save": "Save",
+    "delete": "Delete",
+    "edit": "Edit",
+    "add": "Add",
+    "search": "Search",
+    "reset": "Reset",
+    "success": "Success",
+    "error": "Error",
+    "warning": "Warning"
+  },
+  "login": {
+    "title": "Admin Login",
+    "username": "Username",
+    "password": "Password",
+    "rememberMe": "Remember me",
+    "submit": "Login",
+    "forgotPassword": "Forgot password?",
+    "usernameRequired": "Please enter username",
+    "passwordRequired": "Please enter password",
+    "loginSuccess": "Login successful",
+    "loginFailed": "Login failed, please check your credentials"
+  },
+  "menu": {
+    "dashboard": "Dashboard",
+    "users": "Users",
+    "policies": "Policies",
+    "auditLogs": "Audit Logs"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "welcome": "Welcome to 4A Admin",
+    "totalUsers": "Total Users",
+    "activeUsers": "Active Users",
+    "totalPolicies": "Total Policies",
+    "recentActivity": "Recent Activity"
+  },
+  "header": {
+    "logout": "Logout",
+    "profile": "Profile",
+    "settings": "Settings"
+  }
+}
