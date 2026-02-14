@@ -2,10 +2,19 @@ import { Injectable, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User, UserStatus } from '../entities/user.entity';
+import { SocialAccount, SocialProvider } from '../entities/social-account.entity';
 
 export interface CreateUserData {
   username: string;
   passwordHash: string;
+  email?: string;
+  phone?: string;
+}
+
+export interface CreateOAuthUserData {
+  username: string;
+  nickname?: string;
+  avatarUrl?: string;
   email?: string;
   phone?: string;
 }
@@ -15,6 +24,8 @@ export class UsersService {
   constructor(
     @InjectRepository(User)
     private usersRepository: Repository<User>,
+    @InjectRepository(SocialAccount)
+    private socialAccountsRepository: Repository<SocialAccount>,
   ) {}
 
   async create(data: CreateUserData): Promise<User> {
@@ -76,5 +87,85 @@ export class UsersService {
 
   async updateStatus(id: string, status: UserStatus): Promise<void> {
     await this.usersRepository.update(id, { status });
+  }
+
+  /**
+   * Create an OAuth user (no password required)
+   */
+  async createOAuthUser(data: CreateOAuthUserData): Promise<User> {
+    // Check if username already exists
+    const existingUser = await this.findByUsername(data.username);
+    if (existingUser) {
+      throw new ConflictException('Username already exists');
+    }
+
+    // Check if email already exists (if provided)
+    if (data.email) {
+      const existingEmail = await this.findByEmail(data.email);
+      if (existingEmail) {
+        throw new ConflictException('Email already exists');
+      }
+    }
+
+    // Check if phone already exists (if provided)
+    if (data.phone) {
+      const existingPhone = await this.findByPhone(data.phone);
+      if (existingPhone) {
+        throw new ConflictException('Phone already exists');
+      }
+    }
+
+    const user = this.usersRepository.create({
+      username: data.username,
+      passwordHash: null, // OAuth users don't have passwords initially
+      nickname: data.nickname || null,
+      avatarUrl: data.avatarUrl || null,
+      email: data.email || null,
+      phone: data.phone || null,
+      status: UserStatus.ACTIVE, // OAuth users are active immediately
+    });
+
+    return this.usersRepository.save(user);
+  }
+
+  /**
+   * Find social account by provider and provider user ID
+   */
+  async findSocialAccount(
+    provider: SocialProvider,
+    providerUserId: string,
+  ): Promise<SocialAccount | null> {
+    return this.socialAccountsRepository.findOne({
+      where: { provider, providerUserId },
+      relations: ['user'],
+    });
+  }
+
+  /**
+   * Create a social account linking to a user
+   */
+  async createSocialAccount(
+    userId: string,
+    provider: SocialProvider,
+    providerUserId: string,
+    providerData?: Record<string, unknown>,
+  ): Promise<SocialAccount> {
+    const socialAccount = this.socialAccountsRepository.create({
+      userId,
+      provider,
+      providerUserId,
+      providerData: providerData || null,
+    });
+
+    return this.socialAccountsRepository.save(socialAccount);
+  }
+
+  /**
+   * Generate a unique username for OAuth users
+   */
+  generateOAuthUsername(provider: SocialProvider, providerUserId: string): string {
+    const prefix = provider.replace('_', '');
+    const shortId = providerUserId.substring(0, 8).toLowerCase();
+    return `${prefix}_${shortId}`;
   }
 }

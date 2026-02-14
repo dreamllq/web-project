@@ -1,5 +1,16 @@
-import { Controller, Post, Body, Req, UseGuards, Headers } from '@nestjs/common';
-import { Request } from 'express';
+import {
+  Controller,
+  Post,
+  Body,
+  Req,
+  UseGuards,
+  Headers,
+  Get,
+  Query,
+  Res,
+} from '@nestjs/common';
+import { Request, Response } from 'express';
+import { ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
@@ -8,10 +19,15 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { Public } from './decorators/public.decorator';
 import { User } from '../entities/user.entity';
+import { WechatOAuthService } from './oauth/wechat.service';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly wechatOAuthService: WechatOAuthService,
+    private readonly configService: ConfigService,
+  ) {}
 
   @Public()
   @Post('register')
@@ -41,5 +57,36 @@ export class AuthController {
     const token = auth?.replace('Bearer ', '') ?? '';
     await this.authService.logout(user.id, token);
     return { message: 'Logged out successfully' };
+  }
+
+  // ==================== OAuth Endpoints ====================
+
+  @Public()
+  @Get('oauth/wechat/url')
+  async getWechatOAuthUrl(@Query('state') state?: string) {
+    return this.wechatOAuthService.getAuthorizationUrl(state);
+  }
+
+  @Public()
+  @Get('oauth/wechat/callback')
+  async wechatOAuthCallback(
+    @Query('code') code: string,
+    @Query('state') _state: string,
+    @Req() req: Request,
+    @Res() res: Response,
+  ) {
+    const ip = req.ip || req.socket.remoteAddress;
+    const tokens = await this.wechatOAuthService.handleCallback(code, ip);
+
+    // Get frontend URL from config or use default
+    const frontendUrl =
+      this.configService.get<string>('frontendUrl') ||
+      process.env.FRONTEND_URL ||
+      'http://localhost:5173';
+
+    // Redirect to frontend with tokens in query params
+    return res.redirect(
+      `${frontendUrl}/auth/callback?access_token=${tokens.access_token}&refresh_token=${tokens.refresh_token}&expires_in=${tokens.expires_in}`,
+    );
   }
 }

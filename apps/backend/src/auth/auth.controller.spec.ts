@@ -1,6 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { ConfigService } from '@nestjs/config';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { WechatOAuthService } from './oauth/wechat.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
@@ -14,6 +16,15 @@ describe('AuthController', () => {
     login: jest.fn(),
     refreshToken: jest.fn(),
     logout: jest.fn(),
+  };
+
+  const mockWechatOAuthService = {
+    getAuthorizationUrl: jest.fn(),
+    handleCallback: jest.fn(),
+  };
+
+  const mockConfigService = {
+    get: jest.fn().mockReturnValue('http://localhost:5173'),
   };
 
   const mockRequest = {
@@ -49,6 +60,14 @@ describe('AuthController', () => {
         {
           provide: AuthService,
           useValue: mockAuthService,
+        },
+        {
+          provide: WechatOAuthService,
+          useValue: mockWechatOAuthService,
+        },
+        {
+          provide: ConfigService,
+          useValue: mockConfigService,
         },
       ],
     }).compile();

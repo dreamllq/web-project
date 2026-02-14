@@ -3,12 +3,14 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { CacheModule } from '@nestjs/cache-manager';
+import { HttpModule } from '@nestjs/axios';
 import * as redisStore from 'cache-manager-redis-yet';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { UsersModule } from '../users/users.module';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { JwtConfig } from '../config/jwt.config';
+import { WechatOAuthService } from './oauth/wechat.service';
 
 @Module({
   imports: [
@@ -42,9 +44,10 @@ import { JwtConfig } from '../config/jwt.config';
         ttl: 604800000, // Default TTL: 7 days in milliseconds
       }),
     }),
+    HttpModule,
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy],
-  exports: [AuthService, JwtModule],
+  providers: [AuthService, JwtStrategy, WechatOAuthService],
+  exports: [AuthService, JwtModule, WechatOAuthService],
 })
 export class AuthModule {}
