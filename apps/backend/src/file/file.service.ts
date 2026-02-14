@@ -9,7 +9,7 @@ import { Repository, FindOptionsWhere, Like } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
 import { File, StorageProvider } from '../entities/file.entity';
 import { QueryFileDto } from './dto';
 import { StorageConfig } from './config/storage.config';
@@ -65,7 +65,7 @@ export class FileService {
 
     // Generate unique filename
     const ext = path.extname(file.originalname);
-    const storedName = `${uuidv4()}${ext}`;
+    const storedName = `${randomUUID()}${ext}`;
     const storagePath = path.join(this.uploadDir, storedName);
 
     // Write file to disk

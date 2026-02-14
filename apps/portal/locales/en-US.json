@@ -1,0 +1,86 @@
+{
+  "common": {
+    "appName": "4A User Center",
+    "loading": "Loading...",
+    "submit": "Submit",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "save": "Save",
+    "delete": "Delete",
+    "edit": "Edit",
+    "search": "Search",
+    "reset": "Reset",
+    "back": "Back",
+    "next": "Next",
+    "previous": "Previous",
+    "close": "Close",
+    "success": "Success",
+    "error": "Error",
+    "warning": "Warning",
+    "info": "Info"
+  },
+  "nav": {
+    "home": "Home",
+    "login": "Login",
+    "register": "Register",
+    "profile": "Profile",
+    "logout": "Logout",
+    "settings": "Settings",
+    "language": "Language"
+  },
+  "auth": {
+    "login": {
+      "title": "Login",
+      "username": "Username",
+      "password": "Password",
+      "rememberMe": "Remember me",
+      "forgotPassword": "Forgot password?",
+      "noAccount": "Don't have an account?",
+      "registerNow": "Register now",
+      "submit": "Login",
+      "success": "Login successful",
+      "failed": "Login failed"
+    },
+    "register": {
+      "title": "Register",
+      "username": "Username",
+      "email": "Email",
+      "phone": "Phone",
+      "password": "Password",
+      "confirmPassword": "Confirm password",
+      "hasAccount": "Already have an account?",
+      "loginNow": "Login now",
+      "submit": "Register",
+      "success": "Registration successful",
+      "failed": "Registration failed"
+    },
+    "validation": {
+      "usernameRequired": "Username is required",
+      "usernameMin": "Username must be at least 3 characters",
+      "passwordRequired": "Password is required",
+      "passwordMin": "Password must be at least 8 characters",
+      "passwordMatch": "Passwords do not match",
+      "emailInvalid": "Please enter a valid email address",
+      "phoneInvalid": "Please enter a valid phone number"
+    }
+  },
+  "profile": {
+    "title": "Profile",
+    "basicInfo": "Basic Information",
+    "avatar": "Avatar",
+    "username": "Username",
+    "email": "Email",
+    "phone": "Phone",
+    "status": "Status",
+    "createdAt": "Created At",
+    "updateSuccess": "Update successful",
+    "updateFailed": "Update failed"
+  },
+  "footer": {
+    "copyright": "© 2026 4A User Center. All rights reserved.",
+    "about": "About",
+    "privacy": "Privacy Policy",
+    "terms": "Terms of Service",
+    "contact": "Contact Us"
+  }
+}
