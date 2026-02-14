@@ -1,0 +1,69 @@
+{
+  "common": {
+    "hello": "你好",
+    "welcome": "欢迎",
+    "goodbye": "再见",
+    "yes": "是",
+    "no": "否",
+    "confirm": "确认",
+    "cancel": "取消",
+    "save": "保存",
+    "delete": "删除",
+    "edit": "编辑",
+    "create": "创建",
+    "update": "更新",
+    "search": "搜索",
+    "loading": "加载中...",
+    "success": "操作成功",
+    "failed": "操作失败"
+  },
+  "auth": {
+    "login": {
+      "success": "登录成功",
+      "failed": "登录失败，请检查用户名和密码",
+      "title": "登录",
+      "username": "用户名",
+      "password": "密码",
+      "rememberMe": "记住我",
+      "forgotPassword": "忘记密码？",
+      "noAccount": "还没有账号？",
+      "register": "立即注册"
+    },
+    "register": {
+      "success": "注册成功",
+      "failed": "注册失败",
+      "title": "注册",
+      "username": "用户名",
+      "email": "邮箱",
+      "phone": "手机号",
+      "password": "密码",
+      "confirmPassword": "确认密码",
+      "hasAccount": "已有账号？",
+      "login": "立即登录"
+    },
+    "logout": {
+      "success": "退出登录成功"
+    },
+    "token": {
+      "expired": "登录已过期，请重新登录",
+      "invalid": "无效的令牌"
+    }
+  },
+  "errors": {
+    "unauthorized": "未授权访问",
+    "forbidden": "禁止访问",
+    "notFound": "资源未找到",
+    "internalError": "服务器内部错误",
+    "badRequest": "请求参数错误",
+    "conflict": "资源冲突",
+    "tooManyRequests": "请求过于频繁，请稍后再试",
+    "serviceUnavailable": "服务暂时不可用"
+  },
+  "validation": {
+    "email": "请输入有效的邮箱地址",
+    "phone": "请输入有效的手机号码",
+    "minLength": "长度不能少于 {min} 个字符",
+    "maxLength": "长度不能超过 {max} 个字符",
+    "required": "{property} 是必填项"
+  }
+}
