@@ -1,26 +1,33 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
+import { ConfigService } from '@nestjs/config';
+import { AuthService, CustomJwtPayload } from '../auth.service';
+import { User } from '../../entities/user.entity';
+import { JwtConfig } from '../../config/jwt.config';
 
 /**
  * JWT Strategy
  *
- * This is a placeholder implementation that will be fully implemented in Task 5.
- * For now, it provides the basic structure for JWT validation.
- *
- * TODO (Task 5): Implement full JWT strategy with:
- * - Proper secret key from configuration
- * - Token expiration handling
- * - User validation from database
+ * Validates JWT tokens from the Authorization header.
+ * Only accepts access tokens (type: 'access').
  */
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor() {
-    // Placeholder configuration - will be properly configured in Task 5
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly authService: AuthService,
+  ) {
+    const jwtConfig = configService.get<JwtConfig>('jwt') ?? {
+      secret: 'your-secret-key-change-in-production',
+      accessTokenExpiresIn: '15m',
+      refreshTokenExpiresIn: '7d',
+    };
+
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: 'PLACEHOLDER_SECRET_WILL_BE_REPLACED_IN_TASK_5',
+      secretOrKey: jwtConfig.secret,
     });
   }
 
@@ -30,16 +37,17 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
    * @param payload - The decoded JWT payload
    * @returns The user object to be attached to the request
    */
-  async validate(payload: any) {
-    // Placeholder: Will be implemented in Task 5
-    // This should validate the user exists and return user data
-    if (!payload || !payload.sub) {
-      throw new UnauthorizedException('Invalid token payload');
+  async validate(payload: CustomJwtPayload): Promise<User> {
+    // Only accept access tokens
+    if (payload.type !== 'access') {
+      throw new UnauthorizedException('Invalid token type');
     }
 
-    return {
-      userId: payload.sub,
-      username: payload.username,
-    };
+    const user = await this.authService.validateUser(payload.sub);
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    return user;
   }
 }

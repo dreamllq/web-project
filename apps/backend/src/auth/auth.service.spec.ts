@@ -1,7 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { ConfigService } from '@nestjs/config';
+import { JwtService } from '@nestjs/jwt';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { UnauthorizedException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
-import { AuthService } from './auth.service';
+import { AuthService, CustomJwtPayload } from './auth.service';
 import { UsersService } from '../users/users.service';
 import { User, UserStatus } from '../entities/user.entity';
 import { RegisterDto } from './dto/register.dto';
@@ -21,6 +24,33 @@ describe('AuthService', () => {
     updateStatus: jest.fn(),
   };
 
+  const mockJwtService = {
+    sign: jest.fn(),
+    verify: jest.fn(),
+  };
+
+  const mockCacheManager = {
+    get: jest.fn(),
+    set: jest.fn(),
+  };
+
+  const mockConfigService = {
+    get: jest.fn().mockReturnValue({
+      secret: 'test-secret-key',
+      accessTokenExpiresIn: '15m',
+      refreshTokenExpiresIn: '7d',
+    }),
+  };
+
+  const mockUser = {
+    id: 'uuid-123',
+    username: 'testuser',
+    passwordHash: 'hashed_password',
+    email: 'test@example.com',
+    phone: null,
+    status: UserStatus.ACTIVE,
+  } as User;
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -28,6 +58,18 @@ describe('AuthService', () => {
         {
           provide: UsersService,
           useValue: mockUsersService,
+        },
+        {
+          provide: JwtService,
+          useValue: mockJwtService,
+        },
+        {
+          provide: ConfigService,
+          useValue: mockConfigService,
+        },
+        {
+          provide: CACHE_MANAGER,
+          useValue: mockCacheManager,
         },
       ],
     }).compile();
@@ -78,6 +120,221 @@ describe('AuthService', () => {
     });
   });
 
+  describe('generateTokens', () => {
+    it('should generate access and refresh tokens', async () => {
+      mockJwtService.sign
+        .mockReturnValueOnce('access_token_123')
+        .mockReturnValueOnce('refresh_token_456');
+
+      const result = await service.generateTokens(mockUser);
+
+      expect(result).toEqual({
+        access_token: 'access_token_123',
+        refresh_token: 'refresh_token_456',
+        expires_in: 900,
+      });
+
+      expect(mockJwtService.sign).toHaveBeenCalledTimes(2);
+    });
+
+    it('should include correct payload in access token', async () => {
+      mockJwtService.sign.mockReturnValue('token');
+
+      await service.generateTokens(mockUser);
+
+      const accessCall = mockJwtService.sign.mock.calls[0];
+      expect(accessCall[0]).toEqual({
+        sub: mockUser.id,
+        username: mockUser.username,
+        type: 'access',
+      });
+    });
+
+    it('should include correct payload in refresh token', async () => {
+      mockJwtService.sign.mockReturnValue('token');
+
+      await service.generateTokens(mockUser);
+
+      const refreshCall = mockJwtService.sign.mock.calls[1];
+      expect(refreshCall[0]).toEqual({
+        sub: mockUser.id,
+        username: mockUser.username,
+        type: 'refresh',
+      });
+    });
+  });
+
+  describe('refreshToken', () => {
+    const validPayload: CustomJwtPayload = {
+      sub: 'uuid-123',
+      username: 'testuser',
+      type: 'refresh',
+    };
+
+    it('should refresh tokens successfully', async () => {
+      mockCacheManager.get.mockResolvedValue(null);
+      mockJwtService.verify.mockReturnValue(validPayload);
+      mockUsersService.findById.mockResolvedValue(mockUser);
+      mockJwtService.sign
+        .mockReturnValueOnce('new_access_token')
+        .mockReturnValueOnce('new_refresh_token');
+
+      const result = await service.refreshToken('valid_refresh_token');
+
+      expect(result).toEqual({
+        access_token: 'new_access_token',
+        refresh_token: 'new_refresh_token',
+        expires_in: 900,
+      });
+    });
+
+    it('should throw if token is blacklisted', async () => {
+      mockCacheManager.get.mockResolvedValue('1');
+
+      await expect(service.refreshToken('blacklisted_token')).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
+
+    it('should throw if token type is not refresh', async () => {
+      mockCacheManager.get.mockResolvedValue(null);
+      mockJwtService.verify.mockReturnValue({
+        ...validPayload,
+        type: 'access',
+      });
+
+      await expect(service.refreshToken('access_token_as_refresh')).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
+
+    it('should throw if user not found', async () => {
+      mockCacheManager.get.mockResolvedValue(null);
+      mockJwtService.verify.mockReturnValue(validPayload);
+      mockUsersService.findById.mockResolvedValue(null);
+
+      await expect(service.refreshToken('valid_refresh_token')).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
+
+    it('should throw if user is disabled', async () => {
+      const disabledUser = { ...mockUser, status: UserStatus.DISABLED };
+      mockCacheManager.get.mockResolvedValue(null);
+      mockJwtService.verify.mockReturnValue(validPayload);
+      mockUsersService.findById.mockResolvedValue(disabledUser);
+
+      await expect(service.refreshToken('valid_refresh_token')).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
+
+    it('should blacklist old refresh token after refresh', async () => {
+      mockCacheManager.get.mockResolvedValue(null);
+      mockJwtService.verify.mockReturnValue(validPayload);
+      mockUsersService.findById.mockResolvedValue(mockUser);
+      mockJwtService.sign.mockReturnValue('new_token');
+
+      await service.refreshToken('old_refresh_token');
+
+      expect(mockCacheManager.set).toHaveBeenCalledWith(
+        'blacklist:old_refresh_token',
+        '1',
+        604800000,
+      );
+    });
+  });
+
+  describe('logout', () => {
+    it('should blacklist the access token', async () => {
+      await service.logout('uuid-123', 'access_token_to_blacklist');
+
+      expect(mockCacheManager.set).toHaveBeenCalledWith(
+        'blacklist:access_token_to_blacklist',
+        '1',
+        900000,
+      );
+    });
+  });
+
+  describe('validateAccessToken', () => {
+    const validAccessPayload: CustomJwtPayload = {
+      sub: 'uuid-123',
+      username: 'testuser',
+      type: 'access',
+    };
+
+    it('should return user for valid access token', async () => {
+      mockCacheManager.get.mockResolvedValue(null);
+      mockJwtService.verify.mockReturnValue(validAccessPayload);
+      mockUsersService.findById.mockResolvedValue(mockUser);
+
+      const result = await service.validateAccessToken('valid_access_token');
+
+      expect(result).toEqual(mockUser);
+    });
+
+    it('should throw if token is blacklisted', async () => {
+      mockCacheManager.get.mockResolvedValue('1');
+
+      await expect(service.validateAccessToken('blacklisted_token')).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
+
+    it('should throw if token type is not access', async () => {
+      mockCacheManager.get.mockResolvedValue(null);
+      mockJwtService.verify.mockReturnValue({
+        ...validAccessPayload,
+        type: 'refresh',
+      });
+
+      await expect(service.validateAccessToken('refresh_token_as_access')).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
+
+    it('should throw if user not found', async () => {
+      mockCacheManager.get.mockResolvedValue(null);
+      mockJwtService.verify.mockReturnValue(validAccessPayload);
+      mockUsersService.findById.mockResolvedValue(null);
+
+      await expect(service.validateAccessToken('valid_access_token')).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
+
+    it('should throw for invalid token', async () => {
+      mockCacheManager.get.mockResolvedValue(null);
+      mockJwtService.verify.mockImplementation(() => {
+        throw new Error('Invalid token');
+      });
+
+      await expect(service.validateAccessToken('invalid_token')).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
+  });
+
+  describe('isTokenBlacklisted', () => {
+    it('should return true if token is blacklisted', async () => {
+      mockCacheManager.get.mockResolvedValue('1');
+
+      const result = await service.isTokenBlacklisted('blacklisted_token');
+
+      expect(result).toBe(true);
+      expect(mockCacheManager.get).toHaveBeenCalledWith('blacklist:blacklisted_token');
+    });
+
+    it('should return false if token is not blacklisted', async () => {
+      mockCacheManager.get.mockResolvedValue(null);
+
+      const result = await service.isTokenBlacklisted('valid_token');
+
+      expect(result).toBe(false);
+    });
+  });
+
   describe('register', () => {
     const registerDto: RegisterDto = {
       username: 'testuser',
@@ -87,7 +344,7 @@ describe('AuthService', () => {
 
     it('should register a new user successfully', async () => {
       const hashedPassword = 'hashed_password';
-      const mockUser = {
+      const newUser = {
         id: 'uuid-123',
         username: 'testuser',
         passwordHash: hashedPassword,
@@ -97,7 +354,7 @@ describe('AuthService', () => {
       } as User;
 
       (bcrypt.hash as jest.Mock).mockResolvedValue(hashedPassword);
-      mockUsersService.create.mockResolvedValue(mockUser);
+      mockUsersService.create.mockResolvedValue(newUser);
 
       const result = await service.register(registerDto);
 
@@ -105,7 +362,7 @@ describe('AuthService', () => {
         id: 'uuid-123',
         username: 'testuser',
         status: UserStatus.PENDING,
-        createdAt: mockUser.createdAt,
+        createdAt: newUser.createdAt,
       });
       expect(bcrypt.hash).toHaveBeenCalledWith('Password123', 10);
       expect(mockUsersService.create).toHaveBeenCalledWith({
@@ -124,7 +381,7 @@ describe('AuthService', () => {
       };
 
       const hashedPassword = 'hashed_password';
-      const mockUser = {
+      const newUser = {
         id: 'uuid-123',
         username: 'testuser',
         passwordHash: hashedPassword,
@@ -134,7 +391,7 @@ describe('AuthService', () => {
       } as User;
 
       (bcrypt.hash as jest.Mock).mockResolvedValue(hashedPassword);
-      mockUsersService.create.mockResolvedValue(mockUser);
+      mockUsersService.create.mockResolvedValue(newUser);
 
       const result = await service.register(registerWithPhone);
 
@@ -142,7 +399,7 @@ describe('AuthService', () => {
         id: 'uuid-123',
         username: 'testuser',
         status: UserStatus.PENDING,
-        createdAt: mockUser.createdAt,
+        createdAt: newUser.createdAt,
       });
       expect(mockUsersService.create).toHaveBeenCalledWith({
         username: 'testuser',
@@ -159,23 +416,20 @@ describe('AuthService', () => {
       password: 'Password123',
     };
 
-    const mockUser = {
-      id: 'uuid-123',
-      username: 'testuser',
-      passwordHash: 'hashed_password',
-      email: 'test@example.com',
-      phone: null,
-      status: UserStatus.ACTIVE,
-    } as User;
-
     it('should login successfully with valid credentials', async () => {
       mockUsersService.findByUsername.mockResolvedValue(mockUser);
       (bcrypt.compare as jest.Mock).mockResolvedValue(true);
       mockUsersService.updateLastLogin.mockResolvedValue(undefined);
+      mockJwtService.sign
+        .mockReturnValueOnce('access_token')
+        .mockReturnValueOnce('refresh_token');
 
       const result = await service.login(loginDto);
 
       expect(result).toEqual({
+        access_token: 'access_token',
+        refresh_token: 'refresh_token',
+        expires_in: 900,
         user: {
           id: 'uuid-123',
           username: 'testuser',
@@ -183,7 +437,6 @@ describe('AuthService', () => {
           phone: null,
           status: UserStatus.ACTIVE,
         },
-        message: 'Login successful',
       });
       expect(mockUsersService.updateLastLogin).toHaveBeenCalledWith('uuid-123', undefined);
     });
@@ -235,17 +488,18 @@ describe('AuthService', () => {
       (bcrypt.compare as jest.Mock).mockResolvedValue(true);
       mockUsersService.updateLastLogin.mockResolvedValue(undefined);
       mockUsersService.updateStatus.mockResolvedValue(undefined);
+      mockJwtService.sign.mockReturnValue('token');
 
-      const result = await service.login(loginDto);
+      await service.login(loginDto);
 
       expect(mockUsersService.updateStatus).toHaveBeenCalledWith('uuid-123', UserStatus.ACTIVE);
-      expect(result.message).toBe('Login successful');
     });
 
     it('should pass client IP to updateLastLogin', async () => {
       mockUsersService.findByUsername.mockResolvedValue(mockUser);
       (bcrypt.compare as jest.Mock).mockResolvedValue(true);
       mockUsersService.updateLastLogin.mockResolvedValue(undefined);
+      mockJwtService.sign.mockReturnValue('token');
 
       await service.login(loginDto, '192.168.1.1');
 
@@ -255,7 +509,6 @@ describe('AuthService', () => {
 
   describe('validateUser', () => {
     it('should return user if found', async () => {
-      const mockUser = { id: 'uuid-123' } as User;
       mockUsersService.findById.mockResolvedValue(mockUser);
 
       const result = await service.validateUser('uuid-123');
