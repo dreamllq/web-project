@@ -93,7 +93,7 @@ function generateEnvContent(config: InitConfig): string {
 export function writeEnvFile(config: InitConfig, customPath?: string): void {
   // Default path: 4 levels up from this file (project root)
   // From: apps/backend/src/init/utils/ -> project root
-  const envPath = customPath || path.join(__dirname, '../../../../.env.local');
+  const envPath = customPath || path.join(__dirname, '../../../../../.env.local');
 
   const content = generateEnvContent(config);
 

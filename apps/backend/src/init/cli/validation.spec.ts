@@ -5,7 +5,6 @@ import {
   validateRedisHost,
   validatePort,
   validatePasswordConfirmation,
-  ValidationResult,
 } from './validation';
 
 describe('validation', () => {
