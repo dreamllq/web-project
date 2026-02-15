@@ -24,10 +24,10 @@ export class OAuthToken {
   userId: string | null;
 
   @Index({ unique: true })
-  @Column({ name: 'access_token', type: 'varchar', length: 255 })
+  @Column({ name: 'access_token', length: 255 })
   accessToken: string;
 
-  @Column({ name: 'refresh_token', type: 'varchar', length: 255, nullable: true, unique: true })
+  @Column({ name: 'refresh_token', length: 255, nullable: true, unique: true })
   refreshToken: string | null;
 
   @Column({ type: 'jsonb' })

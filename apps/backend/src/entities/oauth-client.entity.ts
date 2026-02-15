@@ -15,13 +15,13 @@ export class OAuthClient {
   id: string;
 
   @Index({ unique: true })
-  @Column({ name: 'client_id', type: 'varchar', length: 100 })
+  @Column({ name: 'client_id', length: 100 })
   clientId: string;
 
-  @Column({ name: 'client_secret', type: 'varchar', length: 255 })
+  @Column({ name: 'client_secret', length: 255 })
   clientSecret: string;
 
-  @Column({ type: 'varchar', length: 100 })
+  @Column({ length: 100 })
   name: string;
 
   @Column({ name: 'redirect_uris', type: 'jsonb' })

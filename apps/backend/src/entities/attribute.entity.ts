@@ -22,13 +22,13 @@ export class Attribute {
   id: string;
 
   @Index({ unique: true })
-  @Column({ type: 'varchar', length: 50 })
+  @Column({ length: 50 })
   key: string;
 
-  @Column({ type: 'varchar', length: 100 })
+  @Column({ length: 100 })
   name: string;
 
-  @Column({ type: 'varchar', length: 500, nullable: true })
+  @Column({ length: 500, nullable: true })
   description: string | null;
 
   @Column({

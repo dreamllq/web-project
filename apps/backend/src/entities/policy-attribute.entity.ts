@@ -25,7 +25,7 @@ export class PolicyAttribute {
   @Column({ name: 'attribute_id', type: 'uuid' })
   attributeId: string;
 
-  @Column({ name: 'required_value', type: 'varchar', length: 255, nullable: true })
+  @Column({ name: 'required_value', length: 255, nullable: true })
   requiredValue: string | null;
 
   @CreateDateColumn({ name: 'created_at' })

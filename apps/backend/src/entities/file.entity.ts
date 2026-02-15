@@ -24,14 +24,14 @@ export class File {
   @Column({ name: 'user_id', type: 'uuid' })
   userId: string;
 
-  @Column({ type: 'varchar', length: 255 })
+  @Column({ length: 255 })
   filename: string;
 
   @Index()
-  @Column({ name: 'stored_name', type: 'varchar', length: 255, unique: true })
+  @Column({ name: 'stored_name', length: 255, unique: true })
   storedName: string;
 
-  @Column({ name: 'mime_type', type: 'varchar', length: 100 })
+  @Column({ name: 'mime_type', length: 100 })
   mimeType: string;
 
   @Column({ type: 'bigint' })
@@ -45,10 +45,10 @@ export class File {
   })
   storageProvider: StorageProvider;
 
-  @Column({ name: 'storage_path', type: 'varchar', length: 500 })
+  @Column({ name: 'storage_path', length: 500 })
   storagePath: string;
 
-  @Column({ type: 'varchar', length: 1000 })
+  @Column({ length: 1000 })
   url: string;
 
   @CreateDateColumn({ name: 'created_at' })

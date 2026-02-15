@@ -31,7 +31,7 @@ export class SocialAccount {
   })
   provider: SocialProvider;
 
-  @Column({ name: 'provider_user_id', type: 'varchar', length: 100 })
+  @Column({ name: 'provider_user_id', length: 100 })
   providerUserId: string;
 
   @Column({ name: 'provider_data', type: 'jsonb', nullable: true })
