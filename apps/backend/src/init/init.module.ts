@@ -1,8 +1,10 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { InitService } from './init.service';
+import { UsersModule } from '../users/users.module';
+import { PolicyModule } from '../policy/policy.module';
 
 @Module({
-  imports: [],
+  imports: [forwardRef(() => UsersModule), forwardRef(() => PolicyModule)],
   controllers: [],
   providers: [InitService],
   exports: [InitService],
