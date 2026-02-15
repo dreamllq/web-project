@@ -16,9 +16,6 @@ module.exports = {
       },
     ],
   },
-  transformIgnorePatterns: [
-    'node_modules/(?!(uuid)/)',
-  ],
   collectCoverageFrom: ['src/**/*.(t|j)s', '!src/**/*.spec.ts', '!src/**/*.test.ts'],
   coverageDirectory: './coverage',
   coveragePathIgnorePatterns: ['/node_modules/', '/dist/'],

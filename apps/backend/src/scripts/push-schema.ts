@@ -8,9 +8,9 @@ import 'reflect-metadata';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 
-// Load environment variables from project root
-dotenv.config({ path: path.resolve(__dirname, '../../../../.env.local') });
-dotenv.config({ path: path.resolve(__dirname, '../../../../.env') });
+// Load environment variables
+dotenv.config({ path: path.resolve(__dirname, '../../../.env.local') });
+dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
 
 import { DataSource, DataSourceOptions } from 'typeorm';
 import { User } from '../entities/user.entity';

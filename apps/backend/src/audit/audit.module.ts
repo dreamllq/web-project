@@ -17,6 +17,6 @@ import { APP_INTERCEPTOR } from '@nestjs/core';
       useClass: AuditLogInterceptor,
     },
   ],
-  exports: [AuditService],
+  exports: [AuditService, AuditLogInterceptor],
 })
 export class AuditModule {}
