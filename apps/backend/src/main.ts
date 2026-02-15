@@ -21,10 +21,15 @@ function isInitialized(envPath: string): boolean {
 async function bootstrap() {
   // Check if initialization is needed before starting the app
   const envLocalPath = join(__dirname, '../../../.env.local');
-  const forceInit = process.argv.includes('--force-init');
+  const forceInit = process.argv.includes('--force');
 
   if (forceInit || !isInitialized(envLocalPath)) {
-    console.log('🔧 首次启动检测，开始初始化向导...\n');
+    if (forceInit) {
+      console.log('⚠️  强制重新初始化模式');
+      console.log('⚠️  即将重新初始化，现有配置将被覆盖！\n');
+    } else {
+      console.log('🔧 首次启动检测，开始初始化向导...\n');
+    }
 
     // Create application context for initialization
     // This allows us to use NestJS dependency injection for InitService
