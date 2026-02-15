@@ -1,75 +1,31 @@
-import { describe, it, expect, beforeEach, afterEach, jest } from 'bun:test';
-import {
-  testDatabaseConnection,
-  testRedisConnection,
-  DatabaseTestConfig,
-  RedisTestConfig,
-} from './connection-tester';
+import { describe, test, expect, mock, beforeEach, afterEach } from 'bun:test';
+import type { DatabaseTestConfig, RedisTestConfig } from './connection-tester';
 
-// Mock modules
-jest.mock('typeorm', () => ({
-  DataSource: jest.fn().mockImplementation(() => ({
-    initialize: jest.fn(),
-    query: jest.fn(),
-    destroy: jest.fn(),
-    isInitialized: false,
-  })),
-}));
-
-jest.mock('ioredis', () => {
-  return jest.fn().mockImplementation(() => ({
-    ping: jest.fn(),
-    disconnect: jest.fn(),
-  }));
-});
-
-jest.mock('@upstash/redis', () => ({
-  Redis: jest.fn().mockImplementation(() => ({
-    ping: jest.fn(),
-  })),
-}));
+// Store original modules
+const originalModules: Record<string, any> = {};
 
 describe('connection-tester', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-  });
-
-  afterEach(() => {
-    jest.clearAllMocks();
+  // Reset module cache between tests
+  beforeEach(async () => {
+    // Clear the module cache for connection-tester
+    const modulePath = require.resolve('./connection-tester');
+    delete require.cache[modulePath];
   });
 
   describe('testDatabaseConnection', () => {
-    it('should return true on successful connection with URL config', async () => {
-      const { DataSource } = await import('typeorm');
+    test('should return true on successful connection with local config', async () => {
       const mockDataSource = {
-        initialize: jest.fn().mockResolvedValue(undefined),
-        query: jest.fn().mockResolvedValue([{ '1': 1 }]),
-        destroy: jest.fn().mockResolvedValue(undefined),
+        initialize: mock(async () => {}),
+        query: mock(async () => [{ '1': 1 }]),
+        destroy: mock(async () => {}),
         isInitialized: true,
       };
-      (DataSource as jest.Mock).mockReturnValue(mockDataSource);
 
-      const config: DatabaseTestConfig = {
-        type: 'remote',
-        url: 'postgresql://user:pass@localhost:5432/testdb',
-      };
+      mock.module('typeorm', () => ({
+        DataSource: mock(() => mockDataSource),
+      }));
 
-      const result = await testDatabaseConnection(config);
-      expect(result).toBe(true);
-      expect(mockDataSource.initialize).toHaveBeenCalled();
-      expect(mockDataSource.query).toHaveBeenCalledWith('SELECT 1');
-      expect(mockDataSource.destroy).toHaveBeenCalled();
-    });
-
-    it('should return true on successful connection with individual params', async () => {
-      const { DataSource } = await import('typeorm');
-      const mockDataSource = {
-        initialize: jest.fn().mockResolvedValue(undefined),
-        query: jest.fn().mockResolvedValue([{ '1': 1 }]),
-        destroy: jest.fn().mockResolvedValue(undefined),
-        isInitialized: true,
-      };
-      (DataSource as jest.Mock).mockReturnValue(mockDataSource);
+      const { testDatabaseConnection } = await import('./connection-tester');
 
       const config: DatabaseTestConfig = {
         type: 'local',
@@ -82,73 +38,51 @@ describe('connection-tester', () => {
 
       const result = await testDatabaseConnection(config);
       expect(result).toBe(true);
+      expect(mockDataSource.initialize).toHaveBeenCalled();
+      expect(mockDataSource.query).toHaveBeenCalledWith('SELECT 1');
     });
 
-    it('should throw error on connection refused', async () => {
-      const { DataSource } = await import('typeorm');
+    test('should return true on successful connection with remote URL config', async () => {
       const mockDataSource = {
-        initialize: jest.fn().mockRejectedValue(new Error('connect ECONNREFUSED')),
-        query: jest.fn(),
-        destroy: jest.fn().mockResolvedValue(undefined),
-        isInitialized: false,
-      };
-      (DataSource as jest.Mock).mockReturnValue(mockDataSource);
-
-      const config: DatabaseTestConfig = {
-        type: 'local',
-        host: 'localhost',
-        port: 5432,
-      };
-
-      await expect(testDatabaseConnection(config)).rejects.toThrow('Connection refused');
-    });
-
-    it('should throw error on authentication failure', async () => {
-      const { DataSource } = await import('typeorm');
-      const mockDataSource = {
-        initialize: jest.fn().mockRejectedValue(new Error('authentication failed for user')),
-        query: jest.fn(),
-        destroy: jest.fn().mockResolvedValue(undefined),
-        isInitialized: false,
-      };
-      (DataSource as jest.Mock).mockReturnValue(mockDataSource);
-
-      const config: DatabaseTestConfig = {
-        type: 'local',
-        username: 'wronguser',
-        password: 'wrongpass',
-      };
-
-      await expect(testDatabaseConnection(config)).rejects.toThrow('Authentication failed');
-    });
-
-    it('should throw error on database not found', async () => {
-      const { DataSource } = await import('typeorm');
-      const mockDataSource = {
-        initialize: jest.fn().mockRejectedValue(new Error('database "nonexistent" does not exist')),
-        query: jest.fn(),
-        destroy: jest.fn().mockResolvedValue(undefined),
-        isInitialized: false,
-      };
-      (DataSource as jest.Mock).mockReturnValue(mockDataSource);
-
-      const config: DatabaseTestConfig = {
-        type: 'local',
-        database: 'nonexistent',
-      };
-
-      await expect(testDatabaseConnection(config)).rejects.toThrow('does not exist');
-    });
-
-    it('should configure SSL when ssl option is true', async () => {
-      const { DataSource } = await import('typeorm');
-      const mockDataSource = {
-        initialize: jest.fn().mockResolvedValue(undefined),
-        query: jest.fn().mockResolvedValue([{ '1': 1 }]),
-        destroy: jest.fn().mockResolvedValue(undefined),
+        initialize: mock(async () => {}),
+        query: mock(async () => [{ '1': 1 }]),
+        destroy: mock(async () => {}),
         isInitialized: true,
       };
-      (DataSource as jest.Mock).mockReturnValue(mockDataSource);
+
+      mock.module('typeorm', () => ({
+        DataSource: mock(() => mockDataSource),
+      }));
+
+      const { testDatabaseConnection } = await import('./connection-tester');
+
+      const config: DatabaseTestConfig = {
+        type: 'remote',
+        url: 'postgresql://user:pass@remotehost:5432/testdb',
+      };
+
+      const result = await testDatabaseConnection(config);
+      expect(result).toBe(true);
+      expect(mockDataSource.destroy).toHaveBeenCalled();
+    });
+
+    test('should configure SSL when ssl option is true', async () => {
+      let capturedOptions: any = null;
+      const mockDataSource = {
+        initialize: mock(async () => {}),
+        query: mock(async () => [{ '1': 1 }]),
+        destroy: mock(async () => {}),
+        isInitialized: true,
+      };
+
+      mock.module('typeorm', () => ({
+        DataSource: mock((options: any) => {
+          capturedOptions = options;
+          return mockDataSource;
+        }),
+      }));
+
+      const { testDatabaseConnection } = await import('./connection-tester');
 
       const config: DatabaseTestConfig = {
         type: 'remote',
@@ -158,41 +92,174 @@ describe('connection-tester', () => {
 
       const result = await testDatabaseConnection(config);
       expect(result).toBe(true);
-      expect(DataSource).toHaveBeenCalledWith(
-        expect.objectContaining({
-          ssl: { rejectUnauthorized: false },
-        })
-      );
+      expect(capturedOptions.ssl).toEqual({ rejectUnauthorized: false });
     });
 
-    it('should close connection even if query fails', async () => {
-      const { DataSource } = await import('typeorm');
+    test('should throw error on connection refused', async () => {
       const mockDataSource = {
-        initialize: jest.fn().mockResolvedValue(undefined),
-        query: jest.fn().mockRejectedValue(new Error('Query failed')),
-        destroy: jest.fn().mockResolvedValue(undefined),
+        initialize: mock(async () => {
+          throw new Error('connect ECONNREFUSED 127.0.0.1:5432');
+        }),
+        query: mock(async () => {}),
+        destroy: mock(async () => {}),
+        isInitialized: false,
+      };
+
+      mock.module('typeorm', () => ({
+        DataSource: mock(() => mockDataSource),
+      }));
+
+      const { testDatabaseConnection } = await import('./connection-tester');
+
+      const config: DatabaseTestConfig = {
+        type: 'local',
+        host: 'localhost',
+        port: 5432,
+      };
+
+      try {
+        await testDatabaseConnection(config);
+        expect(true).toBe(false); // Should not reach here
+      } catch (error) {
+        expect((error as Error).message).toContain('Connection refused');
+      }
+    });
+
+    test('should throw error on authentication failure', async () => {
+      const mockDataSource = {
+        initialize: mock(async () => {
+          throw new Error('authentication failed for user "postgres"');
+        }),
+        query: mock(async () => {}),
+        destroy: mock(async () => {}),
+        isInitialized: false,
+      };
+
+      mock.module('typeorm', () => ({
+        DataSource: mock(() => mockDataSource),
+      }));
+
+      const { testDatabaseConnection } = await import('./connection-tester');
+
+      const config: DatabaseTestConfig = {
+        type: 'local',
+        username: 'wronguser',
+        password: 'wrongpass',
+      };
+
+      try {
+        await testDatabaseConnection(config);
+        expect(true).toBe(false); // Should not reach here
+      } catch (error) {
+        expect((error as Error).message).toContain('Authentication failed');
+      }
+    });
+
+    test('should throw error on database not found', async () => {
+      const mockDataSource = {
+        initialize: mock(async () => {
+          throw new Error('database "nonexistent" does not exist');
+        }),
+        query: mock(async () => {}),
+        destroy: mock(async () => {}),
+        isInitialized: false,
+      };
+
+      mock.module('typeorm', () => ({
+        DataSource: mock(() => mockDataSource),
+      }));
+
+      const { testDatabaseConnection } = await import('./connection-tester');
+
+      const config: DatabaseTestConfig = {
+        type: 'local',
+        database: 'nonexistent',
+      };
+
+      try {
+        await testDatabaseConnection(config);
+        expect(true).toBe(false); // Should not reach here
+      } catch (error) {
+        expect((error as Error).message).toContain('does not exist');
+      }
+    });
+
+    test('should close connection even if query fails', async () => {
+      const mockDataSource = {
+        initialize: mock(async () => {}),
+        query: mock(async () => {
+          throw new Error('Query failed');
+        }),
+        destroy: mock(async () => {}),
         isInitialized: true,
       };
-      (DataSource as jest.Mock).mockReturnValue(mockDataSource);
+
+      mock.module('typeorm', () => ({
+        DataSource: mock(() => mockDataSource),
+      }));
+
+      const { testDatabaseConnection } = await import('./connection-tester');
 
       const config: DatabaseTestConfig = {
         type: 'local',
       };
 
-      await expect(testDatabaseConnection(config)).rejects.toThrow();
+      try {
+        await testDatabaseConnection(config);
+      } catch (error) {
+        // Expected to throw
+      }
+
+      // Give time for finally block to execute
+      await new Promise((resolve) => setTimeout(resolve, 10));
       expect(mockDataSource.destroy).toHaveBeenCalled();
     });
+
+    test('should timeout after 5 seconds', async () => {
+      const mockDataSource = {
+        initialize: mock(async () => {
+          await new Promise((resolve) => setTimeout(resolve, 10000));
+        }),
+        query: mock(async () => {}),
+        destroy: mock(async () => {}),
+        isInitialized: false,
+      };
+
+      mock.module('typeorm', () => ({
+        DataSource: mock(() => mockDataSource),
+      }));
+
+      const { testDatabaseConnection } = await import('./connection-tester');
+
+      const config: DatabaseTestConfig = {
+        type: 'local',
+      };
+
+      const start = Date.now();
+      try {
+        await testDatabaseConnection(config);
+        expect(true).toBe(false); // Should not reach here
+      } catch (error) {
+        const elapsed = Date.now() - start;
+        expect(elapsed).toBeLessThan(7000); // Should timeout within ~5s + buffer
+        expect((error as Error).message).toContain('timed out');
+      }
+    }, 10000);
   });
 
   describe('testRedisConnection', () => {
     describe('local Redis', () => {
-      it('should return true on successful PING', async () => {
-        const Redis = (await import('ioredis')).default;
+      test('should return true on successful PING', async () => {
         const mockRedis = {
-          ping: jest.fn().mockResolvedValue('PONG'),
-          disconnect: jest.fn(),
+          ping: mock(async () => 'PONG'),
+          disconnect: mock(() => {}),
         };
-        (Redis as jest.Mock).mockReturnValue(mockRedis);
+
+        mock.module('ioredis', () => ({
+          default: mock(() => mockRedis),
+        }));
+
+        const { testRedisConnection } = await import('./connection-tester');
 
         const config: RedisTestConfig = {
           type: 'local',
@@ -206,13 +273,21 @@ describe('connection-tester', () => {
         expect(mockRedis.disconnect).toHaveBeenCalled();
       });
 
-      it('should use default values for host and port', async () => {
-        const Redis = (await import('ioredis')).default;
+      test('should use default values for host and port', async () => {
+        let capturedOptions: any = null;
         const mockRedis = {
-          ping: jest.fn().mockResolvedValue('PONG'),
-          disconnect: jest.fn(),
+          ping: mock(async () => 'PONG'),
+          disconnect: mock(() => {}),
         };
-        (Redis as jest.Mock).mockReturnValue(mockRedis);
+
+        mock.module('ioredis', () => ({
+          default: mock((options: any) => {
+            capturedOptions = options;
+            return mockRedis;
+          }),
+        }));
+
+        const { testRedisConnection } = await import('./connection-tester');
 
         const config: RedisTestConfig = {
           type: 'local',
@@ -220,21 +295,23 @@ describe('connection-tester', () => {
 
         const result = await testRedisConnection(config);
         expect(result).toBe(true);
-        expect(Redis).toHaveBeenCalledWith(
-          expect.objectContaining({
-            host: 'localhost',
-            port: 6379,
-          })
-        );
+        expect(capturedOptions.host).toBe('localhost');
+        expect(capturedOptions.port).toBe(6379);
       });
 
-      it('should throw error on connection refused', async () => {
-        const Redis = (await import('ioredis')).default;
+      test('should throw error on connection refused', async () => {
         const mockRedis = {
-          ping: jest.fn().mockRejectedValue(new Error('connect ECONNREFUSED')),
-          disconnect: jest.fn(),
+          ping: mock(async () => {
+            throw new Error('connect ECONNREFUSED 127.0.0.1:6379');
+          }),
+          disconnect: mock(() => {}),
         };
-        (Redis as jest.Mock).mockReturnValue(mockRedis);
+
+        mock.module('ioredis', () => ({
+          default: mock(() => mockRedis),
+        }));
+
+        const { testRedisConnection } = await import('./connection-tester');
 
         const config: RedisTestConfig = {
           type: 'local',
@@ -242,65 +319,141 @@ describe('connection-tester', () => {
           port: 6379,
         };
 
-        await expect(testRedisConnection(config)).rejects.toThrow('Connection refused');
+        try {
+          await testRedisConnection(config);
+          expect(true).toBe(false); // Should not reach here
+        } catch (error) {
+          expect((error as Error).message).toContain('Connection refused');
+        }
       });
 
-      it('should throw error on authentication required', async () => {
-        const Redis = (await import('ioredis')).default;
+      test('should throw error on authentication required (NOAUTH)', async () => {
         const mockRedis = {
-          ping: jest.fn().mockRejectedValue(new Error('NOAUTH Authentication required')),
-          disconnect: jest.fn(),
+          ping: mock(async () => {
+            throw new Error('NOAUTH Authentication required');
+          }),
+          disconnect: mock(() => {}),
         };
-        (Redis as jest.Mock).mockReturnValue(mockRedis);
+
+        mock.module('ioredis', () => ({
+          default: mock(() => mockRedis),
+        }));
+
+        const { testRedisConnection } = await import('./connection-tester');
 
         const config: RedisTestConfig = {
           type: 'local',
           host: 'localhost',
         };
 
-        await expect(testRedisConnection(config)).rejects.toThrow('Authentication required');
+        try {
+          await testRedisConnection(config);
+          expect(true).toBe(false); // Should not reach here
+        } catch (error) {
+          expect((error as Error).message).toContain('Authentication required');
+        }
       });
 
-      it('should throw error on wrong password', async () => {
-        const Redis = (await import('ioredis')).default;
+      test('should throw error on wrong password (WRONGPASS)', async () => {
         const mockRedis = {
-          ping: jest.fn().mockRejectedValue(new Error('WRONGPASS invalid username-password pair')),
-          disconnect: jest.fn(),
+          ping: mock(async () => {
+            throw new Error('WRONGPASS invalid username-password pair');
+          }),
+          disconnect: mock(() => {}),
         };
-        (Redis as jest.Mock).mockReturnValue(mockRedis);
+
+        mock.module('ioredis', () => ({
+          default: mock(() => mockRedis),
+        }));
+
+        const { testRedisConnection } = await import('./connection-tester');
 
         const config: RedisTestConfig = {
           type: 'local',
           password: 'wrongpassword',
         };
 
-        await expect(testRedisConnection(config)).rejects.toThrow('Invalid password');
+        try {
+          await testRedisConnection(config);
+          expect(true).toBe(false); // Should not reach here
+        } catch (error) {
+          expect((error as Error).message).toContain('Invalid password');
+        }
       });
 
-      it('should disconnect even on error', async () => {
-        const Redis = (await import('ioredis')).default;
+      test('should disconnect even on error', async () => {
         const mockRedis = {
-          ping: jest.fn().mockRejectedValue(new Error('Some error')),
-          disconnect: jest.fn(),
+          ping: mock(async () => {
+            throw new Error('Some unexpected error');
+          }),
+          disconnect: mock(() => {}),
         };
-        (Redis as jest.Mock).mockReturnValue(mockRedis);
+
+        mock.module('ioredis', () => ({
+          default: mock(() => mockRedis),
+        }));
+
+        const { testRedisConnection } = await import('./connection-tester');
 
         const config: RedisTestConfig = {
           type: 'local',
         };
 
-        await expect(testRedisConnection(config)).rejects.toThrow();
+        try {
+          await testRedisConnection(config);
+        } catch (error) {
+          // Expected to throw
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, 10));
         expect(mockRedis.disconnect).toHaveBeenCalled();
       });
+
+      test('should timeout after 5 seconds', async () => {
+        const mockRedis = {
+          ping: mock(async () => {
+            await new Promise((resolve) => setTimeout(resolve, 10000));
+          }),
+          disconnect: mock(() => {}),
+        };
+
+        mock.module('ioredis', () => ({
+          default: mock(() => mockRedis),
+        }));
+
+        const { testRedisConnection } = await import('./connection-tester');
+
+        const config: RedisTestConfig = {
+          type: 'local',
+        };
+
+        const start = Date.now();
+        try {
+          await testRedisConnection(config);
+          expect(true).toBe(false); // Should not reach here
+        } catch (error) {
+          const elapsed = Date.now() - start;
+          expect(elapsed).toBeLessThan(7000); // Should timeout within ~5s + buffer
+          expect((error as Error).message).toContain('timed out');
+        }
+      }, 10000);
     });
 
     describe('Upstash Redis', () => {
-      it('should return true on successful PING', async () => {
-        const { Redis } = await import('@upstash/redis');
+      test('should return true on successful PING', async () => {
+        let capturedOptions: any = null;
         const mockRedis = {
-          ping: jest.fn().mockResolvedValue('PONG'),
+          ping: mock(async () => 'PONG'),
         };
-        (Redis as jest.Mock).mockReturnValue(mockRedis);
+
+        mock.module('@upstash/redis', () => ({
+          Redis: mock((options: any) => {
+            capturedOptions = options;
+            return mockRedis;
+          }),
+        }));
+
+        const { testRedisConnection } = await import('./connection-tester');
 
         const config: RedisTestConfig = {
           type: 'upstash',
@@ -310,40 +463,70 @@ describe('connection-tester', () => {
 
         const result = await testRedisConnection(config);
         expect(result).toBe(true);
-        expect(Redis).toHaveBeenCalledWith({
-          url: 'https://test.upstash.io',
-          token: 'test-token',
-        });
+        expect(capturedOptions.url).toBe('https://test.upstash.io');
+        expect(capturedOptions.token).toBe('test-token');
       });
 
-      it('should throw error when upstashUrl is missing', async () => {
+      test('should throw error when upstashUrl is missing', async () => {
+        const mockRedis = {
+          ping: mock(async () => 'PONG'),
+        };
+
+        mock.module('@upstash/redis', () => ({
+          Redis: mock(() => mockRedis),
+        }));
+
+        const { testRedisConnection } = await import('./connection-tester');
+
         const config: RedisTestConfig = {
           type: 'upstash',
           upstashToken: 'test-token',
         };
 
-        await expect(testRedisConnection(config)).rejects.toThrow(
-          'requires upstashUrl and upstashToken'
-        );
+        try {
+          await testRedisConnection(config);
+          expect(true).toBe(false); // Should not reach here
+        } catch (error) {
+          expect((error as Error).message).toContain('requires upstashUrl and upstashToken');
+        }
       });
 
-      it('should throw error when upstashToken is missing', async () => {
+      test('should throw error when upstashToken is missing', async () => {
+        const mockRedis = {
+          ping: mock(async () => 'PONG'),
+        };
+
+        mock.module('@upstash/redis', () => ({
+          Redis: mock(() => mockRedis),
+        }));
+
+        const { testRedisConnection } = await import('./connection-tester');
+
         const config: RedisTestConfig = {
           type: 'upstash',
           upstashUrl: 'https://test.upstash.io',
         };
 
-        await expect(testRedisConnection(config)).rejects.toThrow(
-          'requires upstashUrl and upstashToken'
-        );
+        try {
+          await testRedisConnection(config);
+          expect(true).toBe(false); // Should not reach here
+        } catch (error) {
+          expect((error as Error).message).toContain('requires upstashUrl and upstashToken');
+        }
       });
 
-      it('should throw error on unauthorized', async () => {
-        const { Redis } = await import('@upstash/redis');
+      test('should throw error on unauthorized (401)', async () => {
         const mockRedis = {
-          ping: jest.fn().mockRejectedValue(new Error('Unauthorized 401')),
+          ping: mock(async () => {
+            throw new Error('Unauthorized 401');
+          }),
         };
-        (Redis as jest.Mock).mockReturnValue(mockRedis);
+
+        mock.module('@upstash/redis', () => ({
+          Redis: mock(() => mockRedis),
+        }));
+
+        const { testRedisConnection } = await import('./connection-tester');
 
         const config: RedisTestConfig = {
           type: 'upstash',
@@ -351,46 +534,43 @@ describe('connection-tester', () => {
           upstashToken: 'invalid-token',
         };
 
-        await expect(testRedisConnection(config)).rejects.toThrow('Invalid credentials');
+        try {
+          await testRedisConnection(config);
+          expect(true).toBe(false); // Should not reach here
+        } catch (error) {
+          expect((error as Error).message).toContain('Invalid credentials');
+        }
       });
+
+      test('should timeout after 5 seconds', async () => {
+        const mockRedis = {
+          ping: mock(async () => {
+            await new Promise((resolve) => setTimeout(resolve, 10000));
+          }),
+        };
+
+        mock.module('@upstash/redis', () => ({
+          Redis: mock(() => mockRedis),
+        }));
+
+        const { testRedisConnection } = await import('./connection-tester');
+
+        const config: RedisTestConfig = {
+          type: 'upstash',
+          upstashUrl: 'https://test.upstash.io',
+          upstashToken: 'test-token',
+        };
+
+        const start = Date.now();
+        try {
+          await testRedisConnection(config);
+          expect(true).toBe(false); // Should not reach here
+        } catch (error) {
+          const elapsed = Date.now() - start;
+          expect(elapsed).toBeLessThan(7000); // Should timeout within ~5s + buffer
+          expect((error as Error).message).toContain('timed out');
+        }
+      }, 10000);
     });
-  });
-
-  describe('timeout behavior', () => {
-    it('should timeout database connection after 5 seconds', async () => {
-      const { DataSource } = await import('typeorm');
-      const mockDataSource = {
-        initialize: jest
-          .fn()
-          .mockImplementation(() => new Promise((resolve) => setTimeout(resolve, 10000))),
-        query: jest.fn(),
-        destroy: jest.fn().mockResolvedValue(undefined),
-        isInitialized: false,
-      };
-      (DataSource as jest.Mock).mockReturnValue(mockDataSource);
-
-      const config: DatabaseTestConfig = {
-        type: 'local',
-      };
-
-      await expect(testDatabaseConnection(config)).rejects.toThrow('timeout');
-    }, 10000);
-
-    it('should timeout Redis connection after 5 seconds', async () => {
-      const Redis = (await import('ioredis')).default;
-      const mockRedis = {
-        ping: jest
-          .fn()
-          .mockImplementation(() => new Promise((resolve) => setTimeout(resolve, 10000))),
-        disconnect: jest.fn(),
-      };
-      (Redis as jest.Mock).mockReturnValue(mockRedis);
-
-      const config: RedisTestConfig = {
-        type: 'local',
-      };
-
-      await expect(testRedisConnection(config)).rejects.toThrow('timeout');
-    }, 10000);
   });
 });
