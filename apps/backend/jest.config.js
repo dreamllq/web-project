@@ -5,6 +5,7 @@ module.exports = {
   rootDir: '.',
   testRegex: '.*\\.spec\\.ts$',
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json'],
+  emitDecoratorMetadata:true,
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
   },

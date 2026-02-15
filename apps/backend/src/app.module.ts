@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { join } from 'path';
 import { databaseConfig } from './config/database.config';
 import { jwtConfig } from './config/jwt.config';
 import { wechatConfig } from './config/wechat.config';
@@ -20,12 +21,17 @@ import { OAuthModule } from './oauth/oauth.module';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: ['.env', '.env.local'],
+      envFilePath: [
+        join(__dirname, '../../../.env'),
+        join(__dirname,'../../../.env.local'),
+      ],
       load: [jwtConfig, wechatConfig, wechatMiniprogramConfig, dingtalkMiniprogramConfig],
     }),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
-      useFactory: () => databaseConfig(),
+      useFactory: () => {
+        return databaseConfig();
+      },
     }),
     AppI18nModule,
     AuthModule,
