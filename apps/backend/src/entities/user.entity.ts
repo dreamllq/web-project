@@ -25,24 +25,24 @@ export class User {
   id: string;
 
   @Index({ unique: true })
-  @Column({ length: 50 })
+  @Column({ type: 'varchar', length: 50 })
   username: string;
 
   @Index({ unique: true })
-  @Column({ length: 255, nullable: true })
+  @Column({ type: 'varchar', length: 255, nullable: true })
   email: string | null;
 
   @Index({ unique: true })
-  @Column({ length: 20, nullable: true })
+  @Column({ type: 'varchar', length: 20, nullable: true })
   phone: string | null;
 
-  @Column({ name: 'password_hash', length: 255, nullable: true })
+  @Column({ name: 'password_hash', type: 'varchar', length: 255, nullable: true })
   passwordHash: string | null;
 
-  @Column({ length: 100, nullable: true })
+  @Column({ type: 'varchar', length: 100, nullable: true })
   nickname: string | null;
 
-  @Column({ name: 'avatar_url', length: 500, nullable: true })
+  @Column({ name: 'avatar_url', type: 'varchar', length: 500, nullable: true })
   avatarUrl: string | null;
 
   @Column({
@@ -52,13 +52,13 @@ export class User {
   })
   status: UserStatus;
 
-  @Column({ length: 10, default: 'zh-CN' })
+  @Column({ type: 'varchar', length: 10, default: 'zh-CN' })
   locale: string;
 
   @Column({ name: 'last_login_at', type: 'timestamp', nullable: true })
   lastLoginAt: Date | null;
 
-  @Column({ name: 'last_login_ip', length: 45, nullable: true })
+  @Column({ name: 'last_login_ip', type: 'varchar', length: 45, nullable: true })
   lastLoginIp: string | null;
 
   @CreateDateColumn({ name: 'created_at' })

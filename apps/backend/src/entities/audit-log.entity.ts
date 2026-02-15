@@ -19,20 +19,20 @@ export class AuditLog {
   userId: string | null;
 
   @Index()
-  @Column({ length: 100 })
+  @Column({ type: 'varchar', length: 100 })
   action: string;
 
   @Index()
-  @Column({ name: 'resource_type', length: 50 })
+  @Column({ name: 'resource_type', type: 'varchar', length: 50 })
   resourceType: string;
 
-  @Column({ name: 'resource_id', length: 100, nullable: true })
+  @Column({ name: 'resource_id', type: 'varchar', length: 100, nullable: true })
   resourceId: string | null;
 
-  @Column({ name: 'ip_address', length: 45 })
+  @Column({ name: 'ip_address', type: 'varchar', length: 45 })
   ipAddress: string;
 
-  @Column({ name: 'user_agent', length: 500, nullable: true })
+  @Column({ name: 'user_agent', type: 'varchar', length: 500, nullable: true })
   userAgent: string | null;
 
   @Column({ name: 'request_data', type: 'jsonb', nullable: true })
@@ -41,7 +41,7 @@ export class AuditLog {
   @Column({ name: 'response_status', type: 'int' })
   responseStatus: number;
 
-  @Column({ name: 'error_message', length: 1000, nullable: true })
+  @Column({ name: 'error_message', type: 'varchar', length: 1000, nullable: true })
   errorMessage: string | null;
 
   @CreateDateColumn({ name: 'created_at' })

@@ -20,10 +20,10 @@ export class Policy {
   id: string;
 
   @Index()
-  @Column({ length: 100 })
+  @Column({ type: 'varchar', length: 100 })
   name: string;
 
-  @Column({ length: 500, nullable: true })
+  @Column({ type: 'varchar', length: 500, nullable: true })
   description: string | null;
 
   @Column({
@@ -34,15 +34,15 @@ export class Policy {
   effect: PolicyEffect;
 
   @Index()
-  @Column({ length: 255 })
+  @Column({ type: 'varchar', length: 255 })
   subject: string;
 
   @Index()
-  @Column({ length: 255 })
+  @Column({ type: 'varchar', length: 255 })
   resource: string;
 
   @Index()
-  @Column({ length: 100 })
+  @Column({ type: 'varchar', length: 100 })
   action: string;
 
   @Column({ type: 'jsonb', nullable: true })
