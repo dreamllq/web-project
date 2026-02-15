@@ -16,15 +16,13 @@ import { NotificationModule } from './notification/notification.module';
 import { WebsocketModule } from './websocket/websocket.module';
 import { FileModule } from './file/file.module';
 import { OAuthModule } from './oauth/oauth.module';
+import { InitModule } from './init/init.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: [
-        join(__dirname, '../../../.env'),
-        join(__dirname,'../../../.env.local'),
-      ],
+      envFilePath: [join(__dirname, '../../../.env'), join(__dirname, '../../../.env.local')],
       load: [jwtConfig, wechatConfig, wechatMiniprogramConfig, dingtalkMiniprogramConfig],
     }),
     TypeOrmModule.forRootAsync({
@@ -42,6 +40,7 @@ import { OAuthModule } from './oauth/oauth.module';
     WebsocketModule,
     FileModule,
     OAuthModule,
+    InitModule,
   ],
   controllers: [],
   providers: [],
