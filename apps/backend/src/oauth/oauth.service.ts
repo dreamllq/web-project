@@ -1,6 +1,6 @@
-import { Injectable, Logger, UnauthorizedException, BadRequestException, Inject } from '@nestjs/common';
-import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import { Cache } from 'cache-manager';
+import { Injectable, Logger, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import { CustomCacheService } from '../custom-cache/custom-cache.service';
+import { CacheKeyPrefix, CacheTTL } from '../custom-cache/custom-cache.constants';
 import { UsersService } from '../users/users.service';
 import {
   RegisterClientDto,
@@ -18,15 +18,10 @@ import {
 @Injectable()
 export class OAuthService {
   private readonly logger = new Logger(OAuthService.name);
-  private readonly AUTHORIZATION_CODE_TTL = 600; // 10 minutes in seconds
-  private readonly ACCESS_TOKEN_TTL = 3600; // 1 hour in seconds
-  private readonly CLIENT_PREFIX = 'oauth:client:';
-  private readonly AUTH_CODE_PREFIX = 'oauth:code:';
-  private readonly ACCESS_TOKEN_PREFIX = 'oauth:token:';
 
   constructor(
-    @Inject(CACHE_MANAGER) private cacheManager: Cache,
-    private readonly usersService: UsersService,
+    private readonly cacheService: CustomCacheService,
+    private readonly usersService: UsersService
   ) {}
 
   /**
@@ -50,10 +45,10 @@ export class OAuthService {
     };
 
     // Store client in cache (in production, use database)
-    await this.cacheManager.set(
-      `${this.CLIENT_PREFIX}${clientId}`,
+    await this.cacheService.set(
+      `${CacheKeyPrefix.OAUTH_CLIENT}:${clientId}`,
       client,
-      365 * 24 * 60 * 60 * 1000, // 1 year TTL for client
+      365 * 24 * 60 * 60 * 1000 // 1 year TTL for client
     );
 
     this.logger.log(`Registered new OAuth client: ${clientId} for user: ${userId}`);
@@ -86,7 +81,7 @@ export class OAuthService {
 
     // Validate scopes (default to client scopes if not provided)
     const scopes = dto.scope ? dto.scope.split(' ') : client.scopes;
-    const validScopes = scopes.filter(s => client.scopes.includes(s));
+    const validScopes = scopes.filter((s) => client.scopes.includes(s));
 
     // Generate authorization code
     const code = this.generateCode();
@@ -96,14 +91,14 @@ export class OAuthService {
       redirectUri: dto.redirect_uri,
       userId,
       scopes: validScopes,
-      expiresAt: Date.now() + this.AUTHORIZATION_CODE_TTL * 1000,
+      expiresAt: Date.now() + CacheTTL.AUTHORIZATION_CODE * 1000,
     };
 
     // Store authorization code in cache
-    await this.cacheManager.set(
-      `${this.AUTH_CODE_PREFIX}${code}`,
+    await this.cacheService.set(
+      `${CacheKeyPrefix.OAUTH_CODE}:${code}`,
       authCode,
-      this.AUTHORIZATION_CODE_TTL * 1000,
+      CacheTTL.AUTHORIZATION_CODE * 1000
     );
 
     this.logger.log(`Generated authorization code for user: ${userId}, client: ${dto.client_id}`);
@@ -191,7 +186,7 @@ export class OAuthService {
    */
   private async handleAuthorizationCodeGrant(
     client: OAuthClient,
-    dto: TokenDto,
+    dto: TokenDto
   ): Promise<TokenEndpointResponse> {
     if (!dto.code) {
       throw new BadRequestException('Missing code parameter');
@@ -213,7 +208,7 @@ export class OAuthService {
     }
 
     // Delete the authorization code (single use)
-    await this.cacheManager.del(`${this.AUTH_CODE_PREFIX}${dto.code}`);
+    await this.cacheService.del(`${CacheKeyPrefix.OAUTH_CODE}:${dto.code}`);
 
     // Generate access token
     const accessToken = this.generateAccessToken();
@@ -222,13 +217,13 @@ export class OAuthService {
       clientId: client.clientId,
       userId: authCode.userId,
       scopes: authCode.scopes,
-      expiresAt: Date.now() + this.ACCESS_TOKEN_TTL * 1000,
+      expiresAt: Date.now() + CacheTTL.OAUTH_ACCESS_TOKEN * 1000,
     };
 
-    await this.cacheManager.set(
-      `${this.ACCESS_TOKEN_PREFIX}${accessToken}`,
+    await this.cacheService.set(
+      `${CacheKeyPrefix.OAUTH_TOKEN}:${accessToken}`,
       tokenData,
-      this.ACCESS_TOKEN_TTL * 1000,
+      CacheTTL.OAUTH_ACCESS_TOKEN * 1000
     );
 
     this.logger.log(`Issued access token for user: ${authCode.userId}, client: ${client.clientId}`);
@@ -236,7 +231,7 @@ export class OAuthService {
     return {
       access_token: accessToken,
       token_type: 'Bearer',
-      expires_in: this.ACCESS_TOKEN_TTL,
+      expires_in: CacheTTL.OAUTH_ACCESS_TOKEN,
       scope: authCode.scopes.join(' '),
     };
   }
@@ -246,11 +241,11 @@ export class OAuthService {
    */
   private async handleClientCredentialsGrant(
     client: OAuthClient,
-    dto: TokenDto,
+    dto: TokenDto
   ): Promise<TokenEndpointResponse> {
     // Determine scopes
     const requestedScopes = dto.scope ? dto.scope.split(' ') : client.scopes;
-    const scopes = requestedScopes.filter(s => client.scopes.includes(s));
+    const scopes = requestedScopes.filter((s) => client.scopes.includes(s));
 
     // Generate access token
     const accessToken = this.generateAccessToken();
@@ -259,13 +254,13 @@ export class OAuthService {
       clientId: client.clientId,
       userId: undefined, // No user for client_credentials
       scopes,
-      expiresAt: Date.now() + this.ACCESS_TOKEN_TTL * 1000,
+      expiresAt: Date.now() + CacheTTL.OAUTH_ACCESS_TOKEN * 1000,
     };
 
-    await this.cacheManager.set(
-      `${this.ACCESS_TOKEN_PREFIX}${accessToken}`,
+    await this.cacheService.set(
+      `${CacheKeyPrefix.OAUTH_TOKEN}:${accessToken}`,
       tokenData,
-      this.ACCESS_TOKEN_TTL * 1000,
+      CacheTTL.OAUTH_ACCESS_TOKEN * 1000
     );
 
     this.logger.log(`Issued client credentials token for client: ${client.clientId}`);
@@ -273,7 +268,7 @@ export class OAuthService {
     return {
       access_token: accessToken,
       token_type: 'Bearer',
-      expires_in: this.ACCESS_TOKEN_TTL,
+      expires_in: CacheTTL.OAUTH_ACCESS_TOKEN,
       scope: scopes.join(' '),
     };
   }
@@ -282,14 +277,19 @@ export class OAuthService {
    * Get client by client_id
    */
   private async getClient(clientId: string): Promise<OAuthClient | null> {
-    const client = await this.cacheManager.get<OAuthClient>(`${this.CLIENT_PREFIX}${clientId}`);
+    const client = await this.cacheService.get<OAuthClient>(
+      `${CacheKeyPrefix.OAUTH_CLIENT}:${clientId}`
+    );
     return client || null;
   }
 
   /**
    * Validate client credentials
    */
-  private async validateClient(clientId: string, clientSecret: string): Promise<OAuthClient | null> {
+  private async validateClient(
+    clientId: string,
+    clientSecret: string
+  ): Promise<OAuthClient | null> {
     const client = await this.getClient(clientId);
     if (!client || client.clientSecret !== clientSecret) {
       return null;
@@ -301,8 +301,8 @@ export class OAuthService {
    * Get authorization code from cache
    */
   private async getAuthorizationCode(code: string): Promise<OAuthAuthorizationCode | null> {
-    const authCode = await this.cacheManager.get<OAuthAuthorizationCode>(
-      `${this.AUTH_CODE_PREFIX}${code}`,
+    const authCode = await this.cacheService.get<OAuthAuthorizationCode>(
+      `${CacheKeyPrefix.OAUTH_CODE}:${code}`
     );
     return authCode || null;
   }
@@ -311,8 +311,8 @@ export class OAuthService {
    * Get access token data from cache
    */
   private async getAccessToken(token: string): Promise<OAuthAccessToken | null> {
-    const tokenData = await this.cacheManager.get<OAuthAccessToken>(
-      `${this.ACCESS_TOKEN_PREFIX}${token}`,
+    const tokenData = await this.cacheService.get<OAuthAccessToken>(
+      `${CacheKeyPrefix.OAUTH_TOKEN}:${token}`
     );
     return tokenData || null;
   }

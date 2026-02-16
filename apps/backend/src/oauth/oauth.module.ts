@@ -1,14 +1,11 @@
 import { Module } from '@nestjs/common';
-import { CacheModule } from '@nestjs/cache-manager';
+import { CustomCacheModule } from '../custom-cache/custom-cache.module';
 import { OAuthController } from './oauth.controller';
 import { OAuthService } from './oauth.service';
 import { UsersModule } from '../users/users.module';
 
 @Module({
-  imports: [
-    UsersModule,
-    CacheModule.register(),
-  ],
+  imports: [UsersModule, CustomCacheModule],
   controllers: [OAuthController],
   providers: [OAuthService],
   exports: [OAuthService],
