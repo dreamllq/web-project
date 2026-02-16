@@ -1,36 +1,75 @@
-import { Redis } from '@upstash/redis';
 import { RedisOptions } from 'ioredis';
 
-export interface UpstashConfig {
-  url: string;
-  token: string;
-}
+/**
+ * Parses a Redis URL into RedisOptions compatible with ioredis
+ *
+ * Supported formats:
+ * - redis://localhost:6379
+ * - redis://:password@localhost:6379
+ * - redis://user:password@localhost:6379/0
+ * - rediss://default:TOKEN@REGION.upstash.io:6379 (TLS)
+ */
+export const parseRedisUrl = (url: string): RedisOptions => {
+  // Default values
+  const defaults: RedisOptions = {
+    host: 'localhost',
+    port: 6379,
+    db: 0,
+    retryStrategy: (times: number) => {
+      if (times > 3) {
+        console.error('Redis connection failed after 3 retries');
+        return null;
+      }
+      return Math.min(times * 200, 2000);
+    },
+    maxRetriesPerRequest: 3,
+  };
 
-export const getUpstashRedis = (): Redis | null => {
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
-
-  if (url && token) {
-    return new Redis({ url, token });
+  if (!url) {
+    return defaults;
   }
-  return null;
+
+  try {
+    const parsed = new URL(url);
+
+    const options: RedisOptions = {
+      ...defaults,
+      host: parsed.hostname || defaults.host,
+      port: parsed.port ? parseInt(parsed.port, 10) : defaults.port!,
+    };
+
+    // Extract password (URL password component)
+    // Format: redis://user:password@host or redis://:password@host
+    if (parsed.password) {
+      options.password = decodeURIComponent(parsed.password);
+    }
+
+    // Extract database number from path (e.g., /0, /1)
+    const pathname = parsed.pathname;
+    if (pathname && pathname.length > 1) {
+      const dbString = pathname.substring(1); // Remove leading /
+      const db = parseInt(dbString, 10);
+      if (!isNaN(db) && db >= 0) {
+        options.db = db;
+      }
+    }
+
+    // Enable TLS for rediss:// protocol
+    if (parsed.protocol === 'rediss:') {
+      options.tls = {};
+    }
+
+    return options;
+  } catch {
+    // Return defaults if URL parsing fails
+    return defaults;
+  }
 };
 
-// For ioredis compatibility (fallback for local development)
-export const redisConfig = (): RedisOptions => ({
-  host: process.env.REDIS_HOST || 'localhost',
-  port: parseInt(process.env.REDIS_PORT || '6379', 10),
-  password: process.env.REDIS_PASSWORD || undefined,
-  db: parseInt(process.env.REDIS_DB || '0', 10),
-  retryStrategy: (times: number) => {
-    if (times > 3) {
-      console.error('Redis connection failed after 3 retries');
-      return null;
-    }
-    return Math.min(times * 200, 2000);
-  },
-  maxRetriesPerRequest: 3,
-});
+// For ioredis compatibility
+export const redisConfig = (): RedisOptions => {
+  return parseRedisUrl(getRedisUrl());
+};
 
 export const getRedisUrl = (): string => {
   return process.env.REDIS_URL || 'redis://localhost:6379';
