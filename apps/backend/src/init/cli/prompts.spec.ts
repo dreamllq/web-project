@@ -86,19 +86,9 @@ describe('prompts', () => {
   });
 
   describe('promptRedisConfig', () => {
-    test('should return local Redis config with defaults when local is selected', async () => {
-      const responses = [
-        { redisType: 'local' },
-        {
-          host: 'localhost',
-          port: '6379',
-          password: '',
-          db: '0',
-        },
-      ];
-      let callIndex = 0;
+    test('should return Redis config with URL', async () => {
       const promptMock = mock((...args: unknown[]) => {
-        return Promise.resolve(responses[callIndex++]);
+        return Promise.resolve({ redisUrl: 'redis://localhost:6379' });
       });
 
       mock.module('inquirer', () => ({
@@ -112,25 +102,13 @@ describe('prompts', () => {
       const result = await promptRedisConfig();
 
       expect(result).toEqual({
-        type: 'local',
-        host: 'localhost',
-        port: 6379,
-        password: undefined,
-        db: 0,
+        url: 'redis://localhost:6379',
       });
     });
 
-    test('should return Upstash config when upstash is selected', async () => {
-      const responses = [
-        { redisType: 'upstash' },
-        {
-          upstashUrl: 'https://example.upstash.io',
-          upstashToken: 'test-token',
-        },
-      ];
-      let callIndex = 0;
+    test('should accept rediss:// protocol for TLS', async () => {
       const promptMock = mock((...args: unknown[]) => {
-        return Promise.resolve(responses[callIndex++]);
+        return Promise.resolve({ redisUrl: 'rediss://default:token@region.upstash.io:6379' });
       });
 
       mock.module('inquirer', () => ({
@@ -144,25 +122,13 @@ describe('prompts', () => {
       const result = await promptRedisConfig();
 
       expect(result).toEqual({
-        type: 'upstash',
-        upstashUrl: 'https://example.upstash.io',
-        upstashToken: 'test-token',
+        url: 'rediss://default:token@region.upstash.io:6379',
       });
     });
 
-    test('should include password in local config when provided', async () => {
-      const responses = [
-        { redisType: 'local' },
-        {
-          host: 'localhost',
-          port: '6379',
-          password: 'redis-password',
-          db: '1',
-        },
-      ];
-      let callIndex = 0;
+    test('should have default value for Redis URL', async () => {
       const promptMock = mock((...args: unknown[]) => {
-        return Promise.resolve(responses[callIndex++]);
+        return Promise.resolve({ redisUrl: 'redis://localhost:6379' });
       });
 
       mock.module('inquirer', () => ({
@@ -173,15 +139,38 @@ describe('prompts', () => {
 
       const { promptRedisConfig } = await import('./prompts');
 
-      const result = await promptRedisConfig();
+      await promptRedisConfig();
 
-      expect(result).toEqual({
-        type: 'local',
-        host: 'localhost',
-        port: 6379,
-        password: 'redis-password',
-        db: 1,
+      const calls = promptMock.mock.calls;
+      const firstCall = calls[0][0];
+      const question = Array.isArray(firstCall) ? firstCall[0] : firstCall;
+      expect(question.default).toBe('redis://localhost:6379');
+    });
+
+    test('should validate Redis URL format', async () => {
+      const promptMock = mock((...args: unknown[]) => {
+        return Promise.resolve({ redisUrl: 'redis://localhost:6379' });
       });
+
+      mock.module('inquirer', () => ({
+        default: {
+          prompt: promptMock,
+        },
+      }));
+
+      const { promptRedisConfig } = await import('./prompts');
+
+      await promptRedisConfig();
+
+      const calls = promptMock.mock.calls;
+      const firstCall = calls[0][0];
+      const question = Array.isArray(firstCall) ? firstCall[0] : firstCall;
+
+      // Test validate function rejects invalid URL
+      expect(question.validate('')).toContain('不能为空');
+      expect(question.validate('invalid-url')).toContain('必须以');
+      expect(question.validate('redis://localhost:6379')).toBe(true);
+      expect(question.validate('rediss://localhost:6379')).toBe(true);
     });
   });
 
@@ -274,13 +263,7 @@ describe('prompts', () => {
     test('should run all prompts and return combined config', async () => {
       const responses = [
         { dbType: 'local' },
-        { redisType: 'local' },
-        {
-          host: 'localhost',
-          port: '6379',
-          password: '',
-          db: '0',
-        },
+        { redisUrl: 'redis://localhost:6379' },
         {
           username: 'admin',
           password: 'AdminPass123',
@@ -312,11 +295,7 @@ describe('prompts', () => {
           database: 'app',
         },
         redis: {
-          type: 'local',
-          host: 'localhost',
-          port: 6379,
-          password: undefined,
-          db: 0,
+          url: 'redis://localhost:6379',
         },
         admin: {
           username: 'admin',
@@ -328,13 +307,7 @@ describe('prompts', () => {
     test('should call console.log with welcome message', async () => {
       const responses = [
         { dbType: 'local' },
-        { redisType: 'local' },
-        {
-          host: 'localhost',
-          port: '6379',
-          password: '',
-          db: '0',
-        },
+        { redisUrl: 'redis://localhost:6379' },
         {
           username: 'admin',
           password: 'AdminPass123',

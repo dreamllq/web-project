@@ -1,11 +1,5 @@
 import inquirer from 'inquirer';
-import {
-  validatePassword,
-  validateUsername,
-  validateDatabaseUrl,
-  validateRedisHost,
-  validatePort,
-} from './validation';
+import { validatePassword, validateUsername, validateDatabaseUrl } from './validation';
 
 // Configuration interfaces
 export interface DatabaseConfig {
@@ -21,15 +15,7 @@ export interface DatabaseConfig {
 }
 
 export interface RedisConfig {
-  type: 'local' | 'upstash';
-  // For local:
-  host?: string;
-  port?: number;
-  password?: string;
-  db?: number;
-  // For Upstash:
-  upstashUrl?: string;
-  upstashToken?: string;
+  url: string;
 }
 
 export interface AdminConfig {
@@ -44,13 +30,6 @@ const LOCAL_DB_DEFAULTS = {
   username: 'postgres',
   password: 'postgres123',
   database: 'app',
-};
-
-const LOCAL_REDIS_DEFAULTS = {
-  host: 'localhost',
-  port: 6379,
-  password: '',
-  db: 0,
 };
 
 /**
@@ -100,101 +79,21 @@ export async function promptDatabaseConfig(): Promise<DatabaseConfig> {
 
 /**
  * Prompt for Redis configuration
- * Supports local Redis or Upstash
+ * Accepts a REDIS_URL connection string
  */
 export async function promptRedisConfig(): Promise<RedisConfig> {
-  const { redisType } = await inquirer.prompt<{ redisType: 'local' | 'upstash' }>([
-    {
-      type: 'list',
-      name: 'redisType',
-      message: '请选择 Redis 配置方式:',
-      choices: [
-        { name: '本地 Redis', value: 'local' },
-        { name: 'Upstash Redis (云服务)', value: 'upstash' },
-      ],
-      default: 'local',
-    },
-  ]);
-
-  if (redisType === 'upstash') {
-    const { upstashUrl, upstashToken } = await inquirer.prompt<{
-      upstashUrl: string;
-      upstashToken: string;
-    }>([
-      {
-        type: 'input',
-        name: 'upstashUrl',
-        message: '请输入 Upstash Redis REST URL:',
-        validate: (input: string) => {
-          if (!input || input.trim().length === 0) {
-            return 'Upstash URL 不能为空';
-          }
-          return true;
-        },
-      },
-      {
-        type: 'password',
-        name: 'upstashToken',
-        message: '请输入 Upstash Redis Token:',
-        mask: '*',
-        validate: (input: string) => {
-          if (!input || input.trim().length === 0) {
-            return 'Upstash Token 不能为空';
-          }
-          return true;
-        },
-      },
-    ]);
-
-    return {
-      type: 'upstash',
-      upstashUrl,
-      upstashToken,
-    };
-  }
-
-  // Prompt for local Redis configuration
-  const answers = await inquirer.prompt<{
-    host: string;
-    port: string;
-    password: string;
-    db: string;
-  }>([
+  const { redisUrl } = await inquirer.prompt<{ redisUrl: string }>([
     {
       type: 'input',
-      name: 'host',
-      message: 'Redis 主机地址:',
-      default: LOCAL_REDIS_DEFAULTS.host,
+      name: 'redisUrl',
+      message: '请输入 Redis 连接 URL (redis://host:port 或 rediss://...):',
+      default: 'redis://localhost:6379',
       validate: (input: string) => {
-        const result = validateRedisHost(input);
-        return result.valid ? true : result.message;
-      },
-    },
-    {
-      type: 'input',
-      name: 'port',
-      message: 'Redis 端口:',
-      default: LOCAL_REDIS_DEFAULTS.port.toString(),
-      validate: (input: string) => {
-        const result = validatePort(input);
-        return result.valid ? true : result.message;
-      },
-    },
-    {
-      type: 'password',
-      name: 'password',
-      message: 'Redis 密码 (可选，直接回车跳过):',
-      mask: '*',
-    },
-    {
-      type: 'input',
-      name: 'db',
-      message: 'Redis 数据库编号:',
-      default: LOCAL_REDIS_DEFAULTS.db.toString(),
-      validate: (input: string) => {
-        const dbNum = parseInt(input, 10);
-        if (isNaN(dbNum) || dbNum < 0 || dbNum > 15) {
-          return '数据库编号必须是 0-15 之间的数字';
+        if (!input || input.trim().length === 0) {
+          return 'Redis URL 不能为空';
+        }
+        if (!input.startsWith('redis://') && !input.startsWith('rediss://')) {
+          return 'Redis URL 必须以 redis:// 或 rediss:// 开头';
         }
         return true;
       },
@@ -202,11 +101,7 @@ export async function promptRedisConfig(): Promise<RedisConfig> {
   ]);
 
   return {
-    type: 'local',
-    host: answers.host,
-    port: parseInt(answers.port, 10),
-    password: answers.password || undefined,
-    db: parseInt(answers.db, 10),
+    url: redisUrl,
   };
 }
 

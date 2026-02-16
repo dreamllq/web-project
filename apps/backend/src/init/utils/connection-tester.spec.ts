@@ -1,8 +1,5 @@
-import { describe, test, expect, mock, beforeEach, afterEach } from 'bun:test';
+import { describe, test, expect, mock, beforeEach } from 'bun:test';
 import type { DatabaseTestConfig, RedisTestConfig } from './connection-tester';
-
-// Store original modules
-const originalModules: Record<string, any> = {};
 
 describe('connection-tester', () => {
   // Reset module cache between tests
@@ -248,329 +245,271 @@ describe('connection-tester', () => {
   });
 
   describe('testRedisConnection', () => {
-    describe('local Redis', () => {
-      test('should return true on successful PING', async () => {
-        const mockRedis = {
-          ping: mock(async () => 'PONG'),
-          disconnect: mock(() => {}),
-        };
+    test('should return true on successful PING', async () => {
+      const mockRedis = {
+        ping: mock(async () => 'PONG'),
+        disconnect: mock(() => {}),
+      };
 
-        mock.module('ioredis', () => ({
-          default: mock(() => mockRedis),
-        }));
+      mock.module('ioredis', () => ({
+        default: mock(() => mockRedis),
+      }));
 
-        const { testRedisConnection } = await import('./connection-tester');
-
-        const config: RedisTestConfig = {
-          type: 'local',
+      // Mock parseRedisUrl to return default options
+      mock.module('../../config/redis.config', () => ({
+        parseRedisUrl: mock(() => ({
           host: 'localhost',
           port: 6379,
-        };
+          db: 0,
+        })),
+      }));
 
-        const result = await testRedisConnection(config);
-        expect(result).toBe(true);
-        expect(mockRedis.ping).toHaveBeenCalled();
-        expect(mockRedis.disconnect).toHaveBeenCalled();
-      });
+      const { testRedisConnection } = await import('./connection-tester');
 
-      test('should use default values for host and port', async () => {
-        let capturedOptions: any = null;
-        const mockRedis = {
-          ping: mock(async () => 'PONG'),
-          disconnect: mock(() => {}),
-        };
+      const config: RedisTestConfig = {
+        url: 'redis://localhost:6379',
+      };
 
-        mock.module('ioredis', () => ({
-          default: mock((options: any) => {
-            capturedOptions = options;
-            return mockRedis;
-          }),
-        }));
-
-        const { testRedisConnection } = await import('./connection-tester');
-
-        const config: RedisTestConfig = {
-          type: 'local',
-        };
-
-        const result = await testRedisConnection(config);
-        expect(result).toBe(true);
-        expect(capturedOptions.host).toBe('localhost');
-        expect(capturedOptions.port).toBe(6379);
-      });
-
-      test('should throw error on connection refused', async () => {
-        const mockRedis = {
-          ping: mock(async () => {
-            throw new Error('connect ECONNREFUSED 127.0.0.1:6379');
-          }),
-          disconnect: mock(() => {}),
-        };
-
-        mock.module('ioredis', () => ({
-          default: mock(() => mockRedis),
-        }));
-
-        const { testRedisConnection } = await import('./connection-tester');
-
-        const config: RedisTestConfig = {
-          type: 'local',
-          host: 'unreachable',
-          port: 6379,
-        };
-
-        try {
-          await testRedisConnection(config);
-          expect(true).toBe(false); // Should not reach here
-        } catch (error) {
-          expect((error as Error).message).toContain('Connection refused');
-        }
-      });
-
-      test('should throw error on authentication required (NOAUTH)', async () => {
-        const mockRedis = {
-          ping: mock(async () => {
-            throw new Error('NOAUTH Authentication required');
-          }),
-          disconnect: mock(() => {}),
-        };
-
-        mock.module('ioredis', () => ({
-          default: mock(() => mockRedis),
-        }));
-
-        const { testRedisConnection } = await import('./connection-tester');
-
-        const config: RedisTestConfig = {
-          type: 'local',
-          host: 'localhost',
-        };
-
-        try {
-          await testRedisConnection(config);
-          expect(true).toBe(false); // Should not reach here
-        } catch (error) {
-          expect((error as Error).message).toContain('Authentication required');
-        }
-      });
-
-      test('should throw error on wrong password (WRONGPASS)', async () => {
-        const mockRedis = {
-          ping: mock(async () => {
-            throw new Error('WRONGPASS invalid username-password pair');
-          }),
-          disconnect: mock(() => {}),
-        };
-
-        mock.module('ioredis', () => ({
-          default: mock(() => mockRedis),
-        }));
-
-        const { testRedisConnection } = await import('./connection-tester');
-
-        const config: RedisTestConfig = {
-          type: 'local',
-          password: 'wrongpassword',
-        };
-
-        try {
-          await testRedisConnection(config);
-          expect(true).toBe(false); // Should not reach here
-        } catch (error) {
-          expect((error as Error).message).toContain('Invalid password');
-        }
-      });
-
-      test('should disconnect even on error', async () => {
-        const mockRedis = {
-          ping: mock(async () => {
-            throw new Error('Some unexpected error');
-          }),
-          disconnect: mock(() => {}),
-        };
-
-        mock.module('ioredis', () => ({
-          default: mock(() => mockRedis),
-        }));
-
-        const { testRedisConnection } = await import('./connection-tester');
-
-        const config: RedisTestConfig = {
-          type: 'local',
-        };
-
-        try {
-          await testRedisConnection(config);
-        } catch (error) {
-          // Expected to throw
-        }
-
-        await new Promise((resolve) => setTimeout(resolve, 10));
-        expect(mockRedis.disconnect).toHaveBeenCalled();
-      });
-
-      test('should timeout after 5 seconds', async () => {
-        const mockRedis = {
-          ping: mock(async () => {
-            await new Promise((resolve) => setTimeout(resolve, 10000));
-          }),
-          disconnect: mock(() => {}),
-        };
-
-        mock.module('ioredis', () => ({
-          default: mock(() => mockRedis),
-        }));
-
-        const { testRedisConnection } = await import('./connection-tester');
-
-        const config: RedisTestConfig = {
-          type: 'local',
-        };
-
-        const start = Date.now();
-        try {
-          await testRedisConnection(config);
-          expect(true).toBe(false); // Should not reach here
-        } catch (error) {
-          const elapsed = Date.now() - start;
-          expect(elapsed).toBeLessThan(7000); // Should timeout within ~5s + buffer
-          expect((error as Error).message).toContain('timed out');
-        }
-      }, 10000);
+      const result = await testRedisConnection(config);
+      expect(result).toBe(true);
+      expect(mockRedis.ping).toHaveBeenCalled();
+      expect(mockRedis.disconnect).toHaveBeenCalled();
     });
 
-    describe('Upstash Redis', () => {
-      test('should return true on successful PING', async () => {
-        let capturedOptions: any = null;
-        const mockRedis = {
-          ping: mock(async () => 'PONG'),
-        };
+    test('should parse URL and extract connection options', async () => {
+      let capturedOptions: any = null;
+      const mockRedis = {
+        ping: mock(async () => 'PONG'),
+        disconnect: mock(() => {}),
+      };
 
-        mock.module('@upstash/redis', () => ({
-          Redis: mock((options: any) => {
-            capturedOptions = options;
-            return mockRedis;
-          }),
-        }));
+      mock.module('ioredis', () => ({
+        default: mock((options: any) => {
+          capturedOptions = options;
+          return mockRedis;
+        }),
+      }));
 
-        const { testRedisConnection } = await import('./connection-tester');
+      mock.module('../../config/redis.config', () => ({
+        parseRedisUrl: mock((url: string) => {
+          if (url === 'redis://:password@customhost:6380/2') {
+            return {
+              host: 'customhost',
+              port: 6380,
+              password: 'password',
+              db: 2,
+            };
+          }
+          return { host: 'localhost', port: 6379, db: 0 };
+        }),
+      }));
 
-        const config: RedisTestConfig = {
-          type: 'upstash',
-          upstashUrl: 'https://test.upstash.io',
-          upstashToken: 'test-token',
-        };
+      const { testRedisConnection } = await import('./connection-tester');
 
-        const result = await testRedisConnection(config);
-        expect(result).toBe(true);
-        expect(capturedOptions.url).toBe('https://test.upstash.io');
-        expect(capturedOptions.token).toBe('test-token');
-      });
+      const config: RedisTestConfig = {
+        url: 'redis://:password@customhost:6380/2',
+      };
 
-      test('should throw error when upstashUrl is missing', async () => {
-        const mockRedis = {
-          ping: mock(async () => 'PONG'),
-        };
-
-        mock.module('@upstash/redis', () => ({
-          Redis: mock(() => mockRedis),
-        }));
-
-        const { testRedisConnection } = await import('./connection-tester');
-
-        const config: RedisTestConfig = {
-          type: 'upstash',
-          upstashToken: 'test-token',
-        };
-
-        try {
-          await testRedisConnection(config);
-          expect(true).toBe(false); // Should not reach here
-        } catch (error) {
-          expect((error as Error).message).toContain('requires upstashUrl and upstashToken');
-        }
-      });
-
-      test('should throw error when upstashToken is missing', async () => {
-        const mockRedis = {
-          ping: mock(async () => 'PONG'),
-        };
-
-        mock.module('@upstash/redis', () => ({
-          Redis: mock(() => mockRedis),
-        }));
-
-        const { testRedisConnection } = await import('./connection-tester');
-
-        const config: RedisTestConfig = {
-          type: 'upstash',
-          upstashUrl: 'https://test.upstash.io',
-        };
-
-        try {
-          await testRedisConnection(config);
-          expect(true).toBe(false); // Should not reach here
-        } catch (error) {
-          expect((error as Error).message).toContain('requires upstashUrl and upstashToken');
-        }
-      });
-
-      test('should throw error on unauthorized (401)', async () => {
-        const mockRedis = {
-          ping: mock(async () => {
-            throw new Error('Unauthorized 401');
-          }),
-        };
-
-        mock.module('@upstash/redis', () => ({
-          Redis: mock(() => mockRedis),
-        }));
-
-        const { testRedisConnection } = await import('./connection-tester');
-
-        const config: RedisTestConfig = {
-          type: 'upstash',
-          upstashUrl: 'https://test.upstash.io',
-          upstashToken: 'invalid-token',
-        };
-
-        try {
-          await testRedisConnection(config);
-          expect(true).toBe(false); // Should not reach here
-        } catch (error) {
-          expect((error as Error).message).toContain('Invalid credentials');
-        }
-      });
-
-      test('should timeout after 5 seconds', async () => {
-        const mockRedis = {
-          ping: mock(async () => {
-            await new Promise((resolve) => setTimeout(resolve, 10000));
-          }),
-        };
-
-        mock.module('@upstash/redis', () => ({
-          Redis: mock(() => mockRedis),
-        }));
-
-        const { testRedisConnection } = await import('./connection-tester');
-
-        const config: RedisTestConfig = {
-          type: 'upstash',
-          upstashUrl: 'https://test.upstash.io',
-          upstashToken: 'test-token',
-        };
-
-        const start = Date.now();
-        try {
-          await testRedisConnection(config);
-          expect(true).toBe(false); // Should not reach here
-        } catch (error) {
-          const elapsed = Date.now() - start;
-          expect(elapsed).toBeLessThan(7000); // Should timeout within ~5s + buffer
-          expect((error as Error).message).toContain('timed out');
-        }
-      }, 10000);
+      const result = await testRedisConnection(config);
+      expect(result).toBe(true);
+      expect(capturedOptions.host).toBe('customhost');
+      expect(capturedOptions.port).toBe(6380);
+      expect(capturedOptions.password).toBe('password');
+      expect(capturedOptions.db).toBe(2);
     });
+
+    test('should support rediss:// protocol for TLS', async () => {
+      let capturedOptions: any = null;
+      const mockRedis = {
+        ping: mock(async () => 'PONG'),
+        disconnect: mock(() => {}),
+      };
+
+      mock.module('ioredis', () => ({
+        default: mock((options: any) => {
+          capturedOptions = options;
+          return mockRedis;
+        }),
+      }));
+
+      mock.module('../../config/redis.config', () => ({
+        parseRedisUrl: mock((url: string) => {
+          if (url.startsWith('rediss://')) {
+            return {
+              host: 'region.upstash.io',
+              port: 6379,
+              password: 'token',
+              tls: {},
+            };
+          }
+          return { host: 'localhost', port: 6379, db: 0 };
+        }),
+      }));
+
+      const { testRedisConnection } = await import('./connection-tester');
+
+      const config: RedisTestConfig = {
+        url: 'rediss://default:token@region.upstash.io:6379',
+      };
+
+      const result = await testRedisConnection(config);
+      expect(result).toBe(true);
+      expect(capturedOptions.tls).toEqual({});
+    });
+
+    test('should throw error on connection refused', async () => {
+      const mockRedis = {
+        ping: mock(async () => {
+          throw new Error('connect ECONNREFUSED 127.0.0.1:6379');
+        }),
+        disconnect: mock(() => {}),
+      };
+
+      mock.module('ioredis', () => ({
+        default: mock(() => mockRedis),
+      }));
+
+      mock.module('../../config/redis.config', () => ({
+        parseRedisUrl: mock(() => ({ host: 'localhost', port: 6379, db: 0 })),
+      }));
+
+      const { testRedisConnection } = await import('./connection-tester');
+
+      const config: RedisTestConfig = {
+        url: 'redis://unreachable:6379',
+      };
+
+      try {
+        await testRedisConnection(config);
+        expect(true).toBe(false); // Should not reach here
+      } catch (error) {
+        expect((error as Error).message).toContain('Connection refused');
+      }
+    });
+
+    test('should throw error on authentication required (NOAUTH)', async () => {
+      const mockRedis = {
+        ping: mock(async () => {
+          throw new Error('NOAUTH Authentication required');
+        }),
+        disconnect: mock(() => {}),
+      };
+
+      mock.module('ioredis', () => ({
+        default: mock(() => mockRedis),
+      }));
+
+      mock.module('../../config/redis.config', () => ({
+        parseRedisUrl: mock(() => ({ host: 'localhost', port: 6379, db: 0 })),
+      }));
+
+      const { testRedisConnection } = await import('./connection-tester');
+
+      const config: RedisTestConfig = {
+        url: 'redis://localhost:6379',
+      };
+
+      try {
+        await testRedisConnection(config);
+        expect(true).toBe(false); // Should not reach here
+      } catch (error) {
+        expect((error as Error).message).toContain('Authentication required');
+      }
+    });
+
+    test('should throw error on wrong password (WRONGPASS)', async () => {
+      const mockRedis = {
+        ping: mock(async () => {
+          throw new Error('WRONGPASS invalid username-password pair');
+        }),
+        disconnect: mock(() => {}),
+      };
+
+      mock.module('ioredis', () => ({
+        default: mock(() => mockRedis),
+      }));
+
+      mock.module('../../config/redis.config', () => ({
+        parseRedisUrl: mock(() => ({ host: 'localhost', port: 6379, db: 0 })),
+      }));
+
+      const { testRedisConnection } = await import('./connection-tester');
+
+      const config: RedisTestConfig = {
+        url: 'redis://:wrongpassword@localhost:6379',
+      };
+
+      try {
+        await testRedisConnection(config);
+        expect(true).toBe(false); // Should not reach here
+      } catch (error) {
+        expect((error as Error).message).toContain('Invalid password');
+      }
+    });
+
+    test('should disconnect even on error', async () => {
+      const mockRedis = {
+        ping: mock(async () => {
+          throw new Error('Some unexpected error');
+        }),
+        disconnect: mock(() => {}),
+      };
+
+      mock.module('ioredis', () => ({
+        default: mock(() => mockRedis),
+      }));
+
+      mock.module('../../config/redis.config', () => ({
+        parseRedisUrl: mock(() => ({ host: 'localhost', port: 6379, db: 0 })),
+      }));
+
+      const { testRedisConnection } = await import('./connection-tester');
+
+      const config: RedisTestConfig = {
+        url: 'redis://localhost:6379',
+      };
+
+      try {
+        await testRedisConnection(config);
+      } catch (error) {
+        // Expected to throw
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(mockRedis.disconnect).toHaveBeenCalled();
+    });
+
+    test('should timeout after 5 seconds', async () => {
+      const mockRedis = {
+        ping: mock(async () => {
+          await new Promise((resolve) => setTimeout(resolve, 10000));
+        }),
+        disconnect: mock(() => {}),
+      };
+
+      mock.module('ioredis', () => ({
+        default: mock(() => mockRedis),
+      }));
+
+      mock.module('../../config/redis.config', () => ({
+        parseRedisUrl: mock(() => ({ host: 'localhost', port: 6379, db: 0 })),
+      }));
+
+      const { testRedisConnection } = await import('./connection-tester');
+
+      const config: RedisTestConfig = {
+        url: 'redis://localhost:6379',
+      };
+
+      const start = Date.now();
+      try {
+        await testRedisConnection(config);
+        expect(true).toBe(false); // Should not reach here
+      } catch (error) {
+        const elapsed = Date.now() - start;
+        expect(elapsed).toBeLessThan(7000); // Should timeout within ~5s + buffer
+        expect((error as Error).message).toContain('timed out');
+      }
+    }, 10000);
   });
 });

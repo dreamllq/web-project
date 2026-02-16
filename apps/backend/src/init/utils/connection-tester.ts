@@ -1,6 +1,6 @@
 import { DataSource } from 'typeorm';
 import Redis from 'ioredis';
-import { Redis as UpstashRedis } from '@upstash/redis';
+import { parseRedisUrl } from '../../config/redis.config';
 
 /**
  * Configuration for database connection testing
@@ -20,13 +20,7 @@ export interface DatabaseTestConfig {
  * Configuration for Redis connection testing
  */
 export interface RedisTestConfig {
-  type: 'local' | 'upstash';
-  host?: string;
-  port?: number;
-  password?: string;
-  db?: number;
-  upstashUrl?: string;
-  upstashToken?: string;
+  url: string;
 }
 
 const TIMEOUT_MS = 5000;
@@ -114,30 +108,19 @@ export async function testDatabaseConnection(config: DatabaseTestConfig): Promis
 }
 
 /**
- * Tests Redis connection using the provided configuration
- * @param config - Redis connection configuration
+ * Tests Redis connection using the provided URL
+ * @param config - Redis connection configuration with URL
  * @returns true if connection successful
  * @throws Error with descriptive message if connection fails
  */
 export async function testRedisConnection(config: RedisTestConfig): Promise<boolean> {
-  if (config.type === 'upstash') {
-    return testUpstashRedisConnection(config);
-  }
-  return testLocalRedisConnection(config);
-}
-
-/**
- * Tests local Redis connection using ioredis
- */
-async function testLocalRedisConnection(config: RedisTestConfig): Promise<boolean> {
   let redis: Redis | null = null;
 
   try {
+    const options = parseRedisUrl(config.url);
+
     redis = new Redis({
-      host: config.host || 'localhost',
-      port: config.port || 6379,
-      password: config.password,
-      db: config.db || 0,
+      ...options,
       maxRetriesPerRequest: 1,
       retryStrategy: () => null, // Don't retry on failure
       connectTimeout: TIMEOUT_MS,
@@ -165,9 +148,7 @@ async function testLocalRedisConnection(config: RedisTestConfig): Promise<boolea
       );
     }
     if (errorMessage.includes('ECONNREFUSED')) {
-      throw new Error(
-        `Redis connection failed: Connection refused. Is Redis running at ${config.host || 'localhost'}:${config.port || 6379}?`
-      );
+      throw new Error(`Redis connection failed: Connection refused. Is Redis running?`);
     }
     if (errorMessage.includes('NOAUTH')) {
       throw new Error('Redis connection failed: Authentication required. Check your password.');
@@ -181,50 +162,5 @@ async function testLocalRedisConnection(config: RedisTestConfig): Promise<boolea
     if (redis) {
       redis.disconnect();
     }
-  }
-}
-
-/**
- * Tests Upstash Redis connection using @upstash/redis
- */
-async function testUpstashRedisConnection(config: RedisTestConfig): Promise<boolean> {
-  try {
-    if (!config.upstashUrl || !config.upstashToken) {
-      throw new Error('Upstash Redis requires upstashUrl and upstashToken');
-    }
-
-    const redis = new UpstashRedis({
-      url: config.upstashUrl,
-      token: config.upstashToken,
-    });
-
-    const pingPromise = redis.ping();
-
-    const result = await withTimeout(
-      pingPromise,
-      TIMEOUT_MS,
-      `Upstash Redis connection timeout after ${TIMEOUT_MS / 1000} seconds`
-    );
-
-    if (result !== 'PONG') {
-      throw new Error(`Unexpected response from Upstash Redis: ${result}`);
-    }
-
-    return true;
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-
-    if (errorMessage.includes('timeout')) {
-      throw new Error(
-        `Upstash Redis connection failed: Connection timed out after ${TIMEOUT_MS / 1000} seconds`
-      );
-    }
-    if (errorMessage.includes('401') || errorMessage.includes('Unauthorized')) {
-      throw new Error(
-        'Upstash Redis connection failed: Invalid credentials. Check your upstashUrl and upstashToken.'
-      );
-    }
-
-    throw new Error(`Upstash Redis connection failed: ${errorMessage}`);
   }
 }

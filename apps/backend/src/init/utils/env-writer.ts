@@ -17,15 +17,7 @@ export interface InitConfig {
     url?: string;
   };
   redis: {
-    type: 'local' | 'upstash';
-    // For local:
-    host?: string;
-    port?: number;
-    password?: string;
-    db?: number;
-    // For Upstash:
-    upstashUrl?: string;
-    upstashToken?: string;
+    url: string;
   };
 }
 
@@ -66,15 +58,7 @@ function generateEnvContent(config: InitConfig): string {
 
   // Redis Configuration
   lines.push('# Redis Configuration');
-  if (config.redis.type === 'upstash') {
-    lines.push(`UPSTASH_REDIS_REST_URL=${config.redis.upstashUrl || ''}`);
-    lines.push(`UPSTASH_REDIS_REST_TOKEN=${config.redis.upstashToken || ''}`);
-  } else {
-    lines.push(`REDIS_HOST=${config.redis.host || 'localhost'}`);
-    lines.push(`REDIS_PORT=${config.redis.port || 6379}`);
-    lines.push(`REDIS_PASSWORD=${config.redis.password || ''}`);
-    lines.push(`REDIS_DB=${config.redis.db || 0}`);
-  }
+  lines.push(`REDIS_URL=${config.redis.url}`);
   lines.push('');
 
   // Initialization Status

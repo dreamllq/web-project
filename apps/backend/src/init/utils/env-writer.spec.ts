@@ -3,7 +3,7 @@ import * as path from 'path';
 import { writeEnvFile, InitConfig } from './env-writer';
 
 describe('env-writer', () => {
-  const testEnvPath = path.join(__dirname, '../../../../.env.test.local');
+  const testEnvPath = path.join(__dirname, '../../../../../.env.test.local');
 
   // Helper to create test config
   const createTestConfig = (overrides: Partial<InitConfig> = {}): InitConfig => ({
@@ -16,11 +16,7 @@ describe('env-writer', () => {
       database: 'app',
     },
     redis: {
-      type: 'local',
-      host: 'localhost',
-      port: 6379,
-      password: '',
-      db: 0,
+      url: 'redis://localhost:6379',
     },
     ...overrides,
   });
@@ -69,32 +65,39 @@ describe('env-writer', () => {
       );
     });
 
-    it('should write .env.local file with local Redis configuration', () => {
+    it('should write .env.local file with REDIS_URL', () => {
       const config = createTestConfig();
 
       writeEnvFile(config, testEnvPath);
 
       const content = fs.readFileSync(testEnvPath, 'utf-8');
-      expect(content).toContain('REDIS_HOST=localhost');
-      expect(content).toContain('REDIS_PORT=6379');
-      expect(content).toContain('REDIS_PASSWORD=');
-      expect(content).toContain('REDIS_DB=0');
+      expect(content).toContain('REDIS_URL=redis://localhost:6379');
     });
 
-    it('should write .env.local file with Upstash Redis configuration', () => {
+    it('should write REDIS_URL with password', () => {
       const config = createTestConfig({
         redis: {
-          type: 'upstash',
-          upstashUrl: 'https://xxx.us1.upstash.io',
-          upstashToken: 'test-token',
+          url: 'redis://:mypassword@localhost:6379',
         },
       });
 
       writeEnvFile(config, testEnvPath);
 
       const content = fs.readFileSync(testEnvPath, 'utf-8');
-      expect(content).toContain('UPSTASH_REDIS_REST_URL=https://xxx.us1.upstash.io');
-      expect(content).toContain('UPSTASH_REDIS_REST_TOKEN=test-token');
+      expect(content).toContain('REDIS_URL=redis://:mypassword@localhost:6379');
+    });
+
+    it('should write REDIS_URL with TLS (rediss://)', () => {
+      const config = createTestConfig({
+        redis: {
+          url: 'rediss://default:token@region.upstash.io:6379',
+        },
+      });
+
+      writeEnvFile(config, testEnvPath);
+
+      const content = fs.readFileSync(testEnvPath, 'utf-8');
+      expect(content).toContain('REDIS_URL=rediss://default:token@region.upstash.io:6379');
     });
 
     it('should include APP_INITIALIZED=true marker', () => {
@@ -131,23 +134,6 @@ describe('env-writer', () => {
       expect(content.length).toBeGreaterThan(0);
     });
 
-    it('should handle Redis password with special characters', () => {
-      const config = createTestConfig({
-        redis: {
-          type: 'local',
-          host: 'localhost',
-          port: 6379,
-          password: 'p@ss:word#123',
-          db: 0,
-        },
-      });
-
-      writeEnvFile(config, testEnvPath);
-
-      const content = fs.readFileSync(testEnvPath, 'utf-8');
-      expect(content).toContain('REDIS_PASSWORD=p@ss:word#123');
-    });
-
     it('should handle database password with special characters', () => {
       const config = createTestConfig({
         database: {
@@ -167,39 +153,19 @@ describe('env-writer', () => {
       expect(content).toContain('DATABASE_URL=');
     });
 
-    it('should not write Upstash vars when using local Redis', () => {
-      const config = createTestConfig({
-        redis: {
-          type: 'local',
-          host: 'localhost',
-          port: 6379,
-          password: '',
-          db: 0,
-        },
-      });
+    it('should not write legacy Redis env vars', () => {
+      const config = createTestConfig();
 
       writeEnvFile(config, testEnvPath);
 
       const content = fs.readFileSync(testEnvPath, 'utf-8');
-      expect(content).not.toContain('UPSTASH_REDIS_REST_URL');
-      expect(content).not.toContain('UPSTASH_REDIS_REST_TOKEN');
-    });
-
-    it('should not write local Redis vars when using Upstash', () => {
-      const config = createTestConfig({
-        redis: {
-          type: 'upstash',
-          upstashUrl: 'https://xxx.us1.upstash.io',
-          upstashToken: 'test-token',
-        },
-      });
-
-      writeEnvFile(config, testEnvPath);
-
-      const content = fs.readFileSync(testEnvPath, 'utf-8');
-      expect(content).not.toContain('REDIS_HOST');
-      expect(content).not.toContain('REDIS_PORT');
-      expect(content).not.toContain('REDIS_DB');
+      // Should not contain legacy variables
+      expect(content).not.toContain('REDIS_HOST=');
+      expect(content).not.toContain('REDIS_PORT=');
+      expect(content).not.toContain('REDIS_PASSWORD=');
+      expect(content).not.toContain('REDIS_DB=');
+      expect(content).not.toContain('UPSTASH_REDIS_REST_URL=');
+      expect(content).not.toContain('UPSTASH_REDIS_REST_TOKEN=');
     });
   });
 });
