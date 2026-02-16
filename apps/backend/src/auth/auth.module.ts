@@ -2,9 +2,8 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
-import { CacheModule } from '@nestjs/cache-manager';
 import { HttpModule } from '@nestjs/axios';
-import * as redisStore from 'cache-manager-redis-yet';
+import { CustomCacheModule } from '../custom-cache/custom-cache.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { UsersModule } from '../users/users.module';
@@ -49,23 +48,23 @@ import { DingtalkMiniprogramService } from './oauth/dingtalk-miniprogram.service
       },
       inject: [ConfigService],
     }),
-    CacheModule.registerAsync({
-      isGlobal: true,
-      useFactory: () => ({
-        store: redisStore,
-        // Redis connection configuration
-        socket: {
-          host: process.env.REDIS_HOST || 'localhost',
-          port: parseInt(process.env.REDIS_PORT || '6379', 10),
-        },
-        password: process.env.REDIS_PASSWORD || undefined,
-        ttl: 604800000, // Default TTL: 7 days in milliseconds
-      }),
-    }),
+    CustomCacheModule,
     HttpModule,
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, WechatOAuthService, WechatMiniprogramService, DingtalkMiniprogramService],
-  exports: [AuthService, JwtModule, WechatOAuthService, WechatMiniprogramService, DingtalkMiniprogramService],
+  providers: [
+    AuthService,
+    JwtStrategy,
+    WechatOAuthService,
+    WechatMiniprogramService,
+    DingtalkMiniprogramService,
+  ],
+  exports: [
+    AuthService,
+    JwtModule,
+    WechatOAuthService,
+    WechatMiniprogramService,
+    DingtalkMiniprogramService,
+  ],
 })
 export class AuthModule {}

@@ -1,17 +1,17 @@
+// Mock bcrypt
+jest.mock('bcrypt');
+
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { UnauthorizedException } from '@nestjs/common';
+import { CustomCacheService } from '../custom-cache/custom-cache.service';
 import * as bcrypt from 'bcrypt';
 import { AuthService, CustomJwtPayload } from './auth.service';
 import { UsersService } from '../users/users.service';
 import { User, UserStatus } from '../entities/user.entity';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
-
-// Mock bcrypt
-jest.mock('bcrypt');
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -29,9 +29,10 @@ describe('AuthService', () => {
     verify: jest.fn(),
   };
 
-  const mockCacheManager = {
+  const mockCustomCacheService = {
     get: jest.fn(),
     set: jest.fn(),
+    del: jest.fn(),
   };
 
   const mockConfigService = {
@@ -68,8 +69,8 @@ describe('AuthService', () => {
           useValue: mockConfigService,
         },
         {
-          provide: CACHE_MANAGER,
-          useValue: mockCacheManager,
+          provide: CustomCacheService,
+          useValue: mockCustomCacheService,
         },
       ],
     }).compile();
@@ -172,7 +173,7 @@ describe('AuthService', () => {
     };
 
     it('should refresh tokens successfully', async () => {
-      mockCacheManager.get.mockResolvedValue(null);
+      mockCustomCacheService.get.mockResolvedValue(null);
       mockJwtService.verify.mockReturnValue(validPayload);
       mockUsersService.findById.mockResolvedValue(mockUser);
       mockJwtService.sign
@@ -189,58 +190,58 @@ describe('AuthService', () => {
     });
 
     it('should throw if token is blacklisted', async () => {
-      mockCacheManager.get.mockResolvedValue('1');
+      mockCustomCacheService.get.mockResolvedValue('1');
 
       await expect(service.refreshToken('blacklisted_token')).rejects.toThrow(
-        UnauthorizedException,
+        UnauthorizedException
       );
     });
 
     it('should throw if token type is not refresh', async () => {
-      mockCacheManager.get.mockResolvedValue(null);
+      mockCustomCacheService.get.mockResolvedValue(null);
       mockJwtService.verify.mockReturnValue({
         ...validPayload,
         type: 'access',
       });
 
       await expect(service.refreshToken('access_token_as_refresh')).rejects.toThrow(
-        UnauthorizedException,
+        UnauthorizedException
       );
     });
 
     it('should throw if user not found', async () => {
-      mockCacheManager.get.mockResolvedValue(null);
+      mockCustomCacheService.get.mockResolvedValue(null);
       mockJwtService.verify.mockReturnValue(validPayload);
       mockUsersService.findById.mockResolvedValue(null);
 
       await expect(service.refreshToken('valid_refresh_token')).rejects.toThrow(
-        UnauthorizedException,
+        UnauthorizedException
       );
     });
 
     it('should throw if user is disabled', async () => {
       const disabledUser = { ...mockUser, status: UserStatus.DISABLED };
-      mockCacheManager.get.mockResolvedValue(null);
+      mockCustomCacheService.get.mockResolvedValue(null);
       mockJwtService.verify.mockReturnValue(validPayload);
       mockUsersService.findById.mockResolvedValue(disabledUser);
 
       await expect(service.refreshToken('valid_refresh_token')).rejects.toThrow(
-        UnauthorizedException,
+        UnauthorizedException
       );
     });
 
     it('should blacklist old refresh token after refresh', async () => {
-      mockCacheManager.get.mockResolvedValue(null);
+      mockCustomCacheService.get.mockResolvedValue(null);
       mockJwtService.verify.mockReturnValue(validPayload);
       mockUsersService.findById.mockResolvedValue(mockUser);
       mockJwtService.sign.mockReturnValue('new_token');
 
       await service.refreshToken('old_refresh_token');
 
-      expect(mockCacheManager.set).toHaveBeenCalledWith(
+      expect(mockCustomCacheService.set).toHaveBeenCalledWith(
         'blacklist:old_refresh_token',
         '1',
-        604800000,
+        604800000
       );
     });
   });
@@ -249,10 +250,10 @@ describe('AuthService', () => {
     it('should blacklist the access token', async () => {
       await service.logout('uuid-123', 'access_token_to_blacklist');
 
-      expect(mockCacheManager.set).toHaveBeenCalledWith(
+      expect(mockCustomCacheService.set).toHaveBeenCalledWith(
         'blacklist:access_token_to_blacklist',
         '1',
-        900000,
+        900000
       );
     });
   });
@@ -265,7 +266,7 @@ describe('AuthService', () => {
     };
 
     it('should return user for valid access token', async () => {
-      mockCacheManager.get.mockResolvedValue(null);
+      mockCustomCacheService.get.mockResolvedValue(null);
       mockJwtService.verify.mockReturnValue(validAccessPayload);
       mockUsersService.findById.mockResolvedValue(mockUser);
 
@@ -275,59 +276,59 @@ describe('AuthService', () => {
     });
 
     it('should throw if token is blacklisted', async () => {
-      mockCacheManager.get.mockResolvedValue('1');
+      mockCustomCacheService.get.mockResolvedValue('1');
 
       await expect(service.validateAccessToken('blacklisted_token')).rejects.toThrow(
-        UnauthorizedException,
+        UnauthorizedException
       );
     });
 
     it('should throw if token type is not access', async () => {
-      mockCacheManager.get.mockResolvedValue(null);
+      mockCustomCacheService.get.mockResolvedValue(null);
       mockJwtService.verify.mockReturnValue({
         ...validAccessPayload,
         type: 'refresh',
       });
 
       await expect(service.validateAccessToken('refresh_token_as_access')).rejects.toThrow(
-        UnauthorizedException,
+        UnauthorizedException
       );
     });
 
     it('should throw if user not found', async () => {
-      mockCacheManager.get.mockResolvedValue(null);
+      mockCustomCacheService.get.mockResolvedValue(null);
       mockJwtService.verify.mockReturnValue(validAccessPayload);
       mockUsersService.findById.mockResolvedValue(null);
 
       await expect(service.validateAccessToken('valid_access_token')).rejects.toThrow(
-        UnauthorizedException,
+        UnauthorizedException
       );
     });
 
     it('should throw for invalid token', async () => {
-      mockCacheManager.get.mockResolvedValue(null);
+      mockCustomCacheService.get.mockResolvedValue(null);
       mockJwtService.verify.mockImplementation(() => {
         throw new Error('Invalid token');
       });
 
       await expect(service.validateAccessToken('invalid_token')).rejects.toThrow(
-        UnauthorizedException,
+        UnauthorizedException
       );
     });
   });
 
   describe('isTokenBlacklisted', () => {
     it('should return true if token is blacklisted', async () => {
-      mockCacheManager.get.mockResolvedValue('1');
+      mockCustomCacheService.get.mockResolvedValue('1');
 
       const result = await service.isTokenBlacklisted('blacklisted_token');
 
       expect(result).toBe(true);
-      expect(mockCacheManager.get).toHaveBeenCalledWith('blacklist:blacklisted_token');
+      expect(mockCustomCacheService.get).toHaveBeenCalledWith('blacklist:blacklisted_token');
     });
 
     it('should return false if token is not blacklisted', async () => {
-      mockCacheManager.get.mockResolvedValue(null);
+      mockCustomCacheService.get.mockResolvedValue(null);
 
       const result = await service.isTokenBlacklisted('valid_token');
 
@@ -420,9 +421,7 @@ describe('AuthService', () => {
       mockUsersService.findByUsername.mockResolvedValue(mockUser);
       (bcrypt.compare as jest.Mock).mockResolvedValue(true);
       mockUsersService.updateLastLogin.mockResolvedValue(undefined);
-      mockJwtService.sign
-        .mockReturnValueOnce('access_token')
-        .mockReturnValueOnce('refresh_token');
+      mockJwtService.sign.mockReturnValueOnce('access_token').mockReturnValueOnce('refresh_token');
 
       const result = await service.login(loginDto);
 

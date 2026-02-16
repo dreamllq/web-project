@@ -1,8 +1,8 @@
-import { Injectable, UnauthorizedException, Inject, Logger } from '@nestjs/common';
+import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import { Cache } from 'cache-manager';
+import { CustomCacheService } from '../custom-cache/custom-cache.service';
+import { CacheKeyPrefix } from '../custom-cache/custom-cache.constants';
 import * as bcrypt from 'bcrypt';
 import { UsersService } from '../users/users.service';
 import { RegisterDto } from './dto/register.dto';
@@ -53,7 +53,7 @@ export class AuthService {
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
-    @Inject(CACHE_MANAGER) private cacheManager: Cache,
+    private readonly cacheService: CustomCacheService
   ) {}
 
   async hashPassword(password: string): Promise<string> {
@@ -205,8 +205,8 @@ export class AuthService {
    * Check if token is in Redis blacklist
    */
   async isTokenBlacklisted(token: string): Promise<boolean> {
-    const key = `blacklist:${token}`;
-    const result = await this.cacheManager.get(key);
+    const key = `${CacheKeyPrefix.BLACKLIST}:${token}`;
+    const result = await this.cacheService.get(key);
     return result !== null && result !== undefined;
   }
 
@@ -214,8 +214,8 @@ export class AuthService {
    * Add token to Redis blacklist with TTL
    */
   private async blacklistToken(token: string, ttl: number): Promise<void> {
-    const key = `blacklist:${token}`;
-    await this.cacheManager.set(key, '1', ttl * 1000); // TTL in milliseconds
+    const key = `${CacheKeyPrefix.BLACKLIST}:${token}`;
+    await this.cacheService.set(key, '1', ttl * 1000); // TTL in milliseconds
   }
 
   /**
