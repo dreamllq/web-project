@@ -44,5 +44,63 @@
     "logout": "Logout",
     "profile": "Profile",
     "settings": "Settings"
+  },
+  "profile": {
+    "title": "Profile",
+    "username": "Username",
+    "email": "Email",
+    "phone": "Phone",
+    "nickname": "Nickname",
+    "locale": "Language Preference",
+    "status": "Status",
+    "emailVerified": "Email Verified",
+    "emailNotVerified": "Email Not Verified",
+    "requestVerification": "Request Verification",
+    "save": "Save",
+    "updateSuccess": "Profile updated successfully",
+    "updateFailed": "Update failed",
+    "verificationSent": "Verification email sent"
+  },
+  "changePassword": {
+    "title": "Change Password",
+    "oldPassword": "Current Password",
+    "newPassword": "New Password",
+    "confirmPassword": "Confirm New Password",
+    "submit": "Change Password",
+    "oldPasswordRequired": "Please enter current password",
+    "newPasswordRequired": "Please enter new password",
+    "confirmPasswordRequired": "Please confirm new password",
+    "passwordMismatch": "Passwords do not match",
+    "passwordTooShort": "Password must be at least 8 characters",
+    "passwordTooWeak": "Password must contain uppercase, lowercase and numbers",
+    "success": "Password changed successfully",
+    "failed": "Password change failed",
+    "wrongOldPassword": "Current password is incorrect"
+  },
+  "forgotPassword": {
+    "title": "Forgot Password",
+    "email": "Email Address",
+    "submit": "Send Reset Email",
+    "emailRequired": "Please enter email",
+    "emailInvalid": "Please enter a valid email",
+    "success": "If the email exists, you will receive a reset link",
+    "backToLogin": "Back to Login"
+  },
+  "resetPassword": {
+    "title": "Reset Password",
+    "newPassword": "New Password",
+    "confirmPassword": "Confirm New Password",
+    "submit": "Reset Password",
+    "success": "Password reset successfully, please login",
+    "failed": "Password reset failed, link may have expired",
+    "invalidToken": "Invalid reset link",
+    "backToLogin": "Back to Login"
+  },
+  "messages": {
+    "loading": "Loading...",
+    "saving": "Saving...",
+    "success": "Operation successful",
+    "error": "Operation failed",
+    "networkError": "Network error, please try again"
   }
 }

@@ -1,6 +1,6 @@
-import axios from 'axios'
-import { useAuthStore } from '@/stores/auth'
-import router from '@/router'
+import axios from 'axios';
+import { useAuthStore } from '@/stores/auth';
+import router from '@/router';
 
 const api = axios.create({
   baseURL: '/api',
@@ -8,33 +8,35 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-})
+});
 
 // Request interceptor - add auth token
 api.interceptors.request.use(
   (config) => {
-    const authStore = useAuthStore()
+    const authStore = useAuthStore();
     if (authStore.token) {
-      config.headers.Authorization = `Bearer ${authStore.token}`
+      config.headers.Authorization = `Bearer ${authStore.token}`;
     }
-    return config
+    return config;
   },
   (error) => {
-    return Promise.reject(error)
+    return Promise.reject(error);
   }
-)
+);
 
 // Response interceptor - handle errors
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      const authStore = useAuthStore()
-      authStore.logout()
-      router.push({ name: 'Login' })
+      const authStore = useAuthStore();
+      authStore.logout();
+      router.push({ name: 'Login' });
     }
-    return Promise.reject(error)
+    return Promise.reject(error);
   }
-)
+);
 
-export default api
+export * from './user';
+
+export default api;
