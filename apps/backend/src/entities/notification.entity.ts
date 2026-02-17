@@ -7,7 +7,7 @@ import {
   ManyToOne,
   JoinColumn,
 } from 'typeorm';
-import { User } from './user.entity';
+import type { User } from './user.entity';
 
 export enum NotificationType {
   SYSTEM = 'system',
@@ -46,8 +46,8 @@ export class Notification {
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 
-  // Relations
-  @ManyToOne(() => User, (user) => user.notifications)
+  // Relations - use lazy import to avoid circular dependency
+  @ManyToOne(() => require('./user.entity').User, (user: User) => user.notifications)
   @JoinColumn({ name: 'user_id' })
   user: User;
 }

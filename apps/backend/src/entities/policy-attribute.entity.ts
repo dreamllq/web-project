@@ -8,7 +8,7 @@ import {
   Index,
   Unique,
 } from 'typeorm';
-import { Policy } from './policy.entity';
+import type { Policy } from './policy.entity';
 import { Attribute } from './attribute.entity';
 
 @Entity('policy_attributes')
@@ -32,7 +32,8 @@ export class PolicyAttribute {
   createdAt: Date;
 
   // Relations
-  @ManyToOne(() => Policy, (policy) => policy.policyAttributes, {
+  // Use lazy import to avoid circular dependency
+  @ManyToOne(() => require('./policy.entity').Policy, (policy: Policy) => policy.policyAttributes, {
     onDelete: 'CASCADE',
   })
   @JoinColumn({ name: 'policy_id' })

@@ -12,6 +12,7 @@ import { SocialAccount } from './social-account.entity';
 import { Notification } from './notification.entity';
 import { File } from './file.entity';
 import { OAuthToken } from './oauth-token.entity';
+import { VerificationToken } from './verification-token.entity';
 
 export enum UserStatus {
   ACTIVE = 'active',
@@ -61,6 +62,12 @@ export class User {
   @Column({ name: 'last_login_ip', type: 'varchar', length: 45, nullable: true })
   lastLoginIp: string | null;
 
+  @Column({ name: 'email_verified_at', type: 'timestamp', nullable: true })
+  emailVerifiedAt: Date | null;
+
+  @Column({ name: 'phone_verified_at', type: 'timestamp', nullable: true })
+  phoneVerifiedAt: Date | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 
@@ -82,4 +89,7 @@ export class User {
 
   @OneToMany(() => OAuthToken, (token) => token.user)
   oauthTokens: OAuthToken[];
+
+  @OneToMany(() => VerificationToken, (verificationToken) => verificationToken.user)
+  verificationTokens: VerificationToken[];
 }

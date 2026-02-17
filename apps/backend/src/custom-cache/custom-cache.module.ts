@@ -18,9 +18,12 @@ import { getRedisUrl } from '../config/redis.config';
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => {
         const redisUrl = getRedisUrl();
+        console.log(111);
+        
         const store = await redisStore({
           url: redisUrl,
         });
+        console.log(222);
         return {
           store,
           ttl: configService.get<number>('CACHE_TTL', 300000), // Default: 5 minutes

@@ -7,7 +7,7 @@ import {
   ManyToOne,
   JoinColumn,
 } from 'typeorm';
-import { User } from './user.entity';
+import type { User } from './user.entity';
 import { OAuthClient } from './oauth-client.entity';
 
 @Entity('oauth_tokens')
@@ -47,7 +47,8 @@ export class OAuthToken {
   @JoinColumn({ name: 'client_id' })
   client: OAuthClient;
 
-  @ManyToOne(() => User, (user) => user.oauthTokens)
+  // Use lazy import to avoid circular dependency
+  @ManyToOne(() => require('./user.entity').User, (user: User) => user.oauthTokens)
   @JoinColumn({ name: 'user_id' })
   user: User | null;
 }

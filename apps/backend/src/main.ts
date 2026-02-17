@@ -1,10 +1,11 @@
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
+import { ValidationPipe, VersioningType, VERSION_NEUTRAL } from '@nestjs/common';
 import { join } from 'path';
 import { existsSync, readFileSync } from 'fs';
 import { AppModule } from './app.module';
 import { InitService } from './init/init.service';
+import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 
 /**
  * Check if the application has been initialized
@@ -52,6 +53,9 @@ async function bootstrap() {
 
   const app = await NestFactory.create(AppModule);
 
+  // Register global exception filter
+  app.useGlobalFilters(new AllExceptionsFilter());
+
   // Enable global validation
   app.useGlobalPipes(
     new ValidationPipe({
@@ -63,6 +67,15 @@ async function bootstrap() {
 
   // Enable CORS
   app.enableCors();
+
+  // Enable URI-based versioning
+  // Routes can be accessed as:
+  // - /api/auth/login (VERSION_NEUTRAL - default/unversioned)
+  // - /api/v1/auth/login (version 1)
+  app.enableVersioning({
+    type: VersioningType.URI,
+    defaultVersion: VERSION_NEUTRAL,
+  });
 
   // Set global prefix
   app.setGlobalPrefix('api');

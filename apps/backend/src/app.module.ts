@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { join } from 'path';
 import { databaseConfig } from './config/database.config';
 import { jwtConfig } from './config/jwt.config';
+import { mailConfig } from './config/mail.config';
 import { wechatConfig } from './config/wechat.config';
 import { wechatMiniprogramConfig } from './config/wechat-miniprogram.config';
 import { dingtalkMiniprogramConfig } from './config/dingtalk-miniprogram.config';
@@ -17,13 +18,20 @@ import { WebsocketModule } from './websocket/websocket.module';
 import { FileModule } from './file/file.module';
 import { OAuthModule } from './oauth/oauth.module';
 import { InitModule } from './init/init.module';
+import { MailModule } from './mail/mail.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: [join(__dirname, '../../../.env'), join(__dirname, '../../../.env.local')],
-      load: [jwtConfig, wechatConfig, wechatMiniprogramConfig, dingtalkMiniprogramConfig],
+      load: [
+        jwtConfig,
+        mailConfig,
+        wechatConfig,
+        wechatMiniprogramConfig,
+        dingtalkMiniprogramConfig,
+      ],
     }),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
@@ -41,6 +49,7 @@ import { InitModule } from './init/init.module';
     FileModule,
     OAuthModule,
     InitModule,
+    MailModule,
   ],
   controllers: [],
   providers: [],

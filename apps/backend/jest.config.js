@@ -3,9 +3,9 @@ module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
   rootDir: '.',
-  testRegex: '.*\\.spec\\.ts$',
+  testRegex: '.*\\.(spec|e2e-spec)\\.ts$',
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json'],
-  emitDecoratorMetadata:true,
+  emitDecoratorMetadata: true,
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
   },

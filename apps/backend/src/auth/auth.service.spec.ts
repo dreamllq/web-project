@@ -1,15 +1,23 @@
-// Mock bcrypt
-jest.mock('bcrypt');
-
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { UnauthorizedException } from '@nestjs/common';
 import { CustomCacheService } from '../custom-cache/custom-cache.service';
+import { mock, describe, it, expect, beforeEach, afterEach } from 'bun:test';
+
+// Mock bcrypt module for Bun compatibility
+mock.module('bcrypt', () => ({
+  hash: mock(async () => 'hashed_password'),
+  compare: mock(async () => true),
+  genSalt: mock(async () => 'salt'),
+}));
+
 import * as bcrypt from 'bcrypt';
 import { AuthService, CustomJwtPayload } from './auth.service';
 import { UsersService } from '../users/users.service';
 import { User, UserStatus } from '../entities/user.entity';
+import { VerificationTokenService } from './services/verification-token.service';
+import { MailService } from '../mail/mail.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 
@@ -17,30 +25,42 @@ describe('AuthService', () => {
   let service: AuthService;
 
   const mockUsersService = {
-    create: jest.fn(),
-    findByUsername: jest.fn(),
-    findById: jest.fn(),
-    updateLastLogin: jest.fn(),
-    updateStatus: jest.fn(),
+    create: mock(),
+    findByUsername: mock(),
+    findById: mock(),
+    updateLastLogin: mock(),
+    updateStatus: mock(),
   };
 
   const mockJwtService = {
-    sign: jest.fn(),
-    verify: jest.fn(),
+    sign: mock(),
+    verify: mock(),
   };
 
   const mockCustomCacheService = {
-    get: jest.fn(),
-    set: jest.fn(),
-    del: jest.fn(),
+    get: mock(),
+    set: mock(),
+    del: mock(),
   };
 
   const mockConfigService = {
-    get: jest.fn().mockReturnValue({
+    get: mock().mockReturnValue({
       secret: 'test-secret-key',
       accessTokenExpiresIn: '15m',
       refreshTokenExpiresIn: '7d',
     }),
+  };
+
+  const mockVerificationTokenService = {
+    generateToken: mock(),
+    validateToken: mock(),
+    markAsUsed: mock(),
+    invalidateUserTokens: mock(),
+  };
+
+  const mockMailService = {
+    sendVerificationEmail: mock(),
+    sendPasswordResetEmail: mock(),
   };
 
   const mockUser = {
@@ -72,6 +92,14 @@ describe('AuthService', () => {
           provide: CustomCacheService,
           useValue: mockCustomCacheService,
         },
+        {
+          provide: VerificationTokenService,
+          useValue: mockVerificationTokenService,
+        },
+        {
+          provide: MailService,
+          useValue: mockMailService,
+        },
       ],
     }).compile();
 
@@ -79,7 +107,18 @@ describe('AuthService', () => {
   });
 
   afterEach(() => {
-    jest.clearAllMocks();
+    mockUsersService.create.mockClear();
+    mockUsersService.findByUsername.mockClear();
+    mockUsersService.findById.mockClear();
+    mockUsersService.updateLastLogin.mockClear();
+    mockUsersService.updateStatus.mockClear();
+    mockJwtService.sign.mockClear();
+    mockJwtService.verify.mockClear();
+    mockCustomCacheService.get.mockClear();
+    mockCustomCacheService.set.mockClear();
+    mockCustomCacheService.del.mockClear();
+    (bcrypt.hash as ReturnType<typeof mock>).mockClear();
+    (bcrypt.compare as ReturnType<typeof mock>).mockClear();
   });
 
   describe('hashPassword', () => {
@@ -87,7 +126,7 @@ describe('AuthService', () => {
       const password = 'Password123';
       const hashedPassword = 'hashed_password';
 
-      (bcrypt.hash as jest.Mock).mockResolvedValue(hashedPassword);
+      (bcrypt.hash as ReturnType<typeof mock>).mockResolvedValue(hashedPassword);
 
       const result = await service.hashPassword(password);
 
@@ -101,7 +140,7 @@ describe('AuthService', () => {
       const plainPassword = 'Password123';
       const hashedPassword = 'hashed_password';
 
-      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+      (bcrypt.compare as ReturnType<typeof mock>).mockResolvedValue(true);
 
       const result = await service.comparePassword(plainPassword, hashedPassword);
 
@@ -113,7 +152,7 @@ describe('AuthService', () => {
       const plainPassword = 'WrongPassword';
       const hashedPassword = 'hashed_password';
 
-      (bcrypt.compare as jest.Mock).mockResolvedValue(false);
+      (bcrypt.compare as ReturnType<typeof mock>).mockResolvedValue(false);
 
       const result = await service.comparePassword(plainPassword, hashedPassword);
 
@@ -354,7 +393,7 @@ describe('AuthService', () => {
         createdAt: new Date(),
       } as User;
 
-      (bcrypt.hash as jest.Mock).mockResolvedValue(hashedPassword);
+      (bcrypt.hash as ReturnType<typeof mock>).mockResolvedValue(hashedPassword);
       mockUsersService.create.mockResolvedValue(newUser);
 
       const result = await service.register(registerDto);
@@ -391,7 +430,7 @@ describe('AuthService', () => {
         createdAt: new Date(),
       } as User;
 
-      (bcrypt.hash as jest.Mock).mockResolvedValue(hashedPassword);
+      (bcrypt.hash as ReturnType<typeof mock>).mockResolvedValue(hashedPassword);
       mockUsersService.create.mockResolvedValue(newUser);
 
       const result = await service.register(registerWithPhone);
@@ -419,7 +458,7 @@ describe('AuthService', () => {
 
     it('should login successfully with valid credentials', async () => {
       mockUsersService.findByUsername.mockResolvedValue(mockUser);
-      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+      (bcrypt.compare as ReturnType<typeof mock>).mockResolvedValue(true);
       mockUsersService.updateLastLogin.mockResolvedValue(undefined);
       mockJwtService.sign.mockReturnValueOnce('access_token').mockReturnValueOnce('refresh_token');
 
@@ -460,7 +499,7 @@ describe('AuthService', () => {
 
     it('should throw UnauthorizedException if password is invalid', async () => {
       mockUsersService.findByUsername.mockResolvedValue(mockUser);
-      (bcrypt.compare as jest.Mock).mockResolvedValue(false);
+      (bcrypt.compare as ReturnType<typeof mock>).mockResolvedValue(false);
 
       await expect(service.login(loginDto)).rejects.toThrow(UnauthorizedException);
     });
@@ -472,7 +511,7 @@ describe('AuthService', () => {
       } as User;
 
       mockUsersService.findByUsername.mockResolvedValue(disabledUser);
-      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+      (bcrypt.compare as ReturnType<typeof mock>).mockResolvedValue(true);
 
       await expect(service.login(loginDto)).rejects.toThrow(UnauthorizedException);
     });
@@ -484,7 +523,7 @@ describe('AuthService', () => {
       } as User;
 
       mockUsersService.findByUsername.mockResolvedValue(pendingUser);
-      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+      (bcrypt.compare as ReturnType<typeof mock>).mockResolvedValue(true);
       mockUsersService.updateLastLogin.mockResolvedValue(undefined);
       mockUsersService.updateStatus.mockResolvedValue(undefined);
       mockJwtService.sign.mockReturnValue('token');
@@ -496,7 +535,7 @@ describe('AuthService', () => {
 
     it('should pass client IP to updateLastLogin', async () => {
       mockUsersService.findByUsername.mockResolvedValue(mockUser);
-      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+      (bcrypt.compare as ReturnType<typeof mock>).mockResolvedValue(true);
       mockUsersService.updateLastLogin.mockResolvedValue(undefined);
       mockJwtService.sign.mockReturnValue('token');
 

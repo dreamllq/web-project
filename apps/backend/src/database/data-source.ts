@@ -13,7 +13,7 @@ console.log(111,process.env.DATABASE_URL);
 export const dataSourceOptions: DataSourceOptions = {
   type: 'postgres',
   url: process.env.DATABASE_URL || 'postgresql://postgres:postgres123@localhost:5432/app',
-  entities: [path.resolve(__dirname, '../entities/*.{ts,js}')],
+  entities: [path.resolve(__dirname, '../entities/*.entity.{ts,js}')],
   migrations: [path.resolve(__dirname, '../../migrations/*.{ts,js}')],
   synchronize: false,
   logging: process.env.NODE_ENV === 'development',

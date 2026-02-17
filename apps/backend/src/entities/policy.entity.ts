@@ -7,7 +7,7 @@ import {
   Index,
   OneToMany,
 } from 'typeorm';
-import { PolicyAttribute } from './policy-attribute.entity';
+import type { PolicyAttribute } from './policy-attribute.entity';
 
 export enum PolicyEffect {
   ALLOW = 'allow',
@@ -61,6 +61,10 @@ export class Policy {
   updatedAt: Date;
 
   // Relations
-  @OneToMany(() => PolicyAttribute, (policyAttribute) => policyAttribute.policy)
+  // Use lazy import to avoid circular dependency
+  @OneToMany(
+    () => require('./policy-attribute.entity').PolicyAttribute,
+    (policyAttribute: PolicyAttribute) => policyAttribute.policy
+  )
   policyAttributes: PolicyAttribute[];
 }

@@ -3,7 +3,9 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { HttpModule } from '@nestjs/axios';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { CustomCacheModule } from '../custom-cache/custom-cache.module';
+import { MailModule } from '../mail/mail.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { UsersModule } from '../users/users.module';
@@ -12,10 +14,13 @@ import { JwtConfig } from '../config/jwt.config';
 import { WechatOAuthService } from './oauth/wechat.service';
 import { WechatMiniprogramService } from './oauth/wechat-miniprogram.service';
 import { DingtalkMiniprogramService } from './oauth/dingtalk-miniprogram.service';
+import { VerificationTokenService } from './services/verification-token.service';
+import { VerificationToken } from '../entities/verification-token.entity';
 
 @Module({
   imports: [
     UsersModule,
+    TypeOrmModule.forFeature([VerificationToken]),
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
       imports: [ConfigModule],
@@ -50,6 +55,7 @@ import { DingtalkMiniprogramService } from './oauth/dingtalk-miniprogram.service
     }),
     CustomCacheModule,
     HttpModule,
+    MailModule,
   ],
   controllers: [AuthController],
   providers: [
@@ -58,6 +64,7 @@ import { DingtalkMiniprogramService } from './oauth/dingtalk-miniprogram.service
     WechatOAuthService,
     WechatMiniprogramService,
     DingtalkMiniprogramService,
+    VerificationTokenService,
   ],
   exports: [
     AuthService,
@@ -65,6 +72,7 @@ import { DingtalkMiniprogramService } from './oauth/dingtalk-miniprogram.service
     WechatOAuthService,
     WechatMiniprogramService,
     DingtalkMiniprogramService,
+    VerificationTokenService,
   ],
 })
 export class AuthModule {}

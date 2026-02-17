@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
+import { Injectable, UnauthorizedException, BadRequestException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { CustomCacheService } from '../custom-cache/custom-cache.service';
@@ -9,6 +9,9 @@ import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { User, UserStatus } from '../entities/user.entity';
 import { JwtConfig } from '../config/jwt.config';
+import { VerificationTokenService } from './services/verification-token.service';
+import { VerificationTokenType } from '../entities/verification-token.entity';
+import { MailService } from '../mail/mail.service';
 
 export interface RegisterResponse {
   id: string;
@@ -53,7 +56,9 @@ export class AuthService {
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
-    private readonly cacheService: CustomCacheService
+    private readonly cacheService: CustomCacheService,
+    private readonly verificationTokenService: VerificationTokenService,
+    private readonly mailService: MailService
   ) {}
 
   async hashPassword(password: string): Promise<string> {
@@ -294,6 +299,186 @@ export class AuthService {
         phone: user.phone,
         status: user.status,
       },
+    };
+  }
+
+  /**
+   * Request email verification for a user
+   * @param userId The user ID
+   * @param email The user's email
+   * @param username The user's username
+   */
+  async requestEmailVerification(
+    userId: string,
+    email: string | null,
+    username: string
+  ): Promise<{ success: true; message: string }> {
+    // Check if user has an email
+    if (!email) {
+      throw new BadRequestException('User does not have an email address');
+    }
+
+    // Check if email is already verified
+    const user = await this.usersService.findById(userId);
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    if (user.emailVerifiedAt) {
+      throw new BadRequestException('Email is already verified');
+    }
+
+    // Invalidate any existing verification tokens for this user
+    await this.verificationTokenService.invalidateUserTokens(
+      userId,
+      VerificationTokenType.EMAIL_VERIFICATION
+    );
+
+    // Generate a new verification token
+    const token = await this.verificationTokenService.generateToken(
+      userId,
+      VerificationTokenType.EMAIL_VERIFICATION
+    );
+
+    // Send verification email
+    await this.mailService.sendVerificationEmail(email, token, username);
+
+    this.logger.log(`Email verification requested for user ${userId}`);
+
+    return {
+      success: true,
+      message: 'Verification email sent',
+    };
+  }
+
+  /**
+   * Verify email with token
+   * @param token The verification token
+   */
+  async verifyEmail(token: string): Promise<{ success: true; message: string }> {
+    // Validate the token
+    const verificationToken = await this.verificationTokenService.validateToken(
+      token,
+      VerificationTokenType.EMAIL_VERIFICATION
+    );
+
+    if (!verificationToken) {
+      throw new BadRequestException('Invalid or expired verification token');
+    }
+
+    // Get the user
+    const user = await this.usersService.findById(verificationToken.userId);
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    // Check if email is already verified
+    if (user.emailVerifiedAt) {
+      throw new BadRequestException('Email is already verified');
+    }
+
+    // Mark the token as used
+    await this.verificationTokenService.markAsUsed(verificationToken.id);
+
+    // Update user's emailVerifiedAt
+    await this.usersService.updateEmailVerifiedAt(user.id, new Date());
+
+    this.logger.log(`Email verified for user ${user.id}`);
+
+    return {
+      success: true,
+      message: 'Email verified successfully',
+    };
+  }
+
+  /**
+   * Request password reset
+   * Always returns the same message to prevent user enumeration
+   * @param email The user's email
+   */
+  async forgotPassword(email: string): Promise<{ success: true; message: string }> {
+    // Find user by email
+    const user = await this.usersService.findByEmail(email);
+
+    // Always return the same response to prevent user enumeration
+    const genericResponse = {
+      success: true,
+      message: 'If the email exists, a password reset link will be sent',
+    } as const;
+
+    // If user not found, still return generic response
+    if (!user) {
+      this.logger.log(`Password reset requested for non-existent email: ${email}`);
+      return genericResponse;
+    }
+
+    // Check if user has a password (OAuth-only users cannot reset password)
+    if (!user.passwordHash) {
+      this.logger.log(`Password reset requested for OAuth-only user: ${user.id}`);
+      return genericResponse;
+    }
+
+    // Invalidate any existing password reset tokens for this user
+    await this.verificationTokenService.invalidateUserTokens(
+      user.id,
+      VerificationTokenType.PASSWORD_RESET
+    );
+
+    // Generate a new password reset token
+    const token = await this.verificationTokenService.generateToken(
+      user.id,
+      VerificationTokenType.PASSWORD_RESET
+    );
+
+    // Send password reset email
+    if (user.email) {
+      await this.mailService.sendPasswordResetEmail(user.email, token, user.username);
+    }
+
+    this.logger.log(`Password reset email sent for user ${user.id}`);
+
+    return genericResponse;
+  }
+
+  /**
+   * Reset password with token
+   * @param token The password reset token
+   * @param newPassword The new password
+   */
+  async resetPassword(
+    token: string,
+    newPassword: string
+  ): Promise<{ success: true; message: string }> {
+    // Validate the token
+    const verificationToken = await this.verificationTokenService.validateToken(
+      token,
+      VerificationTokenType.PASSWORD_RESET
+    );
+
+    if (!verificationToken) {
+      throw new BadRequestException('Invalid or expired password reset token');
+    }
+
+    // Get the user
+    const user = await this.usersService.findById(verificationToken.userId);
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    // Hash the new password
+    const passwordHash = await this.hashPassword(newPassword);
+
+    // Update user's password
+    await this.usersService.updatePassword(user.id, passwordHash);
+
+    // Mark the token as used (single-use enforcement)
+    await this.verificationTokenService.markAsUsed(verificationToken.id);
+
+    this.logger.log(`Password reset successful for user ${user.id}`);
+
+    return {
+      success: true,
+      message: 'Password reset successfully',
     };
   }
 }

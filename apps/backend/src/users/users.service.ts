@@ -1,8 +1,15 @@
-import { Injectable, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  ConflictException,
+  BadRequestException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import * as bcrypt from 'bcrypt';
 import { User, UserStatus } from '../entities/user.entity';
 import { SocialAccount, SocialProvider } from '../entities/social-account.entity';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 
 export interface CreateUserData {
   username: string;
@@ -25,7 +32,7 @@ export class UsersService {
     @InjectRepository(User)
     private usersRepository: Repository<User>,
     @InjectRepository(SocialAccount)
-    private socialAccountsRepository: Repository<SocialAccount>,
+    private socialAccountsRepository: Repository<SocialAccount>
   ) {}
 
   async create(data: CreateUserData): Promise<User> {
@@ -89,6 +96,10 @@ export class UsersService {
     await this.usersRepository.update(id, { status });
   }
 
+  async updateEmailVerifiedAt(id: string, verifiedAt: Date): Promise<void> {
+    await this.usersRepository.update(id, { emailVerifiedAt: verifiedAt });
+  }
+
   /**
    * Create an OAuth user (no password required)
    */
@@ -133,7 +144,7 @@ export class UsersService {
    */
   async findSocialAccount(
     provider: SocialProvider,
-    providerUserId: string,
+    providerUserId: string
   ): Promise<SocialAccount | null> {
     return this.socialAccountsRepository.findOne({
       where: { provider, providerUserId },
@@ -148,7 +159,7 @@ export class UsersService {
     userId: string,
     provider: SocialProvider,
     providerUserId: string,
-    providerData?: Record<string, unknown>,
+    providerData?: Record<string, unknown>
   ): Promise<SocialAccount> {
     const socialAccount = this.socialAccountsRepository.create({
       userId,
@@ -167,5 +178,75 @@ export class UsersService {
     const prefix = provider.replace('_', '');
     const shortId = providerUserId.substring(0, 8).toLowerCase();
     return `${prefix}_${shortId}`;
+  }
+
+  /**
+   * Update user's password
+   */
+  async updatePassword(id: string, passwordHash: string): Promise<void> {
+    await this.usersRepository.update(id, { passwordHash });
+  }
+
+  /**
+   * Update user profile (nickname, locale)
+   */
+  async updateProfile(id: string, updateData: UpdateProfileDto): Promise<User> {
+    const user = await this.findById(id);
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+
+    // Build update object with only provided fields
+    const updatePayload: { nickname?: string; locale?: string } = {};
+    if (updateData.nickname !== undefined) {
+      updatePayload.nickname = updateData.nickname;
+    }
+    if (updateData.locale !== undefined) {
+      updatePayload.locale = updateData.locale;
+    }
+
+    if (Object.keys(updatePayload).length > 0) {
+      await this.usersRepository.update(id, updatePayload);
+    }
+
+    return (await this.findById(id))!;
+  }
+
+  /**
+   * Change user password (requires old password verification)
+   */
+  async changePassword(id: string, oldPassword: string, newPassword: string): Promise<void> {
+    const user = await this.findById(id);
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+
+    // Check if user has a password set
+    if (!user.passwordHash) {
+      throw new BadRequestException('User does not have a password set');
+    }
+
+    // Verify old password
+    const isPasswordValid = await bcrypt.compare(oldPassword, user.passwordHash);
+    if (!isPasswordValid) {
+      throw new UnauthorizedException('Invalid old password');
+    }
+
+    // Hash and update new password
+    const newPasswordHash = await bcrypt.hash(newPassword, 10);
+    await this.usersRepository.update(id, { passwordHash: newPasswordHash });
+  }
+
+  /**
+   * Soft delete user account (set deletedAt timestamp)
+   */
+  async softDelete(id: string): Promise<void> {
+    const user = await this.findById(id);
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+
+    // Use TypeORM's soft delete mechanism
+    await this.usersRepository.softDelete(id);
   }
 }
