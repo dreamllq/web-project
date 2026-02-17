@@ -1,19 +1,19 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { useI18n } from 'vue-i18n'
-import { useAuthStore } from '@/stores/auth'
+import { computed } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { useI18n } from 'vue-i18n';
+import { useAuthStore } from '@/stores/auth';
 
-const route = useRoute()
-const router = useRouter()
-const { t } = useI18n()
-const authStore = useAuthStore()
+const route = useRoute();
+const router = useRouter();
+const { t } = useI18n();
+const authStore = useAuthStore();
 
-const currentRoute = computed(() => route.path)
+const currentRoute = computed(() => route.path);
 
 function logout() {
-  authStore.logout()
-  router.push({ name: 'Login' })
+  authStore.logout();
+  router.push({ name: 'Login' });
 }
 </script>
 
@@ -58,7 +58,9 @@ function logout() {
         <div class="header-content">
           <div class="breadcrumb">
             <el-breadcrumb separator="/">
-              <el-breadcrumb-item :to="{ path: '/admin' }">{{ t('menu.dashboard') }}</el-breadcrumb-item>
+              <el-breadcrumb-item :to="{ path: '/admin' }">{{
+                t('menu.dashboard')
+              }}</el-breadcrumb-item>
               <el-breadcrumb-item v-if="route.name && route.name !== 'Dashboard'">
                 {{ t(`menu.${String(route.name).toLowerCase()}`) }}
               </el-breadcrumb-item>
@@ -73,11 +75,11 @@ function logout() {
               </span>
               <template #dropdown>
                 <el-dropdown-menu>
-                  <el-dropdown-item>
+                  <el-dropdown-item @click="router.push('/admin/profile')">
                     <el-icon><User /></el-icon>
                     {{ t('header.profile') }}
                   </el-dropdown-item>
-                  <el-dropdown-item>
+                  <el-dropdown-item @click="router.push('/admin/change-password')">
                     <el-icon><Setting /></el-icon>
                     {{ t('header.settings') }}
                   </el-dropdown-item>

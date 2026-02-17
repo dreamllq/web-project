@@ -1,51 +1,51 @@
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
-import { useI18n } from 'vue-i18n'
-import { ElMessage } from 'element-plus'
-import { User, Lock, Key, Document } from '@element-plus/icons-vue'
-import { useAuthStore } from '@/stores/auth'
-import api from '@/api'
+import { reactive, ref } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
+import { useI18n } from 'vue-i18n';
+import { ElMessage } from 'element-plus';
+import { User, Lock, Key, Document } from '@element-plus/icons-vue';
+import { useAuthStore } from '@/stores/auth';
+import api from '@/api';
 
-const { t } = useI18n()
-const router = useRouter()
-const route = useRoute()
-const authStore = useAuthStore()
+const { t } = useI18n();
+const router = useRouter();
+const route = useRoute();
+const authStore = useAuthStore();
 
-const loading = ref(false)
+const loading = ref(false);
 
 const loginForm = reactive({
   username: '',
   password: '',
   rememberMe: false,
-})
+});
 
 async function handleLogin() {
   if (!loginForm.username || !loginForm.password) {
-    ElMessage.warning(t('login.usernameRequired'))
-    return
+    ElMessage.warning(t('login.usernameRequired'));
+    return;
   }
 
-  loading.value = true
+  loading.value = true;
 
   try {
     const response = await api.post('/auth/login', {
       username: loginForm.username,
       password: loginForm.password,
-    })
+    });
 
-    const { token, user } = response.data
-    authStore.setToken(token)
-    authStore.setUser(user)
+    const { token, user } = response.data;
+    authStore.setToken(token);
+    authStore.setUser(user);
 
-    ElMessage.success(t('login.loginSuccess'))
+    ElMessage.success(t('login.loginSuccess'));
 
-    const redirect = route.query.redirect as string
-    router.push(redirect || '/admin')
+    const redirect = route.query.redirect as string;
+    router.push(redirect || '/admin');
   } catch {
-    ElMessage.error(t('login.loginFailed'))
+    ElMessage.error(t('login.loginFailed'));
   } finally {
-    loading.value = false
+    loading.value = false;
   }
 }
 </script>
@@ -112,9 +112,11 @@ async function handleLogin() {
                 <el-checkbox v-model="loginForm.rememberMe">
                   {{ t('login.rememberMe') }}
                 </el-checkbox>
-                <el-link type="primary" :underline="false">
-                  {{ t('login.forgotPassword') }}
-                </el-link>
+                <router-link to="/forgot-password">
+                  <el-link type="primary" :underline="false">
+                    {{ t('login.forgotPassword') }}
+                  </el-link>
+                </router-link>
               </div>
             </el-form-item>
 
@@ -248,7 +250,9 @@ async function handleLogin() {
   border-radius: 10px;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   border: none;
-  transition: transform 0.2s, box-shadow 0.2s;
+  transition:
+    transform 0.2s,
+    box-shadow 0.2s;
 }
 
 .login-btn:hover {
