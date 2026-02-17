@@ -34,8 +34,15 @@ async function handleLogin() {
       password: loginForm.password,
     });
 
-    const { token, user } = response.data;
-    authStore.setToken(token);
+    // Backend returns: { access_token, refresh_token, expires_in, user }
+    const { access_token, refresh_token, expires_in, user } = response.data;
+
+    // Store both tokens
+    authStore.setTokens({
+      accessToken: access_token,
+      refreshToken: refresh_token,
+      expiresIn: expires_in,
+    });
     authStore.setUser(user);
 
     ElMessage.success(t('login.loginSuccess'));
