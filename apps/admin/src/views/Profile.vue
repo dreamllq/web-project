@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
 import { User, Message, Phone, Edit } from '@element-plus/icons-vue';
 import { getCurrentUser, updateProfile, requestEmailVerification } from '@/api/user';
+import { extractApiError } from '@/api';
 import type { UserProfileResponse, UpdateProfileDto } from '@/types/user';
 
 const { t, locale } = useI18n();
@@ -34,8 +35,9 @@ async function fetchUserProfile() {
     userProfile.value = response.data;
     form.nickname = response.data.nickname || '';
     form.locale = response.data.locale || 'zh-CN';
-  } catch {
-    ElMessage.error(t('messages.error'));
+  } catch (error: unknown) {
+    const apiError = extractApiError(error);
+    ElMessage.error(apiError.displayMessage);
   } finally {
     loading.value = false;
   }
@@ -55,8 +57,9 @@ async function handleSave() {
     // Update i18n locale if changed
     locale.value = form.locale;
     ElMessage.success(t('profile.updateSuccess'));
-  } catch {
-    ElMessage.error(t('profile.updateFailed'));
+  } catch (error: unknown) {
+    const apiError = extractApiError(error);
+    ElMessage.error(apiError.displayMessage);
   } finally {
     saving.value = false;
   }
@@ -67,8 +70,9 @@ async function handleRequestVerification() {
   try {
     await requestEmailVerification();
     ElMessage.success(t('profile.verificationSent'));
-  } catch {
-    ElMessage.error(t('messages.error'));
+  } catch (error: unknown) {
+    const apiError = extractApiError(error);
+    ElMessage.error(apiError.displayMessage);
   } finally {
     verifying.value = false;
   }

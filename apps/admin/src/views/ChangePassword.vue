@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n';
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus';
 import { Lock, Key } from '@element-plus/icons-vue';
 import { changePassword } from '@/api/user';
+import { extractApiError } from '@/api';
 
 const { t } = useI18n();
 const router = useRouter();
@@ -76,14 +77,9 @@ async function handleSubmit() {
       ElMessage.error(t('changePassword.failed'));
     }
   } catch (error: unknown) {
-    const axiosError = error as { response?: { status?: number } };
-    if (axiosError.response?.status === 401 || axiosError.response?.status === 403) {
-      ElMessage.error(t('changePassword.wrongOldPassword'));
-    } else if (axiosError.response?.status === 400) {
-      ElMessage.error(t('changePassword.failed'));
-    } else {
-      ElMessage.error(t('messages.networkError'));
-    }
+    // Use extractApiError to get formatted message with code
+    const apiError = extractApiError(error);
+    ElMessage.error(apiError.displayMessage);
   } finally {
     loading.value = false;
   }

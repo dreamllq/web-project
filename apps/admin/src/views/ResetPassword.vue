@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n';
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus';
 import { Lock, Key } from '@element-plus/icons-vue';
 import { resetPassword } from '@/api/user';
+import { extractApiError } from '@/api';
 
 const { t } = useI18n();
 const router = useRouter();
@@ -91,29 +92,9 @@ async function handleSubmit() {
       ElMessage.error(t('resetPassword.failed'));
     }
   } catch (error: unknown) {
-    // Parse backend error message for better user feedback
-    const axiosError = error as {
-      response?: {
-        status?: number;
-        data?: { message?: string };
-      };
-    };
-
-    const errorMessage = axiosError.response?.data?.message || '';
-    const status = axiosError.response?.status;
-
-    // Map specific errors to user-friendly messages
-    if (status === 400 || errorMessage.includes('Invalid or expired')) {
-      ElMessage.error(t('resetPassword.tokenExpired'));
-    } else if (status === 401 || errorMessage.includes('User not found')) {
-      ElMessage.error(t('resetPassword.userNotFound'));
-    } else if (axiosError.response) {
-      // Server responded with error but we don't have a specific message
-      ElMessage.error(t('resetPassword.failed'));
-    } else {
-      // Network error or other issue
-      ElMessage.error(t('messages.networkError'));
-    }
+    // Use extractApiError to get formatted message with code
+    const apiError = extractApiError(error);
+    ElMessage.error(apiError.displayMessage);
   } finally {
     loading.value = false;
   }
