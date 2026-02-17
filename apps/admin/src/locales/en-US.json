@@ -94,6 +94,8 @@
     "success": "Password reset successfully, please login",
     "failed": "Password reset failed, link may have expired",
     "invalidToken": "Invalid reset link",
+    "tokenExpired": "Reset link has expired, please request a new one",
+    "userNotFound": "User not found, please contact administrator",
     "backToLogin": "Back to Login"
   },
   "messages": {

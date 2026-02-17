@@ -90,8 +90,30 @@ async function handleSubmit() {
     } else {
       ElMessage.error(t('resetPassword.failed'));
     }
-  } catch {
-    ElMessage.error(t('resetPassword.failed'));
+  } catch (error: unknown) {
+    // Parse backend error message for better user feedback
+    const axiosError = error as {
+      response?: {
+        status?: number;
+        data?: { message?: string };
+      };
+    };
+
+    const errorMessage = axiosError.response?.data?.message || '';
+    const status = axiosError.response?.status;
+
+    // Map specific errors to user-friendly messages
+    if (status === 400 || errorMessage.includes('Invalid or expired')) {
+      ElMessage.error(t('resetPassword.tokenExpired'));
+    } else if (status === 401 || errorMessage.includes('User not found')) {
+      ElMessage.error(t('resetPassword.userNotFound'));
+    } else if (axiosError.response) {
+      // Server responded with error but we don't have a specific message
+      ElMessage.error(t('resetPassword.failed'));
+    } else {
+      // Network error or other issue
+      ElMessage.error(t('messages.networkError'));
+    }
   } finally {
     loading.value = false;
   }

@@ -94,6 +94,8 @@
     "success": "密码重置成功，请重新登录",
     "failed": "密码重置失败，链接可能已过期",
     "invalidToken": "无效的重置链接",
+    "tokenExpired": "重置链接已过期，请重新获取",
+    "userNotFound": "用户不存在，请联系管理员",
     "backToLogin": "返回登录"
   },
   "messages": {
