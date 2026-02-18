@@ -25,6 +25,9 @@ describe('UsersController', () => {
     lastLoginIp: '192.168.1.1',
     emailVerifiedAt: new Date(),
     phoneVerifiedAt: null,
+    mfaEnabled: false,
+    mfaSecret: null,
+    recoveryCodes: null,
     createdAt: new Date(),
     updatedAt: new Date(),
     deletedAt: null,
@@ -33,6 +36,7 @@ describe('UsersController', () => {
     files: [],
     oauthTokens: [],
     verificationTokens: [],
+    roles: [],
   };
 
   const mockUsersService = {

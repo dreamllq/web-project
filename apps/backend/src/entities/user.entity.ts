@@ -7,12 +7,15 @@ import {
   DeleteDateColumn,
   Index,
   OneToMany,
+  ManyToMany,
+  JoinTable,
 } from 'typeorm';
 import { SocialAccount } from './social-account.entity';
 import { Notification } from './notification.entity';
 import { File } from './file.entity';
 import { OAuthToken } from './oauth-token.entity';
 import { VerificationToken } from './verification-token.entity';
+import type { Role } from './role.entity';
 
 export enum UserStatus {
   ACTIVE = 'active',
@@ -68,6 +71,16 @@ export class User {
   @Column({ name: 'phone_verified_at', type: 'timestamp', nullable: true })
   phoneVerifiedAt: Date | null;
 
+  // 2FA fields
+  @Column({ name: 'mfa_enabled', type: 'boolean', default: false })
+  mfaEnabled: boolean;
+
+  @Column({ name: 'mfa_secret', type: 'varchar', length: 255, nullable: true })
+  mfaSecret: string | null;
+
+  @Column({ name: 'recovery_codes', type: 'simple-array', nullable: true })
+  recoveryCodes: string[] | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 
@@ -92,4 +105,13 @@ export class User {
 
   @OneToMany(() => VerificationToken, (verificationToken) => verificationToken.user)
   verificationTokens: VerificationToken[];
+
+  // RBAC relation - use lazy import to avoid circular dependency
+  @ManyToMany(() => require('./role.entity').Role, { cascade: true })
+  @JoinTable({
+    name: 'user_roles',
+    joinColumn: { name: 'user_id', referencedColumnName: 'id' },
+    inverseJoinColumn: { name: 'role_id', referencedColumnName: 'id' },
+  })
+  roles: Role[];
 }
