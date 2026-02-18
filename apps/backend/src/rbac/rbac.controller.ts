@@ -26,7 +26,7 @@ export class RbacController {
 
   // ========== Role Management ==========
 
-  @Post('roles')
+  @Post()
   @RequirePermission('role', 'create')
   @ApiOperation({ summary: 'Create a new role' })
   @ApiResponse({ status: 201, description: 'Role created successfully' })
@@ -34,7 +34,7 @@ export class RbacController {
     return this.roleService.createRole(dto);
   }
 
-  @Get('roles')
+  @Get()
   @RequirePermission('role', 'read')
   @ApiOperation({ summary: 'Get all roles' })
   @ApiResponse({ status: 200, description: 'List of roles' })
@@ -42,7 +42,7 @@ export class RbacController {
     return this.roleService.getRoles();
   }
 
-  @Patch('roles/:id')
+  @Patch(':id')
   @RequirePermission('role', 'update')
   @ApiOperation({ summary: 'Update a role' })
   @ApiParam({ name: 'id', description: 'Role ID' })
@@ -54,7 +54,7 @@ export class RbacController {
     return this.roleService.updateRole(id, dto);
   }
 
-  @Delete('roles/:id')
+  @Delete(':id')
   @RequirePermission('role', 'delete')
   @ApiOperation({ summary: 'Delete a role' })
   @ApiParam({ name: 'id', description: 'Role ID' })
