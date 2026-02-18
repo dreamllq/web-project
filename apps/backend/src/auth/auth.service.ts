@@ -40,6 +40,8 @@ export interface LoginResponse {
     phone: string | null;
     status: UserStatus;
   };
+  require2FA?: boolean;
+  tempToken?: string; // Temporary token for 2FA verification
 }
 
 export interface CustomJwtPayload {
@@ -316,6 +318,30 @@ export class AuthService {
       await this.usersService.updateStatus(user.id, UserStatus.ACTIVE);
     }
 
+    // Check if user has 2FA enabled
+    if (user.mfaEnabled) {
+      // Don't generate tokens yet - require 2FA verification first
+      // Create a temporary token for 2FA verification
+      const tempToken = this.createTwoFactorPendingLogin(user.id, user.username);
+
+      this.logger.log(`Login requires 2FA verification for user ${user.id}`);
+
+      return {
+        access_token: '',
+        refresh_token: '',
+        expires_in: 0,
+        user: {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          phone: user.phone,
+          status: user.status,
+        },
+        require2FA: true,
+        tempToken,
+      };
+    }
+
     // Record successful login
     loginInfo.success = true;
     await this.loginHistoryService.recordLogin(user.id, loginInfo);
@@ -329,6 +355,111 @@ export class AuthService {
 
     // Generate tokens
     const tokens = await this.generateTokens(user);
+
+    return {
+      ...tokens,
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        phone: user.phone,
+        status: user.status,
+      },
+    };
+  }
+
+  /**
+   * Create a pending 2FA login session
+   * Uses in-memory store (in production, use Redis)
+   */
+  private twoFactorPendingLogins = new Map<
+    string,
+    { userId: string; username: string; expiresAt: Date }
+  >();
+  private readonly TWO_FACTOR_TTL = 5 * 60 * 1000; // 5 minutes
+
+  private createTwoFactorPendingLogin(userId: string, username: string): string {
+    const tempToken = Buffer.from(`${userId}:${username}:${Date.now()}:${Math.random()}`).toString(
+      'base64'
+    );
+
+    this.twoFactorPendingLogins.set(tempToken, {
+      userId,
+      username,
+      expiresAt: new Date(Date.now() + this.TWO_FACTOR_TTL),
+    });
+
+    // Clean up expired entries
+    const now = new Date();
+    for (const [token, login] of this.twoFactorPendingLogins.entries()) {
+      if (login.expiresAt < now) {
+        this.twoFactorPendingLogins.delete(token);
+      }
+    }
+
+    return tempToken;
+  }
+
+  /**
+   * Validate a pending 2FA login token
+   */
+  validateTwoFactorPendingLogin(tempToken: string): { userId: string; username: string } | null {
+    const pending = this.twoFactorPendingLogins.get(tempToken);
+
+    if (!pending) {
+      return null;
+    }
+
+    if (pending.expiresAt < new Date()) {
+      this.twoFactorPendingLogins.delete(tempToken);
+      return null;
+    }
+
+    return { userId: pending.userId, username: pending.username };
+  }
+
+  /**
+   * Complete a pending 2FA login after successful verification
+   * Returns the user info and removes the pending token
+   */
+  async completeTwoFactorLogin(tempToken: string, context?: LoginContext): Promise<LoginResponse> {
+    const pending = this.twoFactorPendingLogins.get(tempToken);
+
+    if (!pending || pending.expiresAt < new Date()) {
+      this.twoFactorPendingLogins.delete(tempToken);
+      throw new UnauthorizedException('Invalid or expired 2FA session');
+    }
+
+    // Remove the pending token (single use)
+    this.twoFactorPendingLogins.delete(tempToken);
+
+    // Get the user
+    const user = await this.usersService.findById(pending.userId);
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    // Record successful login
+    const loginInfo: LoginInfo = {
+      ipAddress: context?.ipAddress,
+      userAgent: context?.userAgent,
+      deviceFingerprint: context?.deviceFingerprint,
+      loginMethod: LoginMethod.PASSWORD,
+      success: true,
+    };
+    await this.loginHistoryService.recordLogin(user.id, loginInfo);
+
+    // Register device
+    const deviceInput: RegisterDeviceInput = {
+      userAgent: context?.userAgent,
+      ipAddress: context?.ipAddress,
+    };
+    await this.userDeviceService.registerDevice(user.id, deviceInput);
+
+    // Generate tokens
+    const tokens = await this.generateTokens(user);
+
+    this.logger.log(`2FA login completed for user ${user.id}`);
 
     return {
       ...tokens,

@@ -6,11 +6,14 @@ import { Attribute } from '../entities/attribute.entity';
 import { PolicyService } from './policy.service';
 import { PolicyEvaluatorService } from './policy-evaluator.service';
 import { PolicyController } from './policy.controller';
+import { RbacModule } from '../rbac/rbac.module';
+import { PermissionGuard } from './guards/permission.guard';
+import { RoleGuard } from './guards/role.guard';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Policy, PolicyAttribute, Attribute])],
+  imports: [TypeOrmModule.forFeature([Policy, PolicyAttribute, Attribute]), RbacModule],
   controllers: [PolicyController],
-  providers: [PolicyService, PolicyEvaluatorService],
-  exports: [PolicyService, PolicyEvaluatorService],
+  providers: [PolicyService, PolicyEvaluatorService, PermissionGuard, RoleGuard],
+  exports: [PolicyService, PolicyEvaluatorService, PermissionGuard, RoleGuard],
 })
 export class PolicyModule {}
