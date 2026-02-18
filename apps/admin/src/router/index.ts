@@ -53,6 +53,21 @@ const routes: RouteRecordRaw[] = [
         name: 'LoginHistory',
         component: () => import('@/views/LoginHistory.vue'),
       },
+      {
+        path: 'two-factor-settings',
+        name: 'TwoFactorSettings',
+        component: () => import('@/views/TwoFactorSettings.vue'),
+      },
+      {
+        path: 'phone-verification',
+        name: 'PhoneVerification',
+        component: () => import('@/views/PhoneVerification.vue'),
+      },
+      {
+        path: 'roles',
+        name: 'Roles',
+        component: () => import('@/views/Roles.vue'),
+      },
     ],
   },
   {

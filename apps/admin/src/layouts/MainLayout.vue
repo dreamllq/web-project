@@ -44,6 +44,10 @@ function logout() {
           <el-icon><Key /></el-icon>
           <span>{{ t('menu.policies') }}</span>
         </el-menu-item>
+        <el-menu-item index="/admin/roles">
+          <el-icon><Collection /></el-icon>
+          <span>{{ t('menu.roles') }}</span>
+        </el-menu-item>
         <el-menu-item index="/admin/audit-logs">
           <el-icon><Document /></el-icon>
           <span>{{ t('menu.auditLogs') }}</span>
@@ -90,6 +94,14 @@ function logout() {
                   <el-dropdown-item @click="router.push('/admin/change-password')">
                     <el-icon><Setting /></el-icon>
                     {{ t('header.settings') }}
+                  </el-dropdown-item>
+                  <el-dropdown-item @click="router.push('/admin/two-factor-settings')">
+                    <el-icon><Lock /></el-icon>
+                    Two-Factor Auth
+                  </el-dropdown-item>
+                  <el-dropdown-item @click="router.push('/admin/phone-verification')">
+                    <el-icon><Phone /></el-icon>
+                    Phone Verification
                   </el-dropdown-item>
                   <el-dropdown-item divided @click="logout">
                     <el-icon><SwitchButton /></el-icon>
