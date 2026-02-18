@@ -30,7 +30,9 @@
     "dashboard": "Dashboard",
     "users": "Users",
     "policies": "Policies",
-    "auditLogs": "Audit Logs"
+    "auditLogs": "Audit Logs",
+    "devices": "Device Management",
+    "loginHistory": "Login History"
   },
   "dashboard": {
     "title": "Dashboard",
@@ -104,5 +106,50 @@
     "success": "Operation successful",
     "error": "Operation failed",
     "networkError": "Network error, please try again"
+  },
+  "devices": {
+    "title": "Device Management",
+    "deviceName": "Device Name",
+    "userAgent": "User Agent",
+    "ipAddress": "IP Address",
+    "trusted": "Trusted",
+    "notTrusted": "Not Trusted",
+    "lastUsedAt": "Last Used",
+    "createdAt": "Created At",
+    "trust": "Trust",
+    "remove": "Remove",
+    "trustSuccess": "Device marked as trusted",
+    "removeSuccess": "Device removed",
+    "removeConfirm": "Are you sure you want to remove this device?",
+    "loading": "Loading devices...",
+    "empty": "No devices found"
+  },
+  "loginHistory": {
+    "title": "Login History",
+    "ipAddress": "IP Address",
+    "userAgent": "User Agent",
+    "deviceFingerprint": "Device Fingerprint",
+    "loginMethod": "Login Method",
+    "success": "Success",
+    "failed": "Failed",
+    "failureReason": "Failure Reason",
+    "createdAt": "Login Time",
+    "filterBySuccess": "Filter by Status",
+    "all": "All",
+    "startDate": "Start Date",
+    "endDate": "End Date",
+    "loading": "Loading login history...",
+    "empty": "No login history found"
+  },
+  "avatar": {
+    "upload": "Upload Avatar",
+    "uploadSuccess": "Avatar uploaded successfully",
+    "uploadFailed": "Avatar upload failed",
+    "fileTooLarge": "File size cannot exceed 2MB",
+    "invalidFileType": "Only JPEG, PNG, WebP formats are supported",
+    "preview": "Preview",
+    "remove": "Remove",
+    "currentAvatar": "Current Avatar",
+    "selectFile": "Select File"
   }
 }

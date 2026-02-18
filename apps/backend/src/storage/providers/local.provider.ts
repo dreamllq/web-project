@@ -19,7 +19,7 @@ export class LocalProvider implements StorageProvider {
   private async ensureUploadDirExists(): Promise<void> {
     try {
       await mkdir(this.config.uploadDir, { recursive: true });
-    } catch (error) {
+    } catch {
       // Directory already exists or will be created on demand
     }
   }

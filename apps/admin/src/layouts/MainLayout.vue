@@ -29,7 +29,7 @@ function logout() {
         :default-active="currentRoute"
         class="sidebar-menu"
         background-color="#001529"
-        text-color="#rgba(255, 255, 255, 0.65)"
+        text-color="rgba(255, 255, 255, 0.85)"
         active-text-color="#fff"
       >
         <el-menu-item index="/admin">
@@ -47,6 +47,14 @@ function logout() {
         <el-menu-item index="/admin/audit-logs">
           <el-icon><Document /></el-icon>
           <span>{{ t('menu.auditLogs') }}</span>
+        </el-menu-item>
+        <el-menu-item index="/admin/devices">
+          <el-icon><Monitor /></el-icon>
+          <span>{{ t('menu.devices') }}</span>
+        </el-menu-item>
+        <el-menu-item index="/admin/login-history">
+          <el-icon><Clock /></el-icon>
+          <span>{{ t('menu.loginHistory') }}</span>
         </el-menu-item>
       </el-menu>
     </el-aside>

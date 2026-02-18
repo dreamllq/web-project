@@ -5,7 +5,9 @@ import {
   UseInterceptors,
   BadRequestException,
   Version,
+  UploadedFile,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import type { Express } from 'express';
@@ -14,10 +16,9 @@ import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 import { User } from '../../entities/user.entity';
 import { StorageService } from '../../storage/storage.service';
 import { UsersService } from '../users.service';
+import type { StorageUrlResponse } from '../../common/types/storage-url.dto';
+import type { MultiStorageConfig } from '../../config/storage.config';
 import sharp from 'sharp';
-
-// Allowed MIME types for avatar upload
-const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
 // Max file size: 2MB
 const MAX_FILE_SIZE = 2 * 1024 * 1024;
@@ -25,26 +26,9 @@ const MAX_FILE_SIZE = 2 * 1024 * 1024;
 // Avatar dimensions
 const AVATAR_SIZE = 256;
 
-/**
- * Custom file filter for MIME type validation
- */
-const avatarFileFilter = (
-  _req: Express.Request,
-  file: Express.Multer.File,
-  callback: (error: Error | null, acceptFile: boolean) => void
-) => {
-  if (!ALLOWED_MIME_TYPES.includes(file.mimetype)) {
-    return callback(
-      new BadRequestException(`Invalid file type. Allowed types: ${ALLOWED_MIME_TYPES.join(', ')}`),
-      false
-    );
-  }
-  callback(null, true);
-};
-
 export interface AvatarUploadResponse {
   success: boolean;
-  avatarUrl: string;
+  avatar: StorageUrlResponse;
 }
 
 @Controller('users')
@@ -52,7 +36,8 @@ export interface AvatarUploadResponse {
 export class AvatarController {
   constructor(
     private readonly storageService: StorageService,
-    private readonly usersService: UsersService
+    private readonly usersService: UsersService,
+    private readonly configService: ConfigService
   ) {}
 
   /**
@@ -66,7 +51,6 @@ export class AvatarController {
   @UseInterceptors(
     FileInterceptor('file', {
       storage: memoryStorage(),
-      fileFilter: avatarFileFilter,
       limits: {
         fileSize: MAX_FILE_SIZE,
       },
@@ -74,10 +58,10 @@ export class AvatarController {
   )
   async uploadAvatar(
     @CurrentUser() user: User,
-    file: Express.Multer.File
+    @UploadedFile() file: Express.Multer.File
   ): Promise<AvatarUploadResponse> {
     // Validate file exists
-    if (!file) {
+    if (!file || !file.buffer) {
       throw new BadRequestException('No file uploaded');
     }
 
@@ -88,9 +72,6 @@ export class AvatarController {
 
     try {
       // Process image with sharp
-      // - Resize to 256x256 with cover fit (will crop to square)
-      // - Convert to WebP format for consistency and smaller file size
-      // - Set quality to 80 for good balance between quality and size
       const processedBuffer = await sharp(file.buffer)
         .resize(AVATAR_SIZE, AVATAR_SIZE, { fit: 'cover' })
         .webp({ quality: 80 })
@@ -109,12 +90,25 @@ export class AvatarController {
         },
       });
 
-      // Update user's avatarUrl
-      await this.usersService.updateAvatarUrl(user.id, uploadResult.url);
+      // Get storage config to determine provider type
+      const storageConfig = this.configService.get<MultiStorageConfig>('storage');
+      const storageType = storageConfig?.provider ?? 'local';
+
+      let avatar: StorageUrlResponse;
+
+      if (storageType === 'local') {
+        // For local storage, store and return the direct URL
+        await this.usersService.updateAvatarUrl(user.id, uploadResult.url);
+        avatar = { type: 'local', url: uploadResult.url };
+      } else {
+        // For S3/MinIO, store the KEY (not signed URL) and return key for frontend to fetch signed URL
+        await this.usersService.updateAvatarUrl(user.id, key);
+        avatar = { type: storageType, key };
+      }
 
       return {
         success: true,
-        avatarUrl: uploadResult.url,
+        avatar,
       };
     } catch (error) {
       if (error instanceof BadRequestException) {

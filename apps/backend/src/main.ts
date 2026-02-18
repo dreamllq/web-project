@@ -6,6 +6,7 @@ import { existsSync, readFileSync } from 'fs';
 import { AppModule } from './app.module';
 import { InitService } from './init/init.service';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
+import { NestExpressApplication } from '@nestjs/platform-express';
 
 /**
  * Check if the application has been initialized
@@ -51,7 +52,13 @@ async function bootstrap() {
 
   console.log('✅ 应用已初始化，正在启动服务...\n');
 
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // Serve static files from uploads directory
+  const uploadDir = process.env.LOCAL_UPLOAD_DIR || join(process.cwd(), 'uploads');
+  app.useStaticAssets(uploadDir, {
+    prefix: '/uploads/',
+  });
 
   // Register global exception filter
   app.useGlobalFilters(new AllExceptionsFilter());

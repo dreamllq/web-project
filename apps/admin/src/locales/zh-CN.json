@@ -30,7 +30,9 @@
     "dashboard": "Dashboard",
     "users": "Users",
     "policies": "Policies",
-    "auditLogs": "Audit Logs"
+    "auditLogs": "Audit Logs",
+    "devices": "设备管理",
+    "loginHistory": "登录历史"
   },
   "dashboard": {
     "title": "Dashboard",
@@ -104,5 +106,50 @@
     "success": "操作成功",
     "error": "操作失败",
     "networkError": "网络错误，请稍后重试"
+  },
+  "devices": {
+    "title": "设备管理",
+    "deviceName": "设备名称",
+    "userAgent": "用户代理",
+    "ipAddress": "IP地址",
+    "trusted": "已信任",
+    "notTrusted": "未信任",
+    "lastUsedAt": "最后使用",
+    "createdAt": "创建时间",
+    "trust": "信任",
+    "remove": "移除",
+    "trustSuccess": "设备已标记为信任",
+    "removeSuccess": "设备已移除",
+    "removeConfirm": "确定要移除此设备吗？",
+    "loading": "加载设备列表...",
+    "empty": "暂无设备记录"
+  },
+  "loginHistory": {
+    "title": "登录历史",
+    "ipAddress": "IP地址",
+    "userAgent": "用户代理",
+    "deviceFingerprint": "设备指纹",
+    "loginMethod": "登录方式",
+    "success": "成功",
+    "failed": "失败",
+    "failureReason": "失败原因",
+    "createdAt": "登录时间",
+    "filterBySuccess": "按状态筛选",
+    "all": "全部",
+    "startDate": "开始日期",
+    "endDate": "结束日期",
+    "loading": "加载登录历史...",
+    "empty": "暂无登录记录"
+  },
+  "avatar": {
+    "upload": "上传头像",
+    "uploadSuccess": "头像上传成功",
+    "uploadFailed": "头像上传失败",
+    "fileTooLarge": "文件大小不能超过2MB",
+    "invalidFileType": "仅支持 JPEG、PNG、WebP 格式",
+    "preview": "预览",
+    "remove": "移除",
+    "currentAvatar": "当前头像",
+    "selectFile": "选择文件"
   }
 }

@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { AvatarController } from './avatar.controller';
 import { StorageService } from '../../storage/storage.service';
 import { UsersService } from '../users.service';
@@ -54,6 +55,35 @@ describe('AvatarController', () => {
     updateAvatarUrl: jest.fn(),
   };
 
+  const mockConfigService = {
+    get: jest.fn().mockReturnValue({
+      provider: 'local',
+      s3: {
+        endpoint: '',
+        region: 'us-east-1',
+        bucket: 'test-bucket',
+        accessKeyId: 'test',
+        secretAccessKey: 'test',
+        forcePathStyle: false,
+      },
+      minio: {
+        endpoint: '',
+        accessKey: '',
+        secretKey: '',
+        bucket: '',
+        useSSL: false,
+      },
+      local: {
+        uploadDir: './uploads',
+        baseUrl: 'http://localhost:3000/uploads',
+      },
+      accessKeyId: '',
+      secretAccessKey: '',
+      region: 'us-east-1',
+      bucket: '',
+    }),
+  };
+
   const createMockFile = (
     mimetype: string,
     size: number,
@@ -83,6 +113,10 @@ describe('AvatarController', () => {
           provide: UsersService,
           useValue: mockUsersService,
         },
+        {
+          provide: ConfigService,
+          useValue: mockConfigService,
+        },
       ],
     }).compile();
 
@@ -108,9 +142,10 @@ describe('AvatarController', () => {
 
       const result = await controller.uploadAvatar(mockUser, file);
 
-      expect(result).toEqual({
-        success: true,
-        avatarUrl: mockUploadResult.url,
+      expect(result.success).toBe(true);
+      expect(result.avatar).toEqual({
+        type: 'local',
+        url: mockUploadResult.url,
       });
       expect(storageService.upload).toHaveBeenCalledWith(
         expect.stringContaining('avatars/user-uuid-123/'),
@@ -133,7 +168,8 @@ describe('AvatarController', () => {
       const result = await controller.uploadAvatar(mockUser, file);
 
       expect(result.success).toBe(true);
-      expect(result.avatarUrl).toBe(mockUploadResult.url);
+      expect(result.avatar.type).toBe('local');
+      expect(result.avatar.url).toBe(mockUploadResult.url);
     });
 
     it('should successfully upload a WebP avatar', async () => {
@@ -143,7 +179,8 @@ describe('AvatarController', () => {
       const result = await controller.uploadAvatar(mockUser, file);
 
       expect(result.success).toBe(true);
-      expect(result.avatarUrl).toBe(mockUploadResult.url);
+      expect(result.avatar.type).toBe('local');
+      expect(result.avatar.url).toBe(mockUploadResult.url);
     });
 
     it('should throw BadRequestException when no file is uploaded', async () => {

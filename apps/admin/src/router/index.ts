@@ -43,6 +43,16 @@ const routes: RouteRecordRaw[] = [
         name: 'ChangePassword',
         component: () => import('@/views/ChangePassword.vue'),
       },
+      {
+        path: 'devices',
+        name: 'DeviceManagement',
+        component: () => import('@/views/DeviceManagement.vue'),
+      },
+      {
+        path: 'login-history',
+        name: 'LoginHistory',
+        component: () => import('@/views/LoginHistory.vue'),
+      },
     ],
   },
   {

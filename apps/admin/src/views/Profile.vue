@@ -2,9 +2,10 @@
 import { ref, reactive, onMounted, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
-import { User, Message, Phone, Edit } from '@element-plus/icons-vue';
-import { getCurrentUser, updateProfile, requestEmailVerification } from '@/api/user';
+import { User, Message, Phone, Edit, Plus } from '@element-plus/icons-vue';
+import { getCurrentUser, updateProfile, requestEmailVerification, uploadAvatar } from '@/api/user';
 import { extractApiError } from '@/api';
+import { getAccessibleUrl } from '@/utils/storage-url';
 import type { UserProfileResponse, UpdateProfileDto } from '@/types/user';
 
 const { t, locale } = useI18n();
@@ -12,7 +13,15 @@ const { t, locale } = useI18n();
 const loading = ref(false);
 const saving = ref(false);
 const verifying = ref(false);
+const avatarUploading = ref(false);
+const previewAvatar = ref<string | null>(null);
+const selectedFile = ref<File | null>(null);
 const userProfile = ref<UserProfileResponse | null>(null);
+const fileInputRef = ref<HTMLInputElement | null>(null);
+const accessibleAvatarUrl = ref<string | null>(null);
+
+const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const MAX_SIZE = 2 * 1024 * 1024; // 2MB
 
 const form = reactive({
   nickname: '',
@@ -35,6 +44,8 @@ async function fetchUserProfile() {
     userProfile.value = response.data;
     form.nickname = response.data.nickname || '';
     form.locale = response.data.locale || 'zh-CN';
+    // Fetch accessible avatar URL
+    accessibleAvatarUrl.value = await getAccessibleUrl(response.data.avatar);
   } catch (error: unknown) {
     const apiError = extractApiError(error);
     ElMessage.error(apiError.displayMessage);
@@ -75,6 +86,58 @@ async function handleRequestVerification() {
     ElMessage.error(apiError.displayMessage);
   } finally {
     verifying.value = false;
+  }
+}
+
+function handleNativeFileChange(event: Event) {
+  const target = event.target as HTMLInputElement;
+  const file = target.files?.[0];
+
+  if (!file) {
+    return;
+  }
+
+  // Validate type
+  if (!ALLOWED_TYPES.includes(file.type)) {
+    ElMessage.error(t('avatar.invalidFileType'));
+    target.value = '';
+    return;
+  }
+  // Validate size
+  if (file.size > MAX_SIZE) {
+    ElMessage.error(t('avatar.fileTooLarge'));
+    target.value = '';
+    return;
+  }
+
+  selectedFile.value = file;
+  previewAvatar.value = URL.createObjectURL(file);
+}
+
+function handleRemovePreview() {
+  previewAvatar.value = null;
+  selectedFile.value = null;
+}
+
+async function handleUploadAvatar() {
+  if (!selectedFile.value) {
+    ElMessage.error(t('avatar.selectFile'));
+    return;
+  }
+
+  avatarUploading.value = true;
+  try {
+    const response = await uploadAvatar(selectedFile.value);
+    userProfile.value = { ...userProfile.value!, avatar: response.data.avatar };
+    // Fetch accessible avatar URL
+    accessibleAvatarUrl.value = await getAccessibleUrl(response.data.avatar);
+    ElMessage.success(t('avatar.uploadSuccess'));
+    handleRemovePreview();
+  } catch (error: unknown) {
+    const apiError = extractApiError(error);
+    ElMessage.error(apiError.displayMessage || t('avatar.uploadFailed'));
+  } finally {
+    avatarUploading.value = false;
   }
 }
 
@@ -159,6 +222,64 @@ onMounted(() => {
           </el-button>
         </el-form-item>
       </el-form>
+    </el-card>
+
+    <!-- Avatar Upload Section -->
+    <el-card class="avatar-card">
+      <template #header>
+        <div class="card-header">
+          <span>{{ t('avatar.upload') }}</span>
+        </div>
+      </template>
+
+      <div class="avatar-section">
+        <!-- Current Avatar -->
+        <div class="avatar-current">
+          <p class="avatar-label">{{ t('avatar.currentAvatar') }}</p>
+          <el-avatar :size="96" :src="accessibleAvatarUrl || undefined" class="user-avatar">
+            <el-icon :size="40"><User /></el-icon>
+          </el-avatar>
+        </div>
+
+        <!-- Divider -->
+        <div class="avatar-divider"></div>
+
+        <!-- Upload Area -->
+        <div class="avatar-upload">
+          <p class="avatar-label">{{ t('avatar.selectFile') }}</p>
+          <input
+            ref="fileInputRef"
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            style="display: none"
+            @change="handleNativeFileChange"
+          />
+          <el-button @click="() => fileInputRef?.click()">
+            <el-icon style="margin-right: 4px"><Plus /></el-icon>
+            {{ t('avatar.selectFile') }}
+          </el-button>
+        </div>
+      </div>
+
+      <!-- Preview Section -->
+      <div v-if="previewAvatar" class="avatar-preview">
+        <div class="preview-container">
+          <el-avatar :size="96" :src="previewAvatar" class="preview-avatar" />
+          <div class="preview-actions">
+            <el-button type="danger" size="small" @click="handleRemovePreview">
+              {{ t('avatar.remove') }}
+            </el-button>
+          </div>
+        </div>
+        <el-button
+          type="primary"
+          :loading="avatarUploading"
+          class="upload-btn"
+          @click="handleUploadAvatar"
+        >
+          {{ t('avatar.upload') }}
+        </el-button>
+      </div>
     </el-card>
   </div>
 </template>
@@ -252,5 +373,128 @@ onMounted(() => {
 :deep(.el-form-item__label) {
   font-weight: 500;
   color: #1a1a2e;
+}
+
+/* Avatar Card Styles */
+.avatar-card {
+  max-width: 600px;
+  margin-top: 24px;
+  border-radius: 12px;
+  border: none;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+}
+
+.avatar-card :deep(.el-card__header) {
+  padding: 16px 32px;
+  border-bottom: 1px solid #ebeef5;
+}
+
+.card-header {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1a1a2e;
+}
+
+.avatar-card :deep(.el-card__body) {
+  padding: 24px 32px;
+}
+
+.avatar-section {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+}
+
+.avatar-current,
+.avatar-upload {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.avatar-label {
+  font-size: 13px;
+  color: #909399;
+  margin: 0;
+}
+
+.user-avatar {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+}
+
+.avatar-divider {
+  width: 1px;
+  height: 120px;
+  background: #ebeef5;
+}
+
+.avatar-uploader :deep(.el-upload-dragger) {
+  width: 140px;
+  height: 100px;
+  border-radius: 8px;
+  border: 2px dashed #d9d9d9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.2s;
+}
+
+.avatar-uploader :deep(.el-upload-dragger:hover) {
+  border-color: #667eea;
+}
+
+.upload-trigger {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.upload-icon {
+  font-size: 28px;
+  color: #c0c4cc;
+}
+
+.upload-text {
+  font-size: 12px;
+  color: #909399;
+}
+
+.avatar-preview {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid #ebeef5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.preview-container {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.preview-avatar {
+  border: 3px solid #667eea;
+}
+
+.upload-btn {
+  height: 36px;
+  padding: 0 24px;
+  font-weight: 500;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+  transition:
+    transform 0.2s,
+    box-shadow 0.2s;
+}
+
+.upload-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
 }
 </style>

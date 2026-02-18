@@ -13,6 +13,7 @@ import { VerificationTokenService } from './services/verification-token.service'
 import { VerificationTokenType } from '../entities/verification-token.entity';
 import { MailService } from '../mail/mail.service';
 import { LoginHistoryService, LoginInfo } from '../users/services/login-history.service';
+import { UserDeviceService, RegisterDeviceInput } from '../users/services/user-device.service';
 import { LoginMethod } from '../entities/login-history.entity';
 
 export interface RegisterResponse {
@@ -67,7 +68,8 @@ export class AuthService {
     private readonly cacheService: CustomCacheService,
     private readonly verificationTokenService: VerificationTokenService,
     private readonly mailService: MailService,
-    private readonly loginHistoryService: LoginHistoryService
+    private readonly loginHistoryService: LoginHistoryService,
+    private readonly userDeviceService: UserDeviceService
   ) {}
 
   async hashPassword(password: string): Promise<string> {
@@ -317,6 +319,13 @@ export class AuthService {
     // Record successful login
     loginInfo.success = true;
     await this.loginHistoryService.recordLogin(user.id, loginInfo);
+
+    // Register device
+    const deviceInput: RegisterDeviceInput = {
+      userAgent: context?.userAgent,
+      ipAddress: context?.ipAddress,
+    };
+    await this.userDeviceService.registerDevice(user.id, deviceInput);
 
     // Generate tokens
     const tokens = await this.generateTokens(user);

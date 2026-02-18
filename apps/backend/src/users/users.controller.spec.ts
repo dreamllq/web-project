@@ -5,6 +5,7 @@ import { User, UserStatus } from '../entities/user.entity';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { BadRequestException, UnauthorizedException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 
 describe('UsersController', () => {
   let controller: UsersController;
@@ -41,6 +42,35 @@ describe('UsersController', () => {
     softDelete: jest.fn(),
   };
 
+  const mockConfigService = {
+    get: jest.fn().mockReturnValue({
+      provider: 'local',
+      s3: {
+        endpoint: '',
+        region: 'us-east-1',
+        bucket: 'test-bucket',
+        accessKeyId: 'test',
+        secretAccessKey: 'test',
+        forcePathStyle: false,
+      },
+      minio: {
+        endpoint: '',
+        accessKey: '',
+        secretKey: '',
+        bucket: '',
+        useSSL: false,
+      },
+      local: {
+        uploadDir: './uploads',
+        baseUrl: 'http://localhost:3000/uploads',
+      },
+      accessKeyId: '',
+      secretAccessKey: '',
+      region: 'us-east-1',
+      bucket: '',
+    }),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [UsersController],
@@ -48,6 +78,10 @@ describe('UsersController', () => {
         {
           provide: UsersService,
           useValue: mockUsersService,
+        },
+        {
+          provide: ConfigService,
+          useValue: mockConfigService,
         },
       ],
     }).compile();
@@ -70,7 +104,10 @@ describe('UsersController', () => {
         email: mockUser.email,
         phone: mockUser.phone,
         nickname: mockUser.nickname,
-        avatarUrl: mockUser.avatarUrl,
+        avatar: {
+          type: 'local',
+          url: mockUser.avatarUrl,
+        },
         status: mockUser.status,
         locale: mockUser.locale,
         emailVerifiedAt: mockUser.emailVerifiedAt,
@@ -216,7 +253,7 @@ describe('UsersController', () => {
         'email',
         'phone',
         'nickname',
-        'avatarUrl',
+        'avatar',
         'status',
         'locale',
         'emailVerifiedAt',
@@ -245,7 +282,7 @@ describe('UsersController', () => {
       expect(result.email).toBeNull();
       expect(result.phone).toBeNull();
       expect(result.nickname).toBeNull();
-      expect(result.avatarUrl).toBeNull();
+      expect(result.avatar).toEqual({ type: 'local' });
       expect(result.emailVerifiedAt).toBeNull();
       expect(result.phoneVerifiedAt).toBeNull();
     });

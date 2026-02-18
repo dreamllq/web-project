@@ -5,6 +5,11 @@ import type {
   ChangePasswordDto,
   ResetPasswordDto,
   ForgotPasswordDto,
+  DeviceListResponse,
+  TrustDeviceResponse,
+  LoginHistoryQuery,
+  LoginHistoryResponse,
+  AvatarUploadResponse,
 } from '@/types/user';
 
 /**
@@ -71,4 +76,46 @@ export function requestEmailVerification(): Promise<{
   data: { success: boolean; message: string };
 }> {
   return api.post('/v1/auth/verify-email/request');
+}
+
+/**
+ * Get user devices
+ * GET /api/v1/users/me/devices
+ */
+export function getDevices(): Promise<{ data: DeviceListResponse }> {
+  return api.get('/v1/users/me/devices');
+}
+
+/**
+ * Trust a device
+ * POST /api/v1/users/me/devices/:deviceId/trust
+ */
+export function trustDevice(deviceId: string): Promise<{ data: TrustDeviceResponse }> {
+  return api.post(`/v1/users/me/devices/${deviceId}/trust`);
+}
+
+/**
+ * Remove a device
+ * DELETE /api/v1/users/me/devices/:deviceId
+ */
+export function removeDevice(deviceId: string): Promise<void> {
+  return api.delete(`/v1/users/me/devices/${deviceId}`);
+}
+
+/**
+ * Get login history
+ * GET /api/v1/users/me/login-history
+ */
+export function getLoginHistory(query: LoginHistoryQuery): Promise<{ data: LoginHistoryResponse }> {
+  return api.get('/v1/users/me/login-history', { params: query });
+}
+
+/**
+ * Upload avatar
+ * POST /api/v1/users/me/avatar
+ */
+export function uploadAvatar(file: File): Promise<{ data: AvatarUploadResponse }> {
+  const formData = new FormData();
+  formData.append('file', file);
+  return api.post('/v1/users/me/avatar', formData);
 }
