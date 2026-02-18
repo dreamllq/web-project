@@ -27,6 +27,32 @@ MINIO_BUCKET=avatars
 
 ---
 
+## S3-Compatible Services Comparison
+
+推荐使用 S3 兼容的云存储服务，通过 `STORAGE_PROVIDER=s3` 配置即可使用。
+
+| 服务商                                              | 免费额度 (存储) | 免费流量 | S3 兼容   | 国内访问 | 推荐度     | 官网                                    |
+| --------------------------------------------------- | --------------- | -------- | --------- | -------- | ---------- | --------------------------------------- |
+| [Cloudflare R2](https://dash.cloudflare.com/)       | 10 GB/月        | ✅ 无限  | ✅        | ⚠️ 一般  | ⭐⭐⭐⭐⭐ | <https://dash.cloudflare.com/>          |
+| [Supabase Storage](https://supabase.com)            | 1 GB            | 5 GB/月  | ✅        | ⚠️ 一般  | ⭐⭐⭐⭐   | <https://supabase.com>                  |
+| [MinIO (自托管)](https://min.io)                    | ✅ 无限         | ✅ 无限  | ✅        | ✅ 最佳  | ⭐⭐⭐⭐   | <https://min.io>                        |
+| [阿里云 OSS](https://www.aliyun.com/product/oss)    | 5 GB/6月        | 按量付费 | ✅        | ✅ 最佳  | ⭐⭐⭐     | <https://www.aliyun.com/product/oss>    |
+| [腾讯云 COS](https://cloud.tencent.com/product/cos) | 50 GB/6月       | 按量付费 | ✅        | ✅ 最佳  | ⭐⭐⭐     | <https://cloud.tencent.com/product/cos> |
+| [AWS S3](https://aws.amazon.com/s3/)                | 5 GB/12月       | 按量付费 | ✅ (原生) | ❌ 较差  | ⭐⭐⭐     | <https://aws.amazon.com/s3/>            |
+
+### 选择建议
+
+| 场景        | 推荐服务                | 原因                      |
+| ----------- | ----------------------- | ------------------------- |
+| 🌍 海外用户 | Cloudflare R2           | 免费流量无限，全球 CDN    |
+| 🇨🇳 国内用户 | 阿里云 OSS / 腾讯云 COS | 国内访问速度最佳          |
+| 💰 成本敏感 | Cloudflare R2           | 10 GB 存储 + 无限流量免费 |
+| 🔒 私有部署 | MinIO (自托管)          | 完全控制，无限制          |
+| 🚀 快速原型 | Supabase Storage        | 1 分钟接入，免费额度够用  |
+| 🧪 本地开发 | MinIO (Docker)          | 完全免费，与生产环境一致  |
+
+---
+
 ## Provider Configuration
 
 ### S3 Provider
