@@ -256,4 +256,26 @@ export class UsersService {
   async updateAvatarUrl(id: string, avatarUrl: string): Promise<void> {
     await this.usersRepository.update(id, { avatarUrl });
   }
+
+  /**
+   * Generic update method for user fields
+   */
+  async update(
+    id: string,
+    updateData: Partial<
+      Pick<
+        User,
+        | 'phone'
+        | 'phoneVerifiedAt'
+        | 'email'
+        | 'emailVerifiedAt'
+        | 'nickname'
+        | 'avatarUrl'
+        | 'locale'
+        | 'status'
+      >
+    >
+  ): Promise<void> {
+    await this.usersRepository.update(id, updateData);
+  }
 }

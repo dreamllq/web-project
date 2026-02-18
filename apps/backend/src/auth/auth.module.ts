@@ -6,6 +6,7 @@ import { HttpModule } from '@nestjs/axios';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { CustomCacheModule } from '../custom-cache/custom-cache.module';
 import { MailModule } from '../mail/mail.module';
+import { SmsModule } from '../sms/sms.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { UsersModule } from '../users/users.module';
@@ -56,6 +57,7 @@ import { VerificationToken } from '../entities/verification-token.entity';
     CustomCacheModule,
     HttpModule,
     MailModule,
+    SmsModule,
   ],
   controllers: [AuthController],
   providers: [
