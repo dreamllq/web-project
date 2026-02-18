@@ -17,6 +17,12 @@ import { RoleGuard } from './guards/role.guard';
   ],
   controllers: [PolicyController],
   providers: [PolicyService, PolicyEvaluatorService, PermissionGuard, RoleGuard],
-  exports: [PolicyService, PolicyEvaluatorService, PermissionGuard, RoleGuard],
+  exports: [
+    PolicyService,
+    PolicyEvaluatorService,
+    PermissionGuard,
+    RoleGuard,
+    RbacModule, // Re-export RbacModule so consumers get RoleService
+  ],
 })
 export class PolicyModule {}
