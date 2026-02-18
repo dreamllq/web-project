@@ -12,7 +12,7 @@ import * as path from 'path';
 import { randomUUID } from 'crypto';
 import { File, StorageProvider } from '../entities/file.entity';
 import { QueryFileDto } from './dto';
-import { StorageConfig } from './config/storage.config';
+import { FileConfig } from './config/file.config';
 
 @Injectable()
 export class FileService {
@@ -23,12 +23,12 @@ export class FileService {
   constructor(
     @InjectRepository(File)
     private readonly fileRepo: Repository<File>,
-    private readonly configService: ConfigService,
+    private readonly configService: ConfigService
   ) {
-    const storageConfig = this.configService.get<StorageConfig>('storage')!;
-    this.uploadDir = storageConfig.uploadDir;
-    this.allowedMimeTypes = storageConfig.allowedMimeTypes;
-    this.maxFileSize = storageConfig.maxFileSize;
+    const fileConfig = this.configService.get<FileConfig>('file')!;
+    this.uploadDir = fileConfig.uploadDir;
+    this.allowedMimeTypes = fileConfig.allowedMimeTypes;
+    this.maxFileSize = fileConfig.maxFileSize;
   }
 
   /**
@@ -49,14 +49,14 @@ export class FileService {
     // Validate file size
     if (file.size > this.maxFileSize) {
       throw new BadRequestException(
-        `File size exceeds maximum allowed size of ${this.maxFileSize / 1024 / 1024}MB`,
+        `File size exceeds maximum allowed size of ${this.maxFileSize / 1024 / 1024}MB`
       );
     }
 
     // Validate MIME type
     if (!this.allowedMimeTypes.includes(file.mimetype)) {
       throw new BadRequestException(
-        `File type ${file.mimetype} is not allowed. Allowed types: ${this.allowedMimeTypes.join(', ')}`,
+        `File type ${file.mimetype} is not allowed. Allowed types: ${this.allowedMimeTypes.join(', ')}`
       );
     }
 
@@ -89,10 +89,7 @@ export class FileService {
   /**
    * Find all files for a user with filtering and pagination
    */
-  async findAll(
-    userId: string,
-    query: QueryFileDto,
-  ): Promise<{ data: File[]; total: number }> {
+  async findAll(userId: string, query: QueryFileDto): Promise<{ data: File[]; total: number }> {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
     const skip = (page - 1) * limit;

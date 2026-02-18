@@ -4,13 +4,10 @@ import { ConfigModule } from '@nestjs/config';
 import { File } from '../entities/file.entity';
 import { FileService } from './file.service';
 import { FileController } from './file.controller';
-import { storageConfig } from './config/storage.config';
+import { fileConfig } from './config/file.config';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([File]),
-    ConfigModule.forFeature(storageConfig),
-  ],
+  imports: [TypeOrmModule.forFeature([File]), ConfigModule.forFeature(fileConfig)],
   controllers: [FileController],
   providers: [FileService],
   exports: [FileService],
