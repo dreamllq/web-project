@@ -8,7 +8,7 @@ export const databaseConfig = (): TypeOrmModuleOptions => {
     entities: [__dirname + '/../entities/*.entity{.ts,.js}'],
     // migrations: [__dirname + '/../../migrations/*{.ts,.js}'],
     // Enable synchronize to auto-create/update tables (set DB_SYNC=false to disable)
-    synchronize: process.env.DB_SYNC !== 'false',
+    synchronize: false,
     logging: true,
     // Neon requires SSL
     ssl: isNeon || process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,

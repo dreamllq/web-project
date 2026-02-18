@@ -21,6 +21,7 @@ import { FileModule } from './file/file.module';
 import { OAuthModule } from './oauth/oauth.module';
 import { InitModule } from './init/init.module';
 import { MailModule } from './mail/mail.module';
+import {storageConfig} from './config/storage.config';
 
 @Module({
   imports: [
@@ -51,6 +52,7 @@ import { MailModule } from './mail/mail.module';
         wechatConfig,
         wechatMiniprogramConfig,
         dingtalkMiniprogramConfig,
+        storageConfig
       ],
     }),
     TypeOrmModule.forRootAsync({
@@ -69,7 +71,7 @@ import { MailModule } from './mail/mail.module';
     FileModule,
     OAuthModule,
     InitModule,
-    MailModule,
+    MailModule
   ],
   controllers: [],
   providers: [
