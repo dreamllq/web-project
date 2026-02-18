@@ -17,6 +17,9 @@ import { WechatMiniprogramService } from './oauth/wechat-miniprogram.service';
 import { DingtalkMiniprogramService } from './oauth/dingtalk-miniprogram.service';
 import { VerificationTokenService } from './services/verification-token.service';
 import { VerificationToken } from '../entities/verification-token.entity';
+import { TwoFactorService } from './services/two-factor.service';
+import { TotpService } from './services/totp.service';
+import { RecoveryCodeService } from './services/recovery-code.service';
 
 @Module({
   imports: [
@@ -67,6 +70,9 @@ import { VerificationToken } from '../entities/verification-token.entity';
     WechatMiniprogramService,
     DingtalkMiniprogramService,
     VerificationTokenService,
+    TotpService,
+    RecoveryCodeService,
+    TwoFactorService,
   ],
   exports: [
     AuthService,
@@ -75,6 +81,9 @@ import { VerificationToken } from '../entities/verification-token.entity';
     WechatMiniprogramService,
     DingtalkMiniprogramService,
     VerificationTokenService,
+    TotpService,
+    RecoveryCodeService,
+    TwoFactorService,
   ],
 })
 export class AuthModule {}
