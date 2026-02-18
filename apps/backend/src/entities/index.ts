@@ -19,3 +19,7 @@ export { File, StorageProvider } from './file.entity';
 // OAuth entities
 export { OAuthClient } from './oauth-client.entity';
 export { OAuthToken } from './oauth-token.entity';
+
+// Device & Login entities
+export { UserDevice } from './user-device.entity';
+export { LoginHistory, LoginMethod } from './login-history.entity';
