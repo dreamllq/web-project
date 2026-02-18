@@ -36,6 +36,7 @@ export class StorageService implements IStorageService {
   private readonly s3ClientForSignedUrl: S3Client | null = null;
 
   constructor(private readonly configService: ConfigService) {
+     console.log('STORAGE CONFIG',this.configService.get<MultiStorageConfig>('storage') );
     this.config = this.configService.get<MultiStorageConfig>('storage') ?? {
       provider: 's3',
       s3: {

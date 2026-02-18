@@ -14,15 +14,12 @@ describe('storageConfig', () => {
   });
 
   describe('provider validation', () => {
-    test('should default to s3 provider when STORAGE_PROVIDER is not set', () => {
+    test('should default to local provider when STORAGE_PROVIDER is not set', () => {
       delete process.env.STORAGE_PROVIDER;
-      process.env.S3_ACCESS_KEY_ID = 'test-key';
-      process.env.S3_SECRET_ACCESS_KEY = 'test-secret';
-      process.env.S3_BUCKET = 'test-bucket';
 
       const config = storageConfig();
 
-      expect(config.provider).toBe('s3');
+      expect(config.provider).toBe('local');
     });
 
     test('should accept s3 provider', () => {
@@ -265,30 +262,38 @@ describe('storageConfig', () => {
       expect(config.local.baseUrl).toBe('http://localhost:3000/uploads');
     });
 
-    test('should throw error for missing Local required fields', () => {
+    test('should use defaults for local config when env vars not set', () => {
       process.env.STORAGE_PROVIDER = 'local';
       delete process.env.LOCAL_UPLOAD_DIR;
       delete process.env.LOCAL_BASE_URL;
 
-      expect(() => storageConfig()).toThrow('Missing required Local storage configuration');
+      const config = storageConfig();
+
+      // Should use defaults instead of throwing
+      expect(config.local.uploadDir).toBe('./uploads');
+      expect(config.local.baseUrl).toBe('http://localhost:3000/uploads');
     });
 
-    test('should throw error for missing LOCAL_UPLOAD_DIR', () => {
+    test('should use custom LOCAL_UPLOAD_DIR when set', () => {
       process.env.STORAGE_PROVIDER = 'local';
-      process.env.LOCAL_BASE_URL = 'http://localhost:3000/uploads';
-      delete process.env.LOCAL_UPLOAD_DIR;
-
-      expect(() => storageConfig()).toThrow('Missing required Local storage configuration');
-      expect(() => storageConfig()).toThrow('LOCAL_UPLOAD_DIR');
-    });
-
-    test('should throw error for missing LOCAL_BASE_URL', () => {
-      process.env.STORAGE_PROVIDER = 'local';
-      process.env.LOCAL_UPLOAD_DIR = './uploads';
+      process.env.LOCAL_UPLOAD_DIR = './custom-uploads';
       delete process.env.LOCAL_BASE_URL;
 
-      expect(() => storageConfig()).toThrow('Missing required Local storage configuration');
-      expect(() => storageConfig()).toThrow('LOCAL_BASE_URL');
+      const config = storageConfig();
+
+      expect(config.local.uploadDir).toBe('./custom-uploads');
+      expect(config.local.baseUrl).toBe('http://localhost:3000/uploads');
+    });
+
+    test('should use custom LOCAL_BASE_URL when set', () => {
+      process.env.STORAGE_PROVIDER = 'local';
+      delete process.env.LOCAL_UPLOAD_DIR;
+      process.env.LOCAL_BASE_URL = 'http://custom.host/files';
+
+      const config = storageConfig();
+
+      expect(config.local.uploadDir).toBe('./uploads');
+      expect(config.local.baseUrl).toBe('http://custom.host/files');
     });
   });
 

@@ -38,6 +38,8 @@
  * - STORAGE_FORCE_PATH_STYLE -> S3_FORCE_PATH_STYLE
  */
 
+import { registerAs } from '@nestjs/config';
+
 export type StorageProvider = 's3' | 'minio' | 'local';
 
 /**
@@ -268,7 +270,8 @@ function getActiveProviderLegacyConfig(
  * Multi-provider storage configuration factory
  * Returns configuration with all provider configs plus backward-compatible flat fields
  */
-export function storageConfig(): MultiStorageConfig {
+
+export const storageConfig = registerAs('storage', () => {
   const provider = (process.env.STORAGE_PROVIDER as StorageProvider) || 'local';
 
   // Validate provider value
@@ -307,6 +310,6 @@ export function storageConfig(): MultiStorageConfig {
     local,
     ...legacyConfig,
   };
-}
+});
 
 export default storageConfig;
