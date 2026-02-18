@@ -14,6 +14,7 @@ import { AppI18nModule } from './i18n/i18n.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { PolicyModule } from './policy/policy.module';
+import { RbacModule } from './rbac/rbac.module';
 import { AuditModule } from './audit/audit.module';
 import { NotificationModule } from './notification/notification.module';
 import { WebsocketModule } from './websocket/websocket.module';
@@ -21,7 +22,7 @@ import { FileModule } from './file/file.module';
 import { OAuthModule } from './oauth/oauth.module';
 import { InitModule } from './init/init.module';
 import { MailModule } from './mail/mail.module';
-import {storageConfig} from './config/storage.config';
+import { storageConfig } from './config/storage.config';
 
 @Module({
   imports: [
@@ -52,7 +53,7 @@ import {storageConfig} from './config/storage.config';
         wechatConfig,
         wechatMiniprogramConfig,
         dingtalkMiniprogramConfig,
-        storageConfig
+        storageConfig,
       ],
     }),
     TypeOrmModule.forRootAsync({
@@ -65,13 +66,14 @@ import {storageConfig} from './config/storage.config';
     AuthModule,
     UsersModule,
     PolicyModule,
+    RbacModule,
     AuditModule,
     NotificationModule,
     WebsocketModule,
     FileModule,
     OAuthModule,
     InitModule,
-    MailModule
+    MailModule,
   ],
   controllers: [],
   providers: [
