@@ -1,14 +1,34 @@
 import { describe, test, expect, mock, beforeEach, afterEach } from 'bun:test';
 import { ConfigService } from '@nestjs/config';
 import { StorageService } from './storage.service';
-import type { StorageConfig } from '../config/storage.config';
+import type { MultiStorageConfig } from '../config/storage.config';
 
 describe('StorageService', () => {
   let storageService: StorageService;
   let configService: ConfigService;
 
-  const mockStorageConfig: StorageConfig = {
+  const mockStorageConfig: MultiStorageConfig = {
     provider: 's3',
+    s3: {
+      endpoint: '',
+      region: 'us-east-1',
+      bucket: 'test-bucket',
+      accessKeyId: 'AKIAIOSFODNN7EXAMPLE',
+      secretAccessKey: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
+      forcePathStyle: false,
+    },
+    minio: {
+      endpoint: '',
+      accessKey: '',
+      secretKey: '',
+      bucket: '',
+      useSSL: false,
+    },
+    local: {
+      uploadDir: '',
+      baseUrl: '',
+    },
+    // Legacy fields
     accessKeyId: 'AKIAIOSFODNN7EXAMPLE',
     secretAccessKey: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
     region: 'us-east-1',
@@ -48,10 +68,15 @@ describe('StorageService', () => {
     });
 
     test('should return custom endpoint URL with path style when forcePathStyle is true', async () => {
-      const customConfig: StorageConfig = {
+      const customConfig: MultiStorageConfig = {
         ...mockStorageConfig,
         endpoint: 'http://localhost:9000',
         forcePathStyle: true,
+        s3: {
+          ...mockStorageConfig.s3,
+          endpoint: 'http://localhost:9000',
+          forcePathStyle: true,
+        },
       };
 
       const customConfigService = {
@@ -66,10 +91,15 @@ describe('StorageService', () => {
     });
 
     test('should return virtual-hosted style URL when endpoint is set and forcePathStyle is false', async () => {
-      const customConfig: StorageConfig = {
+      const customConfig: MultiStorageConfig = {
         ...mockStorageConfig,
         endpoint: 'https://oss-cn-hangzhou.aliyuncs.com',
         forcePathStyle: false,
+        s3: {
+          ...mockStorageConfig.s3,
+          endpoint: 'https://oss-cn-hangzhou.aliyuncs.com',
+          forcePathStyle: false,
+        },
       };
 
       const customConfigService = {
