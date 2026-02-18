@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
 import { join } from 'path';
 import { databaseConfig } from './config/database.config';
 import { jwtConfig } from './config/jwt.config';
@@ -22,6 +24,24 @@ import { MailModule } from './mail/mail.module';
 
 @Module({
   imports: [
+    // Rate limiting configuration
+    ThrottlerModule.forRoot([
+      {
+        name: 'short',
+        ttl: 60000, // 1 minute
+        limit: 100, // 100 requests per minute (default)
+      },
+      {
+        name: 'medium',
+        ttl: 3600000, // 1 hour
+        limit: 100, // 100 requests per hour
+      },
+      {
+        name: 'long',
+        ttl: 86400000, // 24 hours
+        limit: 100, // 100 requests per day
+      },
+    ]),
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: [join(__dirname, '../../../.env'), join(__dirname, '../../../.env.local')],
@@ -52,6 +72,11 @@ import { MailModule } from './mail/mail.module';
     MailModule,
   ],
   controllers: [],
-  providers: [],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+  ],
 })
 export class AppModule {}
