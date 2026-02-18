@@ -38,8 +38,9 @@ export class RbacController {
   @RequirePermission('role', 'read')
   @ApiOperation({ summary: 'Get all roles' })
   @ApiResponse({ status: 200, description: 'List of roles' })
-  async getRoles(): Promise<Role[]> {
-    return this.roleService.getRoles();
+  async getRoles(): Promise<{ data: Role[] }> {
+    const roles = await this.roleService.getRoles();
+    return { data: roles };
   }
 
   @Patch(':id')
@@ -98,8 +99,11 @@ export class RbacController {
   @ApiOperation({ summary: 'Get user roles' })
   @ApiParam({ name: 'id', description: 'User ID' })
   @ApiResponse({ status: 200, description: 'List of user roles' })
-  async getUserRoles(@Param('id', ParseUUIDPipe) userId: string): Promise<Role[]> {
-    return this.roleService.getUserRoles(userId);
+  async getUserRoles(
+    @Param('id', ParseUUIDPipe) userId: string
+  ): Promise<{ userId: string; roles: Role[] }> {
+    const roles = await this.roleService.getUserRoles(userId);
+    return { userId, roles };
   }
 
   @Get('users/:id/permissions')

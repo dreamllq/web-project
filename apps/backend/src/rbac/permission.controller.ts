@@ -26,8 +26,9 @@ export class PermissionController {
   @RequirePermission('permission', 'read')
   @ApiOperation({ summary: 'Get all permissions' })
   @ApiResponse({ status: 200, description: 'List of permissions' })
-  async getPermissions(): Promise<Permission[]> {
-    return this.permissionService.getPermissions();
+  async getPermissions(): Promise<{ data: Permission[] }> {
+    const permissions = await this.permissionService.getPermissions();
+    return { data: permissions };
   }
 
   @Get(':id')
