@@ -10,6 +10,7 @@ import {
   Res,
   Version,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { Request, Response } from 'express';
 import { ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
@@ -44,16 +45,20 @@ export class AuthController {
   ) {}
 
   @Public()
+  @Throttle({ default: { limit: 3, ttl: 3600000 } }) // 3 requests per hour
   @Post('register')
   async register(@Body() registerDto: RegisterDto) {
     return this.authService.register(registerDto);
   }
 
   @Public()
+  @Throttle({ default: { limit: 5, ttl: 60000 } }) // 5 requests per minute
   @Post('login')
   async login(@Body() loginDto: LoginDto, @Req() req: Request) {
-    const ip = req.ip || req.socket.remoteAddress;
-    return this.authService.login(loginDto, ip);
+    return this.authService.login(loginDto, {
+      ipAddress: req.ip || req.socket.remoteAddress,
+      userAgent: req.headers['user-agent'],
+    });
   }
 
   @Public()
@@ -160,6 +165,7 @@ export class AuthController {
    */
   @Version('1')
   @Public()
+  @Throttle({ default: { limit: 1, ttl: 60000 } }) // 1 request per minute
   @Post('forgot-password')
   async forgotPassword(@Body() dto: ForgotPasswordDto) {
     return this.authService.forgotPassword(dto.email);
@@ -172,6 +178,7 @@ export class AuthController {
    */
   @Version('1')
   @Public()
+  @Throttle({ default: { limit: 1, ttl: 60000 } }) // 1 request per minute
   @Post('reset-password')
   async resetPassword(@Body() dto: ResetPasswordDto) {
     return this.authService.resetPassword(dto.token, dto.newPassword);

@@ -249,4 +249,11 @@ export class UsersService {
     // Use TypeORM's soft delete mechanism
     await this.usersRepository.softDelete(id);
   }
+
+  /**
+   * Update user's avatar URL
+   */
+  async updateAvatarUrl(id: string, avatarUrl: string): Promise<void> {
+    await this.usersRepository.update(id, { avatarUrl });
+  }
 }

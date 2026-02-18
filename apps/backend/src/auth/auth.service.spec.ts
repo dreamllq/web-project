@@ -539,7 +539,7 @@ describe('AuthService', () => {
       mockUsersService.updateLastLogin.mockResolvedValue(undefined);
       mockJwtService.sign.mockReturnValue('token');
 
-      await service.login(loginDto, '192.168.1.1');
+      await service.login(loginDto, { ipAddress: '192.168.1.1' });
 
       expect(mockUsersService.updateLastLogin).toHaveBeenCalledWith('uuid-123', '192.168.1.1');
     });

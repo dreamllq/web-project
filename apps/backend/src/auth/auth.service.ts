@@ -12,6 +12,8 @@ import { JwtConfig } from '../config/jwt.config';
 import { VerificationTokenService } from './services/verification-token.service';
 import { VerificationTokenType } from '../entities/verification-token.entity';
 import { MailService } from '../mail/mail.service';
+import { LoginHistoryService, LoginInfo } from '../users/services/login-history.service';
+import { LoginMethod } from '../entities/login-history.entity';
 
 export interface RegisterResponse {
   id: string;
@@ -45,6 +47,12 @@ export interface CustomJwtPayload {
   type: 'access' | 'refresh';
 }
 
+export interface LoginContext {
+  ipAddress?: string;
+  userAgent?: string;
+  deviceFingerprint?: string;
+}
+
 @Injectable()
 export class AuthService {
   private readonly SALT_ROUNDS = 10;
@@ -58,7 +66,8 @@ export class AuthService {
     private readonly configService: ConfigService,
     private readonly cacheService: CustomCacheService,
     private readonly verificationTokenService: VerificationTokenService,
-    private readonly mailService: MailService
+    private readonly mailService: MailService,
+    private readonly loginHistoryService: LoginHistoryService
   ) {}
 
   async hashPassword(password: string): Promise<string> {
@@ -252,18 +261,32 @@ export class AuthService {
     };
   }
 
-  async login(loginDto: LoginDto, ip?: string): Promise<LoginResponse> {
+  async login(loginDto: LoginDto, context?: LoginContext): Promise<LoginResponse> {
     const { username, password } = loginDto;
 
     // Find user by username
     const user = await this.usersService.findByUsername(username);
 
+    // Build login info for recording
+    const loginInfo: LoginInfo = {
+      ipAddress: context?.ipAddress,
+      userAgent: context?.userAgent,
+      deviceFingerprint: context?.deviceFingerprint,
+      loginMethod: LoginMethod.PASSWORD,
+      success: false,
+    };
+
     if (!user) {
+      // Record failed login attempt with unknown user
+      loginInfo.failureReason = 'user_not_found';
+      await this.loginHistoryService.recordLogin(null, loginInfo);
       throw new UnauthorizedException('Invalid credentials');
     }
 
     // Check if user has a password (might be OAuth-only user)
     if (!user.passwordHash) {
+      loginInfo.failureReason = 'no_password_set';
+      await this.loginHistoryService.recordLogin(user.id, loginInfo);
       throw new UnauthorizedException('Invalid credentials');
     }
 
@@ -271,21 +294,29 @@ export class AuthService {
     const isPasswordValid = await this.comparePassword(password, user.passwordHash);
 
     if (!isPasswordValid) {
+      loginInfo.failureReason = 'invalid_password';
+      await this.loginHistoryService.recordLogin(user.id, loginInfo);
       throw new UnauthorizedException('Invalid credentials');
     }
 
     // Check if user is disabled
     if (user.status === UserStatus.DISABLED) {
+      loginInfo.failureReason = 'account_disabled';
+      await this.loginHistoryService.recordLogin(user.id, loginInfo);
       throw new UnauthorizedException('User account is disabled');
     }
 
     // Update last login
-    await this.usersService.updateLastLogin(user.id, ip);
+    await this.usersService.updateLastLogin(user.id, context?.ipAddress);
 
     // If user was pending, activate them after first login
     if (user.status === UserStatus.PENDING) {
       await this.usersService.updateStatus(user.id, UserStatus.ACTIVE);
     }
+
+    // Record successful login
+    loginInfo.success = true;
+    await this.loginHistoryService.recordLogin(user.id, loginInfo);
 
     // Generate tokens
     const tokens = await this.generateTokens(user);
