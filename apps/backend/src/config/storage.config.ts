@@ -7,7 +7,7 @@
  * - local: Local filesystem storage
  *
  * Environment Variables:
- * - STORAGE_PROVIDER: 's3' | 'minio' | 'local' (default: 's3')
+ * - STORAGE_PROVIDER: 's3' | 'minio' | 'local' (default: 'local')
  *
  * S3 Configuration (for AWS, R2, OSS, COS):
  * - S3_ENDPOINT: e.g., 'https://s3.amazonaws.com'
@@ -174,18 +174,9 @@ function validateMinIOConfig(config: MinIOConfig): void {
 /**
  * Validate Local configuration
  */
-function validateLocalConfig(config: LocalConfig): void {
-  const missing: string[] = [];
-
-  if (!config.uploadDir) missing.push('LOCAL_UPLOAD_DIR');
-  if (!config.baseUrl) missing.push('LOCAL_BASE_URL');
-
-  if (missing.length > 0) {
-    throw new StorageConfigError(
-      `Missing required Local storage configuration: ${missing.join(', ')}. ` +
-        `Please set these environment variables or use a different storage provider.`
-    );
-  }
+function validateLocalConfig(_config: LocalConfig): void {
+  // With defaults for uploadDir and baseUrl, local config is always valid
+  // No validation needed since we provide sensible defaults for development
 }
 
 /**
@@ -224,8 +215,8 @@ function buildMinIOConfig(): MinIOConfig {
  */
 function buildLocalConfig(): LocalConfig {
   return {
-    uploadDir: process.env.LOCAL_UPLOAD_DIR ?? '',
-    baseUrl: process.env.LOCAL_BASE_URL ?? '',
+    uploadDir: process.env.LOCAL_UPLOAD_DIR ?? './uploads',
+    baseUrl: process.env.LOCAL_BASE_URL ?? 'http://localhost:3000/uploads',
   };
 }
 
@@ -278,7 +269,7 @@ function getActiveProviderLegacyConfig(
  * Returns configuration with all provider configs plus backward-compatible flat fields
  */
 export function storageConfig(): MultiStorageConfig {
-  const provider = (process.env.STORAGE_PROVIDER as StorageProvider) || 's3';
+  const provider = (process.env.STORAGE_PROVIDER as StorageProvider) || 'local';
 
   // Validate provider value
   const validProviders: StorageProvider[] = ['s3', 'minio', 'local'];
