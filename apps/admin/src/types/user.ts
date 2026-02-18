@@ -1,7 +1,23 @@
 import type { User, UserStatus } from './auth';
+import type {
+  TwoFactorStatusResponse,
+  TwoFactorSetupResponse,
+  TwoFactorEnableDto,
+  TwoFactorEnableResponse,
+  VerifyPhoneDto,
+} from './auth';
 
 // Re-export User types for convenience
 export type { User, UserStatus };
+
+// Re-export 2FA types for convenience
+export type {
+  TwoFactorStatusResponse,
+  TwoFactorSetupResponse,
+  TwoFactorEnableDto,
+  TwoFactorEnableResponse,
+  VerifyPhoneDto,
+};
 
 /**
  * Storage URL response type

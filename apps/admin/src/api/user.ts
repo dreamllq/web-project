@@ -10,6 +10,11 @@ import type {
   LoginHistoryQuery,
   LoginHistoryResponse,
   AvatarUploadResponse,
+  TwoFactorStatusResponse,
+  TwoFactorSetupResponse,
+  TwoFactorEnableDto,
+  TwoFactorEnableResponse,
+  VerifyPhoneDto,
 } from '@/types/user';
 
 /**
@@ -118,4 +123,74 @@ export function uploadAvatar(file: File): Promise<{ data: AvatarUploadResponse }
   const formData = new FormData();
   formData.append('file', file);
   return api.post('/v1/users/me/avatar', formData);
+}
+
+// ============================================
+// Two-Factor Authentication (2FA) Functions
+// ============================================
+
+/**
+ * Get 2FA status
+ * GET /api/v1/users/me/2fa/status
+ */
+export function getTwoFactorStatus(): Promise<{ data: TwoFactorStatusResponse }> {
+  return api.get('/v1/users/me/2fa/status');
+}
+
+/**
+ * Setup 2FA (generate QR code and secret)
+ * POST /api/v1/users/me/2fa/setup
+ */
+export function setupTwoFactor(): Promise<{ data: TwoFactorSetupResponse }> {
+  return api.post('/v1/users/me/2fa/setup');
+}
+
+/**
+ * Enable 2FA after verifying code
+ * POST /api/v1/users/me/2fa/enable
+ */
+export function enableTwoFactor(
+  data: TwoFactorEnableDto
+): Promise<{ data: TwoFactorEnableResponse }> {
+  return api.post('/v1/users/me/2fa/enable', data);
+}
+
+/**
+ * Disable 2FA
+ * POST /api/v1/users/me/2fa/disable
+ */
+export function disableTwoFactor(): Promise<{ data: { success: boolean; message: string } }> {
+  return api.post('/v1/users/me/2fa/disable');
+}
+
+/**
+ * Regenerate recovery codes
+ * POST /api/v1/users/me/2fa/regenerate-codes
+ */
+export function regenerateRecoveryCodes(): Promise<{
+  data: { success: boolean; recoveryCodes: string[] };
+}> {
+  return api.post('/v1/users/me/2fa/regenerate-codes');
+}
+
+// ============================================
+// Phone Verification Functions
+// ============================================
+
+/**
+ * Send phone verification code
+ * POST /api/v1/users/me/phone/send-verification
+ */
+export function sendPhoneVerification(
+  phone: string
+): Promise<{ data: { success: boolean; message: string } }> {
+  return api.post('/v1/users/me/phone/send-verification', { phone });
+}
+
+/**
+ * Verify phone with code
+ * POST /api/v1/users/me/phone/verify
+ */
+export function verifyPhone(data: VerifyPhoneDto): Promise<{ data: { success: boolean } }> {
+  return api.post('/v1/users/me/phone/verify', data);
 }
