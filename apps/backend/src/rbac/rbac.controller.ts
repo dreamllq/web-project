@@ -18,7 +18,7 @@ import { CreateRoleDto, UpdateRoleDto, AssignRoleDto } from './dto';
 import { Role } from '../entities/role.entity';
 
 @ApiTags('rbac')
-@Controller('api/v1')
+@Controller({ path: 'roles', version: '1' })
 @UseGuards(JwtAuthGuard, PermissionGuard)
 @ApiBearerAuth()
 export class RbacController {
