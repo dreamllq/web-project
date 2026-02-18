@@ -1,24 +1,17 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import {
-  S3Client,
-  PutObjectCommand,
-  DeleteObjectCommand,
-  GetObjectCommand,
-} from '@aws-sdk/client-s3';
+import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { StorageConfig } from '../config/storage.config';
 
-export interface UploadOptions {
-  contentType?: string;
-  metadata?: Record<string, string>;
-}
-
-export interface UploadResult {
-  key: string;
-  bucket: string;
-  url: string;
-}
+import { MultiStorageConfig } from '../config/storage.config';
+import {
+  createStorageProvider,
+  MinIOProvider,
+  S3Provider,
+  StorageProvider,
+  UploadOptions,
+  UploadResult,
+} from './providers';
 
 export interface IStorageService {
   upload(
@@ -31,30 +24,61 @@ export interface IStorageService {
   getSignedUrl(key: string, expiresIn?: number): Promise<string>;
 }
 
+/**
+ * Storage service that provides a unified interface for file storage operations.
+ * Supports multiple storage backends (S3, MinIO, Local) through the provider factory.
+ */
 @Injectable()
 export class StorageService implements IStorageService {
   private readonly logger = new Logger(StorageService.name);
-  private readonly s3Client: S3Client;
-  private readonly config: StorageConfig;
+  private readonly provider: StorageProvider;
+  private readonly config: MultiStorageConfig;
+  private readonly s3ClientForSignedUrl: S3Client | null = null;
 
   constructor(private readonly configService: ConfigService) {
-    this.config = this.configService.get<StorageConfig>('storage') ?? {
+    this.config = this.configService.get<MultiStorageConfig>('storage') ?? {
       provider: 's3',
+      s3: {
+        endpoint: '',
+        region: 'us-east-1',
+        bucket: '',
+        accessKeyId: '',
+        secretAccessKey: '',
+        forcePathStyle: false,
+      },
+      minio: {
+        endpoint: '',
+        accessKey: '',
+        secretKey: '',
+        bucket: '',
+        useSSL: false,
+      },
+      local: {
+        uploadDir: '',
+        baseUrl: '',
+      },
       accessKeyId: '',
       secretAccessKey: '',
       region: 'us-east-1',
       bucket: '',
     };
 
-    this.s3Client = new S3Client({
-      region: this.config.region,
-      credentials: {
-        accessKeyId: this.config.accessKeyId,
-        secretAccessKey: this.config.secretAccessKey,
-      },
-      endpoint: this.config.endpoint,
-      forcePathStyle: this.config.forcePathStyle,
-    });
+    // Create the appropriate provider based on configuration
+    this.provider = createStorageProvider(this.config);
+
+    // Create S3Client for signed URL generation (only for S3 provider)
+    // MinIOProvider has its own getSignedUrl method
+    if (this.config.provider === 's3') {
+      this.s3ClientForSignedUrl = new S3Client({
+        region: this.config.s3.region,
+        credentials: {
+          accessKeyId: this.config.s3.accessKeyId,
+          secretAccessKey: this.config.s3.secretAccessKey,
+        },
+        endpoint: this.config.s3.endpoint || undefined,
+        forcePathStyle: this.config.s3.forcePathStyle,
+      });
+    }
 
     this.logger.log(`StorageService initialized with provider: ${this.config.provider}`);
   }
@@ -64,53 +88,39 @@ export class StorageService implements IStorageService {
     body: Buffer | Uint8Array | string,
     options?: UploadOptions
   ): Promise<UploadResult> {
-    const command = new PutObjectCommand({
-      Bucket: this.config.bucket,
-      Key: key,
-      Body: body,
-      ContentType: options?.contentType,
-      Metadata: options?.metadata,
-    });
-
-    await this.s3Client.send(command);
+    const result = await this.provider.upload(key, body, options);
     this.logger.debug(`Uploaded file: ${key}`);
-
-    return {
-      key,
-      bucket: this.config.bucket,
-      url: await this.getUrl(key),
-    };
+    return result;
   }
 
   async delete(key: string): Promise<void> {
-    const command = new DeleteObjectCommand({
-      Bucket: this.config.bucket,
-      Key: key,
-    });
-
-    await this.s3Client.send(command);
+    await this.provider.delete(key);
     this.logger.debug(`Deleted file: ${key}`);
   }
 
   async getUrl(key: string): Promise<string> {
-    if (this.config.endpoint) {
-      const endpoint = this.config.endpoint.replace(/\/$/, '');
-      if (this.config.forcePathStyle) {
-        return `${endpoint}/${this.config.bucket}/${key}`;
-      }
-      const url = new URL(this.config.endpoint);
-      return `${url.protocol}//${this.config.bucket}.${url.host}/${key}`;
-    }
-
-    return `https://${this.config.bucket}.s3.${this.config.region}.amazonaws.com/${key}`;
+    return this.provider.getUrl(key);
   }
 
   async getSignedUrl(key: string, expiresIn = 3600): Promise<string> {
-    const command = new GetObjectCommand({
-      Bucket: this.config.bucket,
-      Key: key,
-    });
+    // MinIOProvider has its own getSignedUrl implementation
+    if (this.provider instanceof MinIOProvider) {
+      return this.provider.getSignedUrl(key, expiresIn);
+    }
 
-    return getSignedUrl(this.s3Client, command, { expiresIn });
+    // S3Provider uses the S3Client for signed URLs
+    if (this.provider instanceof S3Provider && this.s3ClientForSignedUrl) {
+      const command = new GetObjectCommand({
+        Bucket: this.config.s3.bucket,
+        Key: key,
+      });
+      return getSignedUrl(this.s3ClientForSignedUrl, command, { expiresIn });
+    }
+
+    // Local provider and others don't support signed URLs
+    throw new Error(
+      `Signed URLs are not supported for storage provider: ${this.config.provider}. ` +
+        `Only S3 and MinIO providers support signed URLs.`
+    );
   }
 }
