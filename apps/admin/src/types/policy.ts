@@ -2,6 +2,8 @@
 // Policy (Attribute-Based Access Control) Types
 // ============================================
 
+import type { Permission } from './rbac';
+
 /**
  * Policy effect determines whether access is granted or denied
  */
@@ -53,6 +55,8 @@ export interface Policy {
   conditions: PolicyCondition | null;
   priority: number;
   enabled: boolean;
+  /** Populated permissions relation from backend */
+  permissions?: Permission[];
   createdAt: string;
   updatedAt: string;
 }
@@ -74,6 +78,8 @@ export interface CreatePolicyDto {
   conditions?: PolicyCondition;
   priority?: number;
   enabled?: boolean;
+  /** Permission IDs to associate with this policy */
+  permissionIds?: string[];
 }
 
 /**
@@ -89,6 +95,8 @@ export interface UpdatePolicyDto {
   conditions?: PolicyCondition;
   priority?: number;
   enabled?: boolean;
+  /** Permission IDs to associate with this policy */
+  permissionIds?: string[];
 }
 
 /**

@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsArray, IsNotEmpty, MaxLength } from 'class-validator';
+import { IsString, IsOptional, IsArray, IsNotEmpty, MaxLength, IsUUID } from 'class-validator';
 
 export class CreateRoleDto {
   @IsString()
@@ -14,6 +14,11 @@ export class CreateRoleDto {
   @IsString({ each: true })
   @IsOptional()
   permissions?: string[];
+
+  @IsArray()
+  @IsUUID('4', { each: true })
+  @IsOptional()
+  permissionIds?: string[];
 }
 
 export class UpdateRoleDto {
@@ -30,6 +35,11 @@ export class UpdateRoleDto {
   @IsString({ each: true })
   @IsOptional()
   permissions?: string[];
+
+  @IsArray()
+  @IsUUID('4', { each: true })
+  @IsOptional()
+  permissionIds?: string[];
 }
 
 export class AssignRoleDto {

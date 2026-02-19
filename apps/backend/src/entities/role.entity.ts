@@ -5,6 +5,7 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   Index,
+  OneToMany,
 } from 'typeorm';
 
 @Entity('roles')
@@ -27,4 +28,11 @@ export class Role {
 
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
+
+  // Relation to RolePermission (ABAC migration)
+  @OneToMany(
+    () => require('./role-permission.entity').RolePermission,
+    (rp: import('./role-permission.entity').RolePermission) => rp.role
+  )
+  rolePermissions: import('./role-permission.entity').RolePermission[];
 }

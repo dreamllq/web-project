@@ -4,6 +4,8 @@ import { Repository, In } from 'typeorm';
 import { Role } from '../entities/role.entity';
 import { UserRole } from '../entities/user-role.entity';
 import { User } from '../entities/user.entity';
+import { RolePermission } from '../entities/role-permission.entity';
+import { Permission } from '../entities/permission.entity';
 
 export interface CreateRoleDto {
   name: string;
@@ -27,7 +29,11 @@ export class RoleService {
     @InjectRepository(UserRole)
     private readonly userRoleRepo: Repository<UserRole>,
     @InjectRepository(User)
-    private readonly userRepo: Repository<User>
+    private readonly userRepo: Repository<User>,
+    @InjectRepository(RolePermission)
+    private readonly rolePermissionRepo: Repository<RolePermission>,
+    @InjectRepository(Permission)
+    private readonly permissionRepo: Repository<Permission>
   ) {}
 
   /**
@@ -179,22 +185,6 @@ export class RoleService {
   }
 
   /**
-   * Get all permissions for a user (expanded from roles)
-   */
-  async getUserPermissions(userId: string): Promise<string[]> {
-    const roles = await this.getUserRoles(userId);
-
-    const permissions = new Set<string>();
-    for (const role of roles) {
-      for (const perm of role.permissions) {
-        permissions.add(perm);
-      }
-    }
-
-    return Array.from(permissions);
-  }
-
-  /**
    * Check if user has a specific permission
    */
   async hasPermission(userId: string, permission: string): Promise<boolean> {
@@ -208,5 +198,102 @@ export class RoleService {
   async hasRole(userId: string, roleName: string): Promise<boolean> {
     const roles = await this.getUserRoles(userId);
     return roles.some((r) => r.name === roleName);
+  }
+
+  /**
+   * Assign a permission to a role
+   */
+  async assignPermissionToRole(roleId: string, permissionId: string): Promise<RolePermission> {
+    // Verify role exists
+    const role = await this.roleRepo.findOne({ where: { id: roleId } });
+    if (!role) {
+      throw new NotFoundException('Role not found');
+    }
+
+    // Verify permission exists
+    const permission = await this.permissionRepo.findOne({ where: { id: permissionId } });
+    if (!permission) {
+      throw new NotFoundException('Permission not found');
+    }
+
+    // Check if already exists
+    const existing = await this.rolePermissionRepo.findOne({
+      where: { roleId, permissionId },
+    });
+
+    if (existing) {
+      throw new BadRequestException('Permission already assigned to role');
+    }
+
+    const rolePermission = this.rolePermissionRepo.create({ roleId, permissionId });
+    const saved = await this.rolePermissionRepo.save(rolePermission);
+
+    this.logger.log(`Permission '${permission.name}' assigned to role '${role.name}'`);
+    return saved;
+  }
+
+  /**
+   * Remove a permission from a role
+   */
+  async removePermissionFromRole(roleId: string, permissionId: string): Promise<void> {
+    const result = await this.rolePermissionRepo.delete({ roleId, permissionId });
+
+    if (result.affected === 0) {
+      throw new NotFoundException('Role-permission assignment not found');
+    }
+
+    this.logger.log(`Permission ${permissionId} removed from role ${roleId}`);
+  }
+
+  /**
+   * Get all permissions for a role
+   */
+  async getRolePermissions(roleId: string): Promise<Permission[]> {
+    const rolePermissions = await this.rolePermissionRepo.find({
+      where: { roleId },
+    });
+
+    if (rolePermissions.length === 0) {
+      return [];
+    }
+
+    const permissionIds = rolePermissions.map((rp) => rp.permissionId);
+    return this.permissionRepo.findBy({ id: In(permissionIds) });
+  }
+
+  /**
+   * Get all permissions for a user (expanded from roles)
+   * Uses new RolePermission relation with legacy string-based fallback
+   */
+  async getUserPermissions(userId: string): Promise<string[]> {
+    const roles = await this.getUserRoles(userId);
+
+    if (roles.length === 0) {
+      return [];
+    }
+
+    const roleIds = roles.map((r) => r.id);
+
+    // Try to get permissions from new RolePermission relation
+    const rolePermissions = await this.rolePermissionRepo.find({
+      where: { roleId: In(roleIds) },
+    });
+
+    // If new relation has data, use it
+    if (rolePermissions.length > 0) {
+      const permissionIds = [...new Set(rolePermissions.map((rp) => rp.permissionId))];
+      const permissions = await this.permissionRepo.findBy({ id: In(permissionIds) });
+      return permissions.map((p) => p.name);
+    }
+
+    // Fall back to legacy string-based permissions from Role entity
+    const permissions = new Set<string>();
+    for (const role of roles) {
+      for (const perm of role.permissions) {
+        permissions.add(perm);
+      }
+    }
+
+    return Array.from(permissions);
   }
 }

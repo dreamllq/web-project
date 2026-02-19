@@ -1,14 +1,4 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Put,
-  Delete,
-  Body,
-  Param,
-  Query,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { PolicyService } from './policy.service';
 import { PolicyEvaluatorService } from './policy-evaluator.service';
 import { CreatePolicyDto, UpdatePolicyDto, QueryPolicyDto } from './dto';
@@ -19,12 +9,12 @@ import { Policy } from '../entities/policy.entity';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User } from '../entities/user.entity';
 
-@Controller('policies')
+@Controller({ path: 'policies', version: '1' })
 @UseGuards(JwtAuthGuard, PermissionGuard)
 export class PolicyController {
   constructor(
     private readonly policyService: PolicyService,
-    private readonly policyEvaluator: PolicyEvaluatorService,
+    private readonly policyEvaluator: PolicyEvaluatorService
   ) {}
 
   /**
@@ -34,7 +24,17 @@ export class PolicyController {
   @Post()
   @RequirePermission('policy', 'create')
   async create(@Body() dto: CreatePolicyDto): Promise<Policy> {
-    const policy = await this.policyService.create(dto);
+    const { permissionIds, ...policyData } = dto;
+    const policy = await this.policyService.create(policyData);
+
+    if (permissionIds && permissionIds.length > 0) {
+      await Promise.all(
+        permissionIds.map((permissionId) =>
+          this.policyService.assignPermissionToPolicy(policy.id, permissionId)
+        )
+      );
+    }
+
     // Invalidate cache when policy is created
     this.policyEvaluator.invalidateCache();
     return policy;
@@ -47,7 +47,7 @@ export class PolicyController {
   @Get()
   @RequirePermission('policy', 'read')
   async findAll(
-    @Query() query: QueryPolicyDto,
+    @Query() query: QueryPolicyDto
   ): Promise<{ data: Policy[]; total: number; page: number; limit: number }> {
     const { data, total } = await this.policyService.findAll(query);
     return {
@@ -75,7 +75,17 @@ export class PolicyController {
   @Put(':id')
   @RequirePermission('policy', 'update')
   async update(@Param('id') id: string, @Body() dto: UpdatePolicyDto): Promise<Policy> {
-    const policy = await this.policyService.update(id, dto);
+    const { permissionIds, ...policyData } = dto;
+    const policy = await this.policyService.update(id, policyData);
+
+    if (permissionIds && permissionIds.length > 0) {
+      await Promise.all(
+        permissionIds.map((permissionId) =>
+          this.policyService.assignPermissionToPolicy(id, permissionId)
+        )
+      );
+    }
+
     // Invalidate cache when policy is updated
     this.policyEvaluator.invalidateCache();
     return policy;
@@ -103,7 +113,7 @@ export class PolicyController {
   async checkPermission(
     @CurrentUser() user: User,
     @Query('resource') resource: string,
-    @Query('action') action: string,
+    @Query('action') action: string
   ): Promise<{ allowed: boolean; resource: string; action: string }> {
     const allowed = await this.policyEvaluator.evaluate(user, resource, action);
     return { allowed, resource, action };
@@ -117,7 +127,7 @@ export class PolicyController {
   @RequirePermission('policy', 'read')
   async checkBulkPermissions(
     @CurrentUser() user: User,
-    @Body() requests: Array<{ resource: string; action: string }>,
+    @Body() requests: Array<{ resource: string; action: string }>
   ): Promise<Record<string, boolean>> {
     return this.policyEvaluator.evaluateBulk(user, requests);
   }

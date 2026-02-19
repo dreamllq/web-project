@@ -43,6 +43,7 @@ describe('PolicyController', () => {
     createdAt: new Date(),
     updatedAt: new Date(),
     policyAttributes: [],
+    policyPermissions: [],
   };
 
   const mockPolicyService = {
