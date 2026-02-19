@@ -3,9 +3,10 @@ import {
   ConflictException,
   BadRequestException,
   UnauthorizedException,
+  NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, ILike } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { User, UserStatus } from '../entities/user.entity';
 import { SocialAccount, SocialProvider } from '../entities/social-account.entity';
@@ -24,6 +25,30 @@ export interface CreateOAuthUserData {
   avatarUrl?: string;
   email?: string;
   phone?: string;
+}
+
+// Admin user management interfaces
+export interface AdminUserQueryDto {
+  keyword?: string;
+  status?: UserStatus;
+  limit?: number;
+  offset?: number;
+}
+
+export interface AdminCreateUserData {
+  username: string;
+  password: string;
+  email?: string;
+  phone?: string;
+  nickname?: string;
+  status?: UserStatus;
+}
+
+export interface AdminUpdateUserData {
+  email?: string;
+  phone?: string;
+  nickname?: string;
+  status?: UserStatus;
 }
 
 @Injectable()
@@ -277,5 +302,154 @@ export class UsersService {
     >
   ): Promise<void> {
     await this.usersRepository.update(id, updateData);
+  }
+
+  // ==================== Admin User Management Methods ====================
+
+  /**
+   * Paginated user list with filtering
+   */
+  async findAll(query: AdminUserQueryDto): Promise<{ data: User[]; total: number }> {
+    const { keyword, status, limit = 10, offset = 0 } = query;
+
+    const qb = this.usersRepository.createQueryBuilder('user');
+
+    // Filter by status if provided
+    if (status) {
+      qb.andWhere('user.status = :status', { status });
+    }
+
+    // Search by keyword if provided (username/email/phone LIKE)
+    if (keyword) {
+      qb.andWhere(
+        '(user.username ILIKE :keyword OR user.email ILIKE :keyword OR user.phone ILIKE :keyword)',
+        { keyword: `%${keyword}%` }
+      );
+    }
+
+    // Order by createdAt DESC
+    qb.orderBy('user.createdAt', 'DESC');
+
+    // Get total count before pagination
+    const total = await qb.getCount();
+
+    // Apply pagination
+    qb.skip(offset).take(limit);
+
+    const data = await qb.getMany();
+
+    return { data, total };
+  }
+
+  /**
+   * Search users by keyword (for autocomplete/quick search)
+   */
+  async searchUsers(keyword: string): Promise<User[]> {
+    if (!keyword || keyword.trim() === '') {
+      return [];
+    }
+
+    return this.usersRepository.find({
+      where: [
+        { username: ILike(`%${keyword}%`) },
+        { email: ILike(`%${keyword}%`) },
+        { phone: ILike(`%${keyword}%`) },
+      ],
+      order: { createdAt: 'DESC' },
+      take: 10,
+    });
+  }
+
+  /**
+   * Admin create user with validation
+   */
+  async adminCreate(data: AdminCreateUserData): Promise<User> {
+    // Check if username already exists
+    const existingUser = await this.findByUsername(data.username);
+    if (existingUser) {
+      throw new ConflictException('Username already exists');
+    }
+
+    // Check if email already exists (if provided)
+    if (data.email) {
+      const existingEmail = await this.findByEmail(data.email);
+      if (existingEmail) {
+        throw new ConflictException('Email already exists');
+      }
+    }
+
+    // Check if phone already exists (if provided)
+    if (data.phone) {
+      const existingPhone = await this.findByPhone(data.phone);
+      if (existingPhone) {
+        throw new ConflictException('Phone already exists');
+      }
+    }
+
+    // Hash password
+    const passwordHash = await bcrypt.hash(data.password, 10);
+
+    const user = this.usersRepository.create({
+      username: data.username,
+      passwordHash,
+      email: data.email || null,
+      phone: data.phone || null,
+      nickname: data.nickname || null,
+      status: data.status || UserStatus.PENDING,
+    });
+
+    return this.usersRepository.save(user);
+  }
+
+  /**
+   * Admin update user (can update status)
+   */
+  async adminUpdate(id: string, data: AdminUpdateUserData): Promise<User> {
+    const user = await this.findById(id);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Validate uniqueness for email if changing
+    if (data.email && data.email !== user.email) {
+      const existingEmail = await this.findByEmail(data.email);
+      if (existingEmail) {
+        throw new ConflictException('Email already exists');
+      }
+    }
+
+    // Validate uniqueness for phone if changing
+    if (data.phone && data.phone !== user.phone) {
+      const existingPhone = await this.findByPhone(data.phone);
+      if (existingPhone) {
+        throw new ConflictException('Phone already exists');
+      }
+    }
+
+    // Build update object with only provided fields
+    const updatePayload: {
+      email?: string | null;
+      phone?: string | null;
+      nickname?: string | null;
+      status?: UserStatus;
+    } = {};
+    if (data.email !== undefined) {
+      updatePayload.email = data.email || null;
+    }
+    if (data.phone !== undefined) {
+      updatePayload.phone = data.phone || null;
+    }
+    if (data.nickname !== undefined) {
+      updatePayload.nickname = data.nickname || null;
+    }
+    if (data.status !== undefined) {
+      updatePayload.status = data.status;
+    }
+
+    if (Object.keys(updatePayload).length > 0) {
+      await this.usersRepository.update(id, updatePayload);
+    }
+
+    return (await this.findById(id))!;
   }
 }

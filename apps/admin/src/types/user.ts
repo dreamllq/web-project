@@ -6,6 +6,7 @@ import type {
   TwoFactorEnableResponse,
   VerifyPhoneDto,
 } from './auth';
+import type { Role } from './rbac';
 
 // Re-export User types for convenience
 export type { User, UserStatus };
@@ -186,4 +187,90 @@ export interface LoginHistoryResponse {
 export interface AvatarUploadResponse {
   success: boolean;
   avatar: StorageUrlResponse;
+}
+
+// ============================================
+// Admin User Management Types
+// ============================================
+
+/**
+ * Admin user response with full details
+ */
+export interface AdminUserResponse {
+  id: string;
+  username: string;
+  email: string | null;
+  phone: string | null;
+  nickname: string | null;
+  avatar: StorageUrlResponse;
+  status: UserStatus;
+  locale: string;
+  emailVerifiedAt: string | null;
+  phoneVerifiedAt: string | null;
+  lastLoginAt: string | null;
+  lastLoginIp: string | null;
+  createdAt: string;
+  updatedAt: string;
+  roles?: Role[];
+}
+
+/**
+ * Paginated admin user list response
+ */
+export interface AdminUserListResponse {
+  data: AdminUserResponse[];
+  pagination: {
+    total: number;
+    limit: number;
+    offset: number;
+  };
+}
+
+/**
+ * DTO for creating a new user (admin)
+ */
+export interface CreateAdminUserDto {
+  username: string;
+  password: string;
+  email?: string;
+  phone?: string;
+  nickname?: string;
+  status?: UserStatus;
+}
+
+/**
+ * DTO for updating a user (admin)
+ */
+export interface UpdateAdminUserDto {
+  email?: string;
+  phone?: string;
+  nickname?: string;
+  status?: UserStatus;
+}
+
+/**
+ * Query parameters for user list
+ */
+export interface UserQueryParams {
+  keyword?: string;
+  status?: UserStatus;
+  limit?: number;
+  offset?: number;
+}
+
+/**
+ * DTO for batch assigning roles to users
+ */
+export interface BatchAssignRolesDto {
+  userIds: string[];
+  roleIds: string[];
+}
+
+/**
+ * Response for batch role assignment
+ */
+export interface BatchAssignRolesResponse {
+  success: boolean;
+  message: string;
+  assignedCount: number;
 }

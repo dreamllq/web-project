@@ -26,6 +26,9 @@ describe('UsersService', () => {
     lastLoginIp: null,
     emailVerifiedAt: null,
     phoneVerifiedAt: null,
+    mfaEnabled: false,
+    mfaSecret: null,
+    recoveryCodes: null,
     createdAt: new Date(),
     updatedAt: new Date(),
     deletedAt: null,
@@ -34,6 +37,7 @@ describe('UsersService', () => {
     files: [],
     oauthTokens: [],
     verificationTokens: [],
+    roles: [],
   };
 
   const mockUserRepository = {
@@ -42,6 +46,8 @@ describe('UsersService', () => {
     findOne: jest.fn(),
     update: jest.fn(),
     softDelete: jest.fn(),
+    find: jest.fn(),
+    createQueryBuilder: jest.fn(),
   };
 
   const mockSocialAccountRepository = {

@@ -1,15 +1,46 @@
-import { Controller, Get, Patch, Delete, Body, UseGuards, Version } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+  ParseUUIDPipe,
+  Version,
+  NotFoundException,
+} from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiParam,
+  ApiQuery,
+} from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { PermissionGuard } from '../policy/guards/permission.guard';
+import { RequirePermission } from '../policy/decorators/require-permission.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User, UserStatus } from '../entities/user.entity';
-import { UpdateProfileDto, ChangePasswordDto } from './dto';
+import {
+  UpdateProfileDto,
+  ChangePasswordDto,
+  AdminCreateUserDto,
+  AdminUpdateUserDto,
+  AdminUserQueryDto,
+} from './dto';
 import type { StorageUrlResponse } from '../common/types/storage-url.dto';
 import type { MultiStorageConfig } from '../config/storage.config';
 
+@ApiTags('users')
 @Controller('users')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionGuard)
+@ApiBearerAuth()
 export class UsersController {
   constructor(
     private readonly usersService: UsersService,
@@ -81,6 +112,143 @@ export class UsersController {
     };
   }
 
+  // ========== Admin User Management Endpoints ==========
+
+  /**
+   * Admin: List users with pagination and search
+   * GET /api/v1/users
+   */
+  @Get()
+  @Version('1')
+  @RequirePermission('user', 'read')
+  @ApiOperation({ summary: 'Admin: Get list of users with pagination and search' })
+  @ApiResponse({ status: 200, description: 'List of users with pagination info' })
+  @ApiQuery({
+    name: 'keyword',
+    required: false,
+    description: 'Search keyword (username, email, nickname)',
+  })
+  @ApiQuery({ name: 'status', required: false, enum: UserStatus, description: 'Filter by status' })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    description: 'Number of results per page',
+    example: 20,
+  })
+  @ApiQuery({ name: 'offset', required: false, description: 'Offset for pagination', example: 0 })
+  async adminListUsers(@Query() query: AdminUserQueryDto): Promise<AdminUserListResponse> {
+    const { keyword, status, limit = 20, offset = 0 } = query;
+    const { data, total } = await this.usersService.findAll({
+      keyword,
+      status,
+      limit,
+      offset,
+    });
+    return {
+      data: data.map((user: User) => this.toAdminUserResponse(user)),
+      pagination: { total, limit, offset },
+    };
+  }
+
+  /**
+   * Admin: Get user by ID
+   * GET /api/v1/users/:id
+   */
+  @Get(':id')
+  @Version('1')
+  @RequirePermission('user', 'read')
+  @ApiOperation({ summary: 'Admin: Get user details by ID' })
+  @ApiParam({ name: 'id', description: 'User ID' })
+  @ApiResponse({ status: 200, description: 'User details' })
+  @ApiResponse({ status: 404, description: 'User not found' })
+  async adminGetUser(@Param('id', ParseUUIDPipe) id: string): Promise<AdminUserResponse> {
+    const user = await this.usersService.findById(id);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    return this.toAdminUserResponse(user);
+  }
+
+  /**
+   * Admin: Create new user
+   * POST /api/v1/users
+   */
+  @Post()
+  @Version('1')
+  @RequirePermission('user', 'create')
+  @ApiOperation({ summary: 'Admin: Create a new user' })
+  @ApiResponse({ status: 201, description: 'User created successfully' })
+  @ApiResponse({ status: 409, description: 'Username, email, or phone already exists' })
+  async adminCreateUser(@Body() dto: AdminCreateUserDto): Promise<AdminUserResponse> {
+    const user = await this.usersService.adminCreate(dto);
+    return this.toAdminUserResponse(user);
+  }
+
+  /**
+   * Admin: Update user
+   * PATCH /api/v1/users/:id
+   */
+  @Patch(':id')
+  @Version('1')
+  @RequirePermission('user', 'update')
+  @ApiOperation({ summary: 'Admin: Update user details' })
+  @ApiParam({ name: 'id', description: 'User ID' })
+  @ApiResponse({ status: 200, description: 'User updated successfully' })
+  @ApiResponse({ status: 404, description: 'User not found' })
+  async adminUpdateUser(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: AdminUpdateUserDto
+  ): Promise<AdminUserResponse> {
+    const user = await this.usersService.adminUpdate(id, dto);
+    return this.toAdminUserResponse(user);
+  }
+
+  /**
+   * Admin: Soft delete user
+   * DELETE /api/v1/users/:id
+   */
+  @Delete(':id')
+  @Version('1')
+  @RequirePermission('user', 'delete')
+  @ApiOperation({ summary: 'Admin: Soft delete user' })
+  @ApiParam({ name: 'id', description: 'User ID' })
+  @ApiResponse({ status: 200, description: 'User deleted successfully' })
+  @ApiResponse({ status: 404, description: 'User not found' })
+  async adminDeleteUser(
+    @Param('id', ParseUUIDPipe) id: string
+  ): Promise<{ success: boolean; message: string }> {
+    await this.usersService.softDelete(id);
+    return {
+      success: true,
+      message: 'User deleted successfully',
+    };
+  }
+
+  /**
+   * Admin: Update user status
+   * PATCH /api/v1/users/:id/status
+   */
+  @Patch(':id/status')
+  @Version('1')
+  @RequirePermission('user', 'update')
+  @ApiOperation({ summary: 'Admin: Update user status (enable/disable/ban)' })
+  @ApiParam({ name: 'id', description: 'User ID' })
+  @ApiResponse({ status: 200, description: 'User status updated successfully' })
+  @ApiResponse({ status: 404, description: 'User not found' })
+  async adminUpdateUserStatus(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: { status: UserStatus }
+  ): Promise<AdminUserResponse> {
+    await this.usersService.updateStatus(id, body.status);
+    const user = await this.usersService.findById(id);
+    if (!user) {
+      throw new NotFoundException('User not found after status update');
+    }
+    return this.toAdminUserResponse(user);
+  }
+
+  // ========== Private Helper Methods ==========
+
   /**
    * Transform User entity to profile response (exclude sensitive fields)
    */
@@ -114,6 +282,42 @@ export class UsersController {
       createdAt: user.createdAt,
     };
   }
+
+  /**
+   * Transform User entity to admin response (includes admin-visible fields)
+   */
+  private toAdminUserResponse(user: User): AdminUserResponse {
+    const storageConfig = this.configService.get<MultiStorageConfig>('storage');
+    const storageType = storageConfig?.provider ?? 'local';
+
+    // Transform avatarUrl to StorageUrlResponse
+    let avatar: StorageUrlResponse;
+    if (!user.avatarUrl) {
+      avatar = { type: storageType };
+    } else if (storageType === 'local') {
+      avatar = { type: 'local', url: user.avatarUrl };
+    } else {
+      avatar = { type: storageType, key: user.avatarUrl };
+    }
+
+    return {
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      phone: user.phone,
+      nickname: user.nickname,
+      avatar,
+      status: user.status,
+      locale: user.locale,
+      lastLoginAt: user.lastLoginAt,
+      lastLoginIp: user.lastLoginIp,
+      emailVerifiedAt: user.emailVerifiedAt,
+      phoneVerifiedAt: user.phoneVerifiedAt,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+      deletedAt: user.deletedAt,
+    };
+  }
 }
 
 /**
@@ -131,4 +335,37 @@ export interface UserProfileResponse {
   emailVerifiedAt: Date | null;
   phoneVerifiedAt: Date | null;
   createdAt: Date;
+}
+
+/**
+ * Admin user response interface (includes admin-visible fields)
+ */
+export interface AdminUserResponse {
+  id: string;
+  username: string;
+  email: string | null;
+  phone: string | null;
+  nickname: string | null;
+  avatar: StorageUrlResponse;
+  status: UserStatus;
+  locale: string;
+  lastLoginAt: Date | null;
+  lastLoginIp: string | null;
+  emailVerifiedAt: Date | null;
+  phoneVerifiedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+  deletedAt: Date | null;
+}
+
+/**
+ * Admin user list response with pagination
+ */
+export interface AdminUserListResponse {
+  data: AdminUserResponse[];
+  pagination: {
+    total: number;
+    limit: number;
+    offset: number;
+  };
 }
