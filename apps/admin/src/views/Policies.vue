@@ -2,13 +2,25 @@
 import { ref, reactive, computed, onMounted, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
-import { Plus, Edit, Search, RefreshRight, Key } from '@element-plus/icons-vue';
+import {
+  Plus,
+  Edit,
+  Search,
+  RefreshRight,
+  Key,
+  Clock,
+  Location,
+  Delete,
+  CircleCheck,
+  CircleClose,
+} from '@element-plus/icons-vue';
 import {
   getPolicies,
   createPolicy,
   updatePolicy,
   togglePolicyEnabled,
   deletePolicy,
+  checkPermission,
 } from '@/api/policy';
 import { extractApiError } from '@/api';
 import type {
@@ -19,6 +31,7 @@ import type {
   PolicyCondition,
   TimeCondition,
   IpCondition,
+  PermissionCheckResponse,
 } from '@/types/policy';
 
 // ============================================
@@ -50,6 +63,12 @@ const filters = reactive<FilterState>({
 });
 
 const deleteLoading = ref<string | null>(null);
+
+// Permission test state
+const testResource = ref('');
+const testAction = ref('');
+const testResult = ref<PermissionCheckResponse | null>(null);
+const testLoading = ref(false);
 
 // Dialog state
 const dialogVisible = ref(false);
@@ -416,6 +435,33 @@ function handleSizeChange(size: number) {
 // ============================================
 // Utility Functions
 // ============================================
+async function handleTestPermission() {
+  if (!testResource.value.trim() || !testAction.value.trim()) {
+    ElMessage.warning(t('policies.testInputRequired', 'Please enter both resource and action'));
+    return;
+  }
+
+  testLoading.value = true;
+  testResult.value = null;
+
+  try {
+    const response = await checkPermission(testResource.value.trim(), testAction.value.trim());
+    testResult.value = response.data;
+  } catch (error: unknown) {
+    const apiError = extractApiError(error);
+    ElMessage.error(apiError.displayMessage);
+    testResult.value = null;
+  } finally {
+    testLoading.value = false;
+  }
+}
+
+function clearTestResult() {
+  testResource.value = '';
+  testAction.value = '';
+  testResult.value = null;
+}
+
 function formatDate(dateString: string): string {
   if (!dateString) return '-';
   const date = new Date(dateString);
@@ -698,6 +744,114 @@ onMounted(() => {
           @size-change="handleSizeChange"
           @current-change="handlePageChange"
         />
+      </div>
+    </el-card>
+
+    <!-- Permission Test Card -->
+    <el-card class="permission-test-card">
+      <template #header>
+        <div class="card-header">
+          <h2>
+            <el-icon class="header-icon"><CircleCheck /></el-icon>
+            {{ t('policies.permissionTest', 'Permission Test') }}
+          </h2>
+        </div>
+      </template>
+
+      <div class="test-content">
+        <p class="test-description">
+          {{
+            t(
+              'policies.testDescription',
+              'Test if a permission is allowed for the current user based on defined policies.'
+            )
+          }}
+        </p>
+
+        <div class="test-form">
+          <el-form :inline="true" class="test-input-form">
+            <el-form-item :label="t('policies.resource', 'Resource')">
+              <el-input
+                v-model="testResource"
+                :placeholder="t('policies.testResourcePlaceholder', 'e.g., user, policy, article')"
+                clearable
+                style="width: 200px"
+                @keyup.enter="handleTestPermission"
+              />
+            </el-form-item>
+
+            <el-form-item :label="t('policies.action', 'Action')">
+              <el-input
+                v-model="testAction"
+                :placeholder="t('policies.testActionPlaceholder', 'e.g., read, create, delete')"
+                clearable
+                style="width: 160px"
+                @keyup.enter="handleTestPermission"
+              />
+            </el-form-item>
+
+            <el-form-item>
+              <el-button
+                type="primary"
+                :icon="CircleCheck"
+                :loading="testLoading"
+                @click="handleTestPermission"
+              >
+                {{ t('policies.testPermission', 'Test Permission') }}
+              </el-button>
+              <el-button @click="clearTestResult">
+                {{ t('common.clear', 'Clear') }}
+              </el-button>
+            </el-form-item>
+          </el-form>
+        </div>
+
+        <!-- Test Result -->
+        <div v-if="testResult" class="test-result">
+          <el-divider />
+
+          <div
+            class="result-container"
+            :class="testResult.allowed ? 'result-allowed' : 'result-denied'"
+          >
+            <div class="result-icon">
+              <el-icon v-if="testResult.allowed" class="icon-allowed"><CircleCheck /></el-icon>
+              <el-icon v-else class="icon-denied"><CircleClose /></el-icon>
+            </div>
+            <div class="result-content">
+              <div class="result-status">
+                {{
+                  testResult.allowed
+                    ? t('policies.permissionAllowed', 'Permission ALLOWED')
+                    : t('policies.permissionDenied', 'Permission DENIED')
+                }}
+              </div>
+              <div class="result-details">
+                <span class="detail-label">{{ t('policies.resource', 'Resource') }}:</span>
+                <code class="detail-value">{{
+                  testResult.allowed ? testResource : testResource
+                }}</code>
+                <span class="detail-separator">|</span>
+                <span class="detail-label">{{ t('policies.action', 'Action') }}:</span>
+                <code class="detail-value">{{ testResult.allowed ? testAction : testAction }}</code>
+              </div>
+              <div v-if="testResult.matchedPolicy" class="matched-policy">
+                <span class="detail-label"
+                  >{{ t('policies.matchedPolicy', 'Matched Policy') }}:</span
+                >
+                <el-tag type="info" size="small">
+                  {{ testResult.matchedPolicy.name }}
+                </el-tag>
+                <el-tag
+                  :type="testResult.matchedPolicy.effect === 'allow' ? 'success' : 'danger'"
+                  size="small"
+                >
+                  {{ testResult.matchedPolicy.effect }}
+                </el-tag>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </el-card>
 
@@ -1211,5 +1365,190 @@ onMounted(() => {
 
 .no-conditions {
   color: #c0c4cc;
+}
+
+/* Permission Test Card Styles */
+.permission-test-card {
+  margin-top: 24px;
+  border-radius: 12px;
+  border: none;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+}
+
+.permission-test-card .header-icon {
+  color: #10b981;
+  margin-right: 8px;
+  vertical-align: middle;
+}
+
+.permission-test-card .card-header h2 {
+  display: flex;
+  align-items: center;
+}
+
+.test-content {
+  padding: 0;
+}
+
+.test-description {
+  color: #606266;
+  font-size: 14px;
+  margin-bottom: 20px;
+}
+
+.test-form {
+  background: #f8f9fb;
+  padding: 16px;
+  border-radius: 8px;
+}
+
+.test-input-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.test-input-form :deep(.el-form-item) {
+  margin-bottom: 0;
+  margin-right: 12px;
+}
+
+.test-input-form :deep(.el-form-item__label) {
+  font-weight: 500;
+  color: #606266;
+}
+
+/* Test Result Styles */
+.test-result {
+  margin-top: 0;
+}
+
+.result-container {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 20px;
+  border-radius: 12px;
+  transition: all 0.3s ease;
+}
+
+.result-allowed {
+  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+  border: 1px solid #a7f3d0;
+}
+
+.result-denied {
+  background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+  border: 1px solid #fecaca;
+}
+
+.result-icon {
+  flex-shrink: 0;
+}
+
+.icon-allowed {
+  font-size: 48px;
+  color: #10b981;
+}
+
+.icon-denied {
+  font-size: 48px;
+  color: #ef4444;
+}
+
+.result-content {
+  flex: 1;
+}
+
+.result-status {
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.result-allowed .result-status {
+  color: #059669;
+}
+
+.result-denied .result-status {
+  color: #dc2626;
+}
+
+.result-details {
+  font-size: 14px;
+  color: #4b5563;
+  margin-bottom: 12px;
+}
+
+.detail-label {
+  font-weight: 500;
+  color: #6b7280;
+}
+
+.detail-value {
+  padding: 2px 8px;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 4px;
+  font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+  font-size: 13px;
+  color: #374151;
+  margin: 0 4px;
+}
+
+.detail-separator {
+  margin: 0 8px;
+  color: #9ca3af;
+}
+
+.matched-policy {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px dashed rgba(0, 0, 0, 0.1);
+}
+
+.matched-policy .el-tag {
+  font-weight: 500;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .test-input-form {
+    flex-direction: column;
+  }
+
+  .test-input-form :deep(.el-form-item) {
+    margin-right: 0;
+    width: 100%;
+  }
+
+  .test-input-form :deep(.el-input) {
+    width: 100% !important;
+  }
+
+  .result-container {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .result-icon {
+    margin: 0 auto;
+  }
+
+  .result-details {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .detail-separator {
+    display: none;
+  }
+
+  .matched-policy {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
 }
 </style>
