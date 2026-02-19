@@ -22,6 +22,7 @@ import {
   deletePolicy,
   checkPermission,
 } from '@/api/policy';
+import { getAuditLogsByResource } from '@/api/audit-log';
 import { extractApiError } from '@/api';
 import type {
   Policy,
@@ -33,6 +34,7 @@ import type {
   IpCondition,
   PermissionCheckResponse,
 } from '@/types/policy';
+import type { AuditLog, AuditLogListResponse } from '@/types/audit-log';
 
 // ============================================
 // Types
@@ -75,6 +77,14 @@ const dialogVisible = ref(false);
 const dialogMode = ref<'create' | 'edit'>('create');
 const formRef = ref();
 const formLoading = ref(false);
+
+// Audit log state
+const auditLogs = ref<AuditLog[]>([]);
+const auditLogLoading = ref(false);
+const auditLogTotal = ref(0);
+const auditLogPage = ref(1);
+const auditLogPageSize = ref(10);
+const activeDialogTab = ref('details');
 
 // Form data
 const formData = reactive<CreatePolicyDto & { id?: string }>({
@@ -253,6 +263,11 @@ function resetForm() {
   timeConditionData.end = '';
   timeConditionData.daysOfWeek = [];
   ipConditionData.allowed = [''];
+  // Reset audit log state
+  auditLogs.value = [];
+  auditLogTotal.value = 0;
+  auditLogPage.value = 1;
+  activeDialogTab.value = 'details';
 }
 
 function openCreateDialog() {
@@ -305,7 +320,10 @@ function openEditDialog(policy: Policy) {
     ipConditionData.allowed = [''];
   }
 
+  activeDialogTab.value = 'details';
   dialogVisible.value = true;
+  // Fetch audit logs for this policy
+  fetchPolicyAuditLogs(policy.id);
 }
 
 async function handleSubmit() {
@@ -490,6 +508,66 @@ function truncateConditions(conditions: PolicyCondition | null): string {
   if (conditions.time) parts.push('Time');
   if (conditions.ip) parts.push('IP');
   return parts.length > 0 ? parts.join(', ') : '-';
+}
+
+// ============================================
+// Audit Log Helper Functions
+// ============================================
+function formatAuditAction(action: string): string {
+  const actionMap: Record<string, string> = {
+    'policy.create': t('auditLog.policyCreate', 'Create Policy'),
+    'policy.update': t('auditLog.policyUpdate', 'Update Policy'),
+    'policy.delete': t('auditLog.policyDelete', 'Delete Policy'),
+    'policy.toggle': t('auditLog.policyToggle', 'Toggle Policy'),
+  };
+  return actionMap[action] || action;
+}
+
+function getAuditActionType(action: string): 'success' | 'warning' | 'danger' | 'info' {
+  if (action.includes('.create')) return 'success';
+  if (action.includes('.update') || action.includes('.toggle')) return 'warning';
+  if (action.includes('.delete')) return 'danger';
+  return 'info';
+}
+
+function truncateDetails(data: Record<string, unknown> | null): string {
+  if (!data) return '-';
+  const str = JSON.stringify(data);
+  return str.length > 50 ? str.substring(0, 50) + '...' : str;
+}
+
+async function fetchPolicyAuditLogs(policyId: string) {
+  auditLogLoading.value = true;
+  try {
+    const response: AuditLogListResponse = await getAuditLogsByResource(
+      'policy',
+      policyId,
+      auditLogPageSize.value,
+      auditLogPage.value
+    );
+    auditLogs.value = response.data;
+    auditLogTotal.value = response.total;
+  } catch (error: unknown) {
+    const apiError = extractApiError(error);
+    ElMessage.error(apiError.displayMessage);
+  } finally {
+    auditLogLoading.value = false;
+  }
+}
+
+function handleAuditLogPageChange(page: number) {
+  auditLogPage.value = page;
+  if (formData.id) {
+    fetchPolicyAuditLogs(formData.id);
+  }
+}
+
+function handleAuditLogSizeChange(size: number) {
+  auditLogPageSize.value = size;
+  auditLogPage.value = 1;
+  if (formData.id) {
+    fetchPolicyAuditLogs(formData.id);
+  }
 }
 
 // ============================================
@@ -859,227 +937,537 @@ onMounted(() => {
     <el-dialog
       v-model="dialogVisible"
       :title="dialogTitle"
-      width="780px"
+      :width="dialogMode === 'edit' ? '850px' : '780px'"
       :close-on-click-modal="false"
     >
-      <el-form
-        ref="formRef"
-        :model="formData"
-        :rules="formRules()"
-        label-width="100px"
-        label-position="top"
-      >
-        <el-row :gutter="16">
-          <el-col :span="12">
-            <el-form-item :label="t('policies.name', 'Policy Name')" prop="name">
-              <el-input
-                v-model="formData.name"
-                :placeholder="t('policies.namePlaceholder', 'e.g., Admin Full Access')"
-                maxlength="100"
-                show-word-limit
-              />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item :label="t('policies.effect', 'Effect')" prop="effect">
-              <el-select v-model="formData.effect" class="full-width">
-                <el-option
-                  v-for="option in effectOptions"
-                  :key="option.value"
-                  :label="option.label"
-                  :value="option.value"
+      <!-- Tabbed view for edit mode -->
+      <template v-if="dialogMode === 'edit'">
+        <el-tabs v-model="activeDialogTab">
+          <el-tab-pane label="Details" name="details">
+            <el-form
+              ref="formRef"
+              :model="formData"
+              :rules="formRules()"
+              label-width="100px"
+              label-position="top"
+            >
+              <el-row :gutter="16">
+                <el-col :span="12">
+                  <el-form-item :label="t('policies.name', 'Policy Name')" prop="name">
+                    <el-input
+                      v-model="formData.name"
+                      :placeholder="t('policies.namePlaceholder', 'e.g., Admin Full Access')"
+                      maxlength="100"
+                      show-word-limit
+                    />
+                  </el-form-item>
+                </el-col>
+                <el-col :span="12">
+                  <el-form-item :label="t('policies.effect', 'Effect')" prop="effect">
+                    <el-select v-model="formData.effect" class="full-width">
+                      <el-option
+                        v-for="option in effectOptions"
+                        :key="option.value"
+                        :label="option.label"
+                        :value="option.value"
+                      />
+                    </el-select>
+                  </el-form-item>
+                </el-col>
+              </el-row>
+
+              <el-form-item :label="t('policies.description', 'Description')">
+                <el-input
+                  v-model="formData.description"
+                  type="textarea"
+                  :rows="2"
+                  :placeholder="
+                    t('policies.descriptionPlaceholder', 'Describe this policy purpose')
+                  "
+                  maxlength="500"
+                  show-word-limit
                 />
-              </el-select>
-            </el-form-item>
-          </el-col>
-        </el-row>
+              </el-form-item>
 
-        <el-form-item :label="t('policies.description', 'Description')">
-          <el-input
-            v-model="formData.description"
-            type="textarea"
-            :rows="2"
-            :placeholder="t('policies.descriptionPlaceholder', 'Describe this policy purpose')"
-            maxlength="500"
-            show-word-limit
-          />
-        </el-form-item>
+              <el-row :gutter="16">
+                <el-col :span="12">
+                  <el-form-item :label="t('policies.subject', 'Subject')" prop="subject">
+                    <el-input
+                      v-model="formData.subject"
+                      :placeholder="t('policies.subjectPlaceholder', 'e.g., role:admin, user:*')"
+                    />
+                  </el-form-item>
+                </el-col>
+                <el-col :span="12">
+                  <el-form-item :label="t('policies.resource', 'Resource')" prop="resource">
+                    <el-input
+                      v-model="formData.resource"
+                      :placeholder="t('policies.resourcePlaceholder', 'e.g., policy, user, *')"
+                    />
+                  </el-form-item>
+                </el-col>
+              </el-row>
 
-        <el-row :gutter="16">
-          <el-col :span="12">
-            <el-form-item :label="t('policies.subject', 'Subject')" prop="subject">
-              <el-input
-                v-model="formData.subject"
-                :placeholder="t('policies.subjectPlaceholder', 'e.g., role:admin, user:*')"
-              />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item :label="t('policies.resource', 'Resource')" prop="resource">
-              <el-input
-                v-model="formData.resource"
-                :placeholder="t('policies.resourcePlaceholder', 'e.g., policy, user, *')"
-              />
-            </el-form-item>
-          </el-col>
-        </el-row>
+              <el-row :gutter="16">
+                <el-col :span="12">
+                  <el-form-item :label="t('policies.action', 'Action')" prop="action">
+                    <el-input
+                      v-model="formData.action"
+                      :placeholder="t('policies.actionPlaceholder', 'e.g., read, create, *')"
+                    />
+                  </el-form-item>
+                </el-col>
+                <el-col :span="12">
+                  <el-form-item :label="t('policies.priority', 'Priority')">
+                    <el-input-number
+                      v-model="formData.priority"
+                      :min="0"
+                      :max="1000"
+                      class="full-width"
+                    />
+                  </el-form-item>
+                </el-col>
+              </el-row>
 
-        <el-row :gutter="16">
-          <el-col :span="12">
-            <el-form-item :label="t('policies.action', 'Action')" prop="action">
-              <el-input
-                v-model="formData.action"
-                :placeholder="t('policies.actionPlaceholder', 'e.g., read, create, *')"
-              />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item :label="t('policies.priority', 'Priority')">
-              <el-input-number
-                v-model="formData.priority"
-                :min="0"
-                :max="1000"
-                class="full-width"
-              />
-            </el-form-item>
-          </el-col>
-        </el-row>
+              <el-form-item :label="t('common.status', 'Enabled')">
+                <el-switch
+                  v-model="formData.enabled"
+                  :active-text="t('common.enabled', 'Enabled')"
+                  :inactive-text="t('common.disabled', 'Disabled')"
+                />
+              </el-form-item>
 
-        <el-form-item :label="t('common.status', 'Enabled')">
-          <el-switch
-            v-model="formData.enabled"
-            :active-text="t('common.enabled', 'Enabled')"
-            :inactive-text="t('common.disabled', 'Disabled')"
-          />
-        </el-form-item>
+              <!-- Conditions Section -->
+              <el-divider content-position="left">
+                <span class="divider-title">{{
+                  t('policies.conditions', 'Access Conditions')
+                }}</span>
+              </el-divider>
 
-        <!-- Conditions Section -->
-        <el-divider content-position="left">
-          <span class="divider-title">{{ t('policies.conditions', 'Access Conditions') }}</span>
-        </el-divider>
+              <!-- Time Condition -->
+              <div class="condition-section">
+                <div class="condition-header">
+                  <div class="condition-title">
+                    <el-icon><Clock /></el-icon>
+                    <span>{{ t('policies.timeCondition', 'Time Condition') }}</span>
+                  </div>
+                  <div class="condition-controls">
+                    <el-switch v-model="timeEnabled" />
+                    <el-button
+                      v-if="timeEnabled"
+                      type="info"
+                      size="small"
+                      text
+                      @click="clearTimeCondition"
+                    >
+                      {{ t('common.clear', 'Clear') }}
+                    </el-button>
+                  </div>
+                </div>
 
-        <!-- Time Condition -->
-        <div class="condition-section">
-          <div class="condition-header">
-            <div class="condition-title">
-              <el-icon><Clock /></el-icon>
-              <span>{{ t('policies.timeCondition', 'Time Condition') }}</span>
+                <el-collapse-transition>
+                  <div v-show="timeEnabled" class="condition-body">
+                    <div class="time-row">
+                      <div class="time-field">
+                        <label>{{ t('policies.startTime', 'Start Time') }}</label>
+                        <el-time-picker
+                          v-model="timeConditionData.start"
+                          format="HH:mm"
+                          value-format="HH:mm"
+                          :placeholder="t('policies.startTimePlaceholder', 'Start')"
+                          :disabled="!timeEnabled"
+                        />
+                      </div>
+                      <div class="time-field">
+                        <label>{{ t('policies.endTime', 'End Time') }}</label>
+                        <el-time-picker
+                          v-model="timeConditionData.end"
+                          format="HH:mm"
+                          value-format="HH:mm"
+                          :placeholder="t('policies.endTimePlaceholder', 'End')"
+                          :disabled="!timeEnabled"
+                        />
+                      </div>
+                    </div>
+
+                    <div class="days-section">
+                      <label>{{ t('policies.allowedDays', 'Allowed Days') }}</label>
+                      <el-checkbox-group
+                        v-model="timeConditionData.daysOfWeek"
+                        :disabled="!timeEnabled"
+                      >
+                        <el-checkbox
+                          v-for="day in dayOfWeekOptions"
+                          :key="day.value"
+                          :value="day.value"
+                        >
+                          {{ day.label }}
+                        </el-checkbox>
+                      </el-checkbox-group>
+                    </div>
+                  </div>
+                </el-collapse-transition>
+              </div>
+
+              <!-- IP Condition -->
+              <div class="condition-section">
+                <div class="condition-header">
+                  <div class="condition-title">
+                    <el-icon><Location /></el-icon>
+                    <span>{{ t('policies.ipCondition', 'IP Condition') }}</span>
+                  </div>
+                  <div class="condition-controls">
+                    <el-switch v-model="ipEnabled" />
+                    <el-button
+                      v-if="ipEnabled"
+                      type="info"
+                      size="small"
+                      text
+                      @click="clearIpCondition"
+                    >
+                      {{ t('common.clear', 'Clear') }}
+                    </el-button>
+                  </div>
+                </div>
+
+                <el-collapse-transition>
+                  <div v-show="ipEnabled" class="condition-body">
+                    <label>{{ t('policies.allowedIps', 'Allowed IPs / CIDR') }}</label>
+                    <div class="ip-list">
+                      <div
+                        v-for="(_, index) in ipConditionData.allowed"
+                        :key="index"
+                        class="ip-item"
+                      >
+                        <el-input
+                          v-model="ipConditionData.allowed[index]"
+                          :placeholder="t('policies.ipPlaceholder', 'e.g., 192.168.1.1')"
+                          :disabled="!ipEnabled"
+                          class="ip-input"
+                        />
+                        <el-button
+                          type="danger"
+                          :icon="Delete"
+                          circle
+                          size="small"
+                          :disabled="!ipEnabled"
+                          @click="removeIpAddress(index)"
+                        />
+                      </div>
+                    </div>
+                    <el-button
+                      type="primary"
+                      size="small"
+                      plain
+                      :disabled="!ipEnabled"
+                      @click="addIpAddress"
+                    >
+                      + {{ t('policies.addIp', 'Add IP') }}
+                    </el-button>
+                  </div>
+                </el-collapse-transition>
+              </div>
+
+              <!-- JSON Preview -->
+              <el-divider content-position="left">
+                <span class="divider-title">{{ t('policies.conditionsPreview', 'Preview') }}</span>
+              </el-divider>
+
+              <div class="json-preview">
+                <el-input
+                  :model-value="conditionsJson"
+                  type="textarea"
+                  :rows="6"
+                  readonly
+                  class="json-textarea"
+                />
+              </div>
+            </el-form>
+          </el-tab-pane>
+          <el-tab-pane :label="t('auditLog.tabLabel', 'Audit Logs')" name="auditLogs">
+            <div v-loading="auditLogLoading" class="audit-log-section">
+              <el-table v-if="auditLogs.length > 0" :data="auditLogs" stripe size="small">
+                <el-table-column :label="t('auditLog.action', 'Action')" width="140">
+                  <template #default="{ row }">
+                    <el-tag :type="getAuditActionType(row.action)" size="small">
+                      {{ formatAuditAction(row.action) }}
+                    </el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column :label="t('auditLog.operator', 'Operator')" width="120">
+                  <template #default="{ row }">
+                    {{ row.user?.username || 'System' }}
+                  </template>
+                </el-table-column>
+                <el-table-column :label="t('auditLog.ipAddress', 'IP Address')" width="130">
+                  <template #default="{ row }">
+                    {{ row.ipAddress }}
+                  </template>
+                </el-table-column>
+                <el-table-column :label="t('auditLog.details', 'Details')" min-width="150">
+                  <template #default="{ row }">
+                    <el-tooltip
+                      v-if="row.requestData"
+                      :content="JSON.stringify(row.requestData)"
+                      placement="top"
+                    >
+                      <span class="details-preview">{{ truncateDetails(row.requestData) }}</span>
+                    </el-tooltip>
+                    <span v-else>-</span>
+                  </template>
+                </el-table-column>
+                <el-table-column :label="t('auditLog.time', 'Time')" width="160">
+                  <template #default="{ row }">
+                    {{ formatDate(row.createdAt) }}
+                  </template>
+                </el-table-column>
+              </el-table>
+              <el-empty v-else :description="t('auditLog.noLogs', 'No audit logs found')" />
+              <div v-if="auditLogTotal > 0" class="audit-log-pagination">
+                <el-pagination
+                  v-model:current-page="auditLogPage"
+                  v-model:page-size="auditLogPageSize"
+                  :total="auditLogTotal"
+                  :page-sizes="[10, 20, 50]"
+                  layout="total, sizes, prev, pager, next"
+                  small
+                  @current-change="handleAuditLogPageChange"
+                  @size-change="handleAuditLogSizeChange"
+                />
+              </div>
             </div>
-            <div class="condition-controls">
-              <el-switch v-model="timeEnabled" />
-              <el-button
-                v-if="timeEnabled"
-                type="info"
-                size="small"
-                text
-                @click="clearTimeCondition"
-              >
-                {{ t('common.clear', 'Clear') }}
-              </el-button>
+          </el-tab-pane>
+        </el-tabs>
+      </template>
+
+      <!-- Simple form for create mode -->
+      <template v-else>
+        <el-form
+          ref="formRef"
+          :model="formData"
+          :rules="formRules()"
+          label-width="100px"
+          label-position="top"
+        >
+          <el-row :gutter="16">
+            <el-col :span="12">
+              <el-form-item :label="t('policies.name', 'Policy Name')" prop="name">
+                <el-input
+                  v-model="formData.name"
+                  :placeholder="t('policies.namePlaceholder', 'e.g., Admin Full Access')"
+                  maxlength="100"
+                  show-word-limit
+                />
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item :label="t('policies.effect', 'Effect')" prop="effect">
+                <el-select v-model="formData.effect" class="full-width">
+                  <el-option
+                    v-for="option in effectOptions"
+                    :key="option.value"
+                    :label="option.label"
+                    :value="option.value"
+                  />
+                </el-select>
+              </el-form-item>
+            </el-col>
+          </el-row>
+
+          <el-form-item :label="t('policies.description', 'Description')">
+            <el-input
+              v-model="formData.description"
+              type="textarea"
+              :rows="2"
+              :placeholder="t('policies.descriptionPlaceholder', 'Describe this policy purpose')"
+              maxlength="500"
+              show-word-limit
+            />
+          </el-form-item>
+
+          <el-row :gutter="16">
+            <el-col :span="12">
+              <el-form-item :label="t('policies.subject', 'Subject')" prop="subject">
+                <el-input
+                  v-model="formData.subject"
+                  :placeholder="t('policies.subjectPlaceholder', 'e.g., role:admin, user:*')"
+                />
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item :label="t('policies.resource', 'Resource')" prop="resource">
+                <el-input
+                  v-model="formData.resource"
+                  :placeholder="t('policies.resourcePlaceholder', 'e.g., policy, user, *')"
+                />
+              </el-form-item>
+            </el-col>
+          </el-row>
+
+          <el-row :gutter="16">
+            <el-col :span="12">
+              <el-form-item :label="t('policies.action', 'Action')" prop="action">
+                <el-input
+                  v-model="formData.action"
+                  :placeholder="t('policies.actionPlaceholder', 'e.g., read, create, *')"
+                />
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item :label="t('policies.priority', 'Priority')">
+                <el-input-number
+                  v-model="formData.priority"
+                  :min="0"
+                  :max="1000"
+                  class="full-width"
+                />
+              </el-form-item>
+            </el-col>
+          </el-row>
+
+          <el-form-item :label="t('common.status', 'Enabled')">
+            <el-switch
+              v-model="formData.enabled"
+              :active-text="t('common.enabled', 'Enabled')"
+              :inactive-text="t('common.disabled', 'Disabled')"
+            />
+          </el-form-item>
+
+          <!-- Conditions Section -->
+          <el-divider content-position="left">
+            <span class="divider-title">{{ t('policies.conditions', 'Access Conditions') }}</span>
+          </el-divider>
+
+          <!-- Time Condition -->
+          <div class="condition-section">
+            <div class="condition-header">
+              <div class="condition-title">
+                <el-icon><Clock /></el-icon>
+                <span>{{ t('policies.timeCondition', 'Time Condition') }}</span>
+              </div>
+              <div class="condition-controls">
+                <el-switch v-model="timeEnabled" />
+                <el-button
+                  v-if="timeEnabled"
+                  type="info"
+                  size="small"
+                  text
+                  @click="clearTimeCondition"
+                >
+                  {{ t('common.clear', 'Clear') }}
+                </el-button>
+              </div>
             </div>
+
+            <el-collapse-transition>
+              <div v-show="timeEnabled" class="condition-body">
+                <div class="time-row">
+                  <div class="time-field">
+                    <label>{{ t('policies.startTime', 'Start Time') }}</label>
+                    <el-time-picker
+                      v-model="timeConditionData.start"
+                      format="HH:mm"
+                      value-format="HH:mm"
+                      :placeholder="t('policies.startTimePlaceholder', 'Start')"
+                      :disabled="!timeEnabled"
+                    />
+                  </div>
+                  <div class="time-field">
+                    <label>{{ t('policies.endTime', 'End Time') }}</label>
+                    <el-time-picker
+                      v-model="timeConditionData.end"
+                      format="HH:mm"
+                      value-format="HH:mm"
+                      :placeholder="t('policies.endTimePlaceholder', 'End')"
+                      :disabled="!timeEnabled"
+                    />
+                  </div>
+                </div>
+
+                <div class="days-section">
+                  <label>{{ t('policies.allowedDays', 'Allowed Days') }}</label>
+                  <el-checkbox-group
+                    v-model="timeConditionData.daysOfWeek"
+                    :disabled="!timeEnabled"
+                  >
+                    <el-checkbox
+                      v-for="day in dayOfWeekOptions"
+                      :key="day.value"
+                      :value="day.value"
+                    >
+                      {{ day.label }}
+                    </el-checkbox>
+                  </el-checkbox-group>
+                </div>
+              </div>
+            </el-collapse-transition>
           </div>
 
-          <el-collapse-transition>
-            <div v-show="timeEnabled" class="condition-body">
-              <div class="time-row">
-                <div class="time-field">
-                  <label>{{ t('policies.startTime', 'Start Time') }}</label>
-                  <el-time-picker
-                    v-model="timeConditionData.start"
-                    format="HH:mm"
-                    value-format="HH:mm"
-                    :placeholder="t('policies.startTimePlaceholder', 'Start')"
-                    :disabled="!timeEnabled"
-                  />
-                </div>
-                <div class="time-field">
-                  <label>{{ t('policies.endTime', 'End Time') }}</label>
-                  <el-time-picker
-                    v-model="timeConditionData.end"
-                    format="HH:mm"
-                    value-format="HH:mm"
-                    :placeholder="t('policies.endTimePlaceholder', 'End')"
-                    :disabled="!timeEnabled"
-                  />
-                </div>
+          <!-- IP Condition -->
+          <div class="condition-section">
+            <div class="condition-header">
+              <div class="condition-title">
+                <el-icon><Location /></el-icon>
+                <span>{{ t('policies.ipCondition', 'IP Condition') }}</span>
               </div>
-
-              <div class="days-section">
-                <label>{{ t('policies.allowedDays', 'Allowed Days') }}</label>
-                <el-checkbox-group v-model="timeConditionData.daysOfWeek" :disabled="!timeEnabled">
-                  <el-checkbox v-for="day in dayOfWeekOptions" :key="day.value" :value="day.value">
-                    {{ day.label }}
-                  </el-checkbox>
-                </el-checkbox-group>
+              <div class="condition-controls">
+                <el-switch v-model="ipEnabled" />
+                <el-button v-if="ipEnabled" type="info" size="small" text @click="clearIpCondition">
+                  {{ t('common.clear', 'Clear') }}
+                </el-button>
               </div>
             </div>
-          </el-collapse-transition>
-        </div>
 
-        <!-- IP Condition -->
-        <div class="condition-section">
-          <div class="condition-header">
-            <div class="condition-title">
-              <el-icon><Location /></el-icon>
-              <span>{{ t('policies.ipCondition', 'IP Condition') }}</span>
-            </div>
-            <div class="condition-controls">
-              <el-switch v-model="ipEnabled" />
-              <el-button v-if="ipEnabled" type="info" size="small" text @click="clearIpCondition">
-                {{ t('common.clear', 'Clear') }}
-              </el-button>
-            </div>
+            <el-collapse-transition>
+              <div v-show="ipEnabled" class="condition-body">
+                <label>{{ t('policies.allowedIps', 'Allowed IPs / CIDR') }}</label>
+                <div class="ip-list">
+                  <div v-for="(_, index) in ipConditionData.allowed" :key="index" class="ip-item">
+                    <el-input
+                      v-model="ipConditionData.allowed[index]"
+                      :placeholder="t('policies.ipPlaceholder', 'e.g., 192.168.1.1')"
+                      :disabled="!ipEnabled"
+                      class="ip-input"
+                    />
+                    <el-button
+                      type="danger"
+                      :icon="Delete"
+                      circle
+                      size="small"
+                      :disabled="!ipEnabled"
+                      @click="removeIpAddress(index)"
+                    />
+                  </div>
+                </div>
+                <el-button
+                  type="primary"
+                  size="small"
+                  plain
+                  :disabled="!ipEnabled"
+                  @click="addIpAddress"
+                >
+                  + {{ t('policies.addIp', 'Add IP') }}
+                </el-button>
+              </div>
+            </el-collapse-transition>
           </div>
 
-          <el-collapse-transition>
-            <div v-show="ipEnabled" class="condition-body">
-              <label>{{ t('policies.allowedIps', 'Allowed IPs / CIDR') }}</label>
-              <div class="ip-list">
-                <div v-for="(_, index) in ipConditionData.allowed" :key="index" class="ip-item">
-                  <el-input
-                    v-model="ipConditionData.allowed[index]"
-                    :placeholder="t('policies.ipPlaceholder', 'e.g., 192.168.1.1')"
-                    :disabled="!ipEnabled"
-                    class="ip-input"
-                  />
-                  <el-button
-                    type="danger"
-                    :icon="Delete"
-                    circle
-                    size="small"
-                    :disabled="!ipEnabled"
-                    @click="removeIpAddress(index)"
-                  />
-                </div>
-              </div>
-              <el-button
-                type="primary"
-                size="small"
-                plain
-                :disabled="!ipEnabled"
-                @click="addIpAddress"
-              >
-                + {{ t('policies.addIp', 'Add IP') }}
-              </el-button>
-            </div>
-          </el-collapse-transition>
-        </div>
+          <!-- JSON Preview -->
+          <el-divider content-position="left">
+            <span class="divider-title">{{ t('policies.conditionsPreview', 'Preview') }}</span>
+          </el-divider>
 
-        <!-- JSON Preview -->
-        <el-divider content-position="left">
-          <span class="divider-title">{{ t('policies.conditionsPreview', 'Preview') }}</span>
-        </el-divider>
-
-        <div class="json-preview">
-          <el-input
-            :model-value="conditionsJson"
-            type="textarea"
-            :rows="6"
-            readonly
-            class="json-textarea"
-          />
-        </div>
-      </el-form>
+          <div class="json-preview">
+            <el-input
+              :model-value="conditionsJson"
+              type="textarea"
+              :rows="6"
+              readonly
+              class="json-textarea"
+            />
+          </div>
+        </el-form>
+      </template>
 
       <template #footer>
         <el-button @click="dialogVisible = false">
@@ -1550,5 +1938,23 @@ onMounted(() => {
     flex-wrap: wrap;
     justify-content: center;
   }
+}
+
+/* Audit log styles */
+.audit-log-section {
+  min-height: 200px;
+}
+.details-preview {
+  font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+  font-size: 12px;
+  color: #606266;
+  cursor: pointer;
+}
+.audit-log-pagination {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid #ebeef5;
 }
 </style>

@@ -172,7 +172,7 @@ function getStatusLabel(status: UserStatus): string {
 }
 
 // Audit log helper functions
-function _formatAuditAction(action: string): string {
+function formatAuditAction(action: string): string {
   const actionMap: Record<string, string> = {
     'user.create': t('auditLog.userCreate', 'Create User'),
     'user.update': t('auditLog.userUpdate', 'Update User'),
@@ -186,14 +186,14 @@ function _formatAuditAction(action: string): string {
   return actionMap[action] || action;
 }
 
-function _getAuditActionType(action: string): 'success' | 'warning' | 'danger' | 'info' {
+function getAuditActionType(action: string): 'success' | 'warning' | 'danger' | 'info' {
   if (action.includes('.create')) return 'success';
   if (action.includes('.update')) return 'warning';
   if (action.includes('.delete')) return 'danger';
   return 'info';
 }
 
-function _truncateDetails(data: Record<string, unknown> | null): string {
+function truncateDetails(data: Record<string, unknown> | null): string {
   if (!data) return '-';
   const str = JSON.stringify(data);
   return str.length > 50 ? str.substring(0, 50) + '...' : str;
@@ -296,14 +296,14 @@ async function fetchUserAuditLogs(userId: string) {
   }
 }
 
-function _handleAuditLogPageChange(page: number) {
+function handleAuditLogPageChange(page: number) {
   auditLogPage.value = page;
   if (formData.id) {
     fetchUserAuditLogs(formData.id);
   }
 }
 
-function _handleAuditLogSizeChange(size: number) {
+function handleAuditLogSizeChange(size: number) {
   auditLogPageSize.value = size;
   auditLogPage.value = 1;
   if (formData.id) {
@@ -584,57 +584,161 @@ watch(
     <el-dialog
       v-model="dialogVisible"
       :title="dialogMode === 'create' ? 'Create User' : 'Edit User'"
-      width="560px"
+      :width="dialogMode === 'edit' ? '720px' : '560px'"
       :close-on-click-modal="false"
     >
-      <el-form
-        ref="formRef"
-        :model="formData"
-        :rules="formRules()"
-        label-width="120px"
-        label-position="top"
-      >
-        <el-form-item v-if="dialogMode === 'create'" label="Username" prop="username"
-          ><el-input
-            v-model="formData.username"
-            placeholder="Enter username (letters, numbers, underscores)"
-            maxlength="50"
-            show-word-limit
-        /></el-form-item>
-        <el-form-item v-if="dialogMode === 'create'" label="Password" prop="password"
-          ><el-input
-            v-model="formData.password"
-            type="password"
-            placeholder="Enter password (min 8 chars, with upper/lower/digit)"
-            show-password
-        /></el-form-item>
-        <el-form-item label="Email" prop="email"
-          ><el-input v-model="formData.email" placeholder="Enter email address" clearable
-        /></el-form-item>
-        <el-form-item label="Phone" prop="phone"
-          ><el-input v-model="formData.phone" placeholder="Enter phone number" clearable
-        /></el-form-item>
-        <el-form-item label="Nickname" prop="nickname"
-          ><el-input
-            v-model="formData.nickname"
-            placeholder="Enter display name"
-            maxlength="50"
-            show-word-limit
-            clearable
-        /></el-form-item>
-        <el-form-item label="Status" prop="status"
-          ><el-select v-model="formData.status" placeholder="Select status" class="status-full"
-            ><el-option label="Active" value="active" /><el-option
-              label="Disabled"
-              value="disabled" /><el-option label="Pending" value="pending" /></el-select
-        ></el-form-item>
-      </el-form>
-      <template #footer
-        ><el-button @click="dialogVisible = false">Cancel</el-button
-        ><el-button type="primary" :loading="formLoading" @click="handleSubmit">{{
-          dialogMode === 'create' ? 'Create' : 'Save'
-        }}</el-button></template
-      >
+      <!-- Tabbed view for edit mode -->
+      <template v-if="dialogMode === 'edit'">
+        <el-tabs v-model="activeDialogTab">
+          <el-tab-pane label="Details" name="details">
+            <el-form
+              ref="formRef"
+              :model="formData"
+              :rules="formRules()"
+              label-width="120px"
+              label-position="top"
+            >
+              <el-form-item label="Username">
+                <el-input v-model="formData.username" disabled />
+              </el-form-item>
+              <el-form-item label="Email" prop="email">
+                <el-input v-model="formData.email" placeholder="Enter email address" clearable />
+              </el-form-item>
+              <el-form-item label="Phone" prop="phone">
+                <el-input v-model="formData.phone" placeholder="Enter phone number" clearable />
+              </el-form-item>
+              <el-form-item label="Nickname" prop="nickname">
+                <el-input
+                  v-model="formData.nickname"
+                  placeholder="Enter display name"
+                  maxlength="50"
+                  show-word-limit
+                  clearable
+                />
+              </el-form-item>
+              <el-form-item label="Status" prop="status">
+                <el-select
+                  v-model="formData.status"
+                  placeholder="Select status"
+                  class="status-full"
+                >
+                  <el-option label="Active" value="active" />
+                  <el-option label="Disabled" value="disabled" />
+                  <el-option label="Pending" value="pending" />
+                </el-select>
+              </el-form-item>
+            </el-form>
+          </el-tab-pane>
+          <el-tab-pane :label="t('auditLog.tabLabel', 'Audit Logs')" name="auditLogs">
+            <div v-loading="auditLogLoading" class="audit-log-section">
+              <el-table v-if="auditLogs.length > 0" :data="auditLogs" stripe size="small">
+                <el-table-column :label="t('auditLog.action', 'Action')" width="140">
+                  <template #default="{ row }">
+                    <el-tag :type="getAuditActionType(row.action)" size="small">
+                      {{ formatAuditAction(row.action) }}
+                    </el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column :label="t('auditLog.operator', 'Operator')" width="120">
+                  <template #default="{ row }">
+                    {{ row.user?.username || 'System' }}
+                  </template>
+                </el-table-column>
+                <el-table-column :label="t('auditLog.ipAddress', 'IP Address')" width="130">
+                  <template #default="{ row }">
+                    {{ row.ipAddress }}
+                  </template>
+                </el-table-column>
+                <el-table-column :label="t('auditLog.details', 'Details')" min-width="150">
+                  <template #default="{ row }">
+                    <el-tooltip
+                      v-if="row.requestData"
+                      :content="JSON.stringify(row.requestData)"
+                      placement="top"
+                    >
+                      <span class="details-preview">{{ truncateDetails(row.requestData) }}</span>
+                    </el-tooltip>
+                    <span v-else>-</span>
+                  </template>
+                </el-table-column>
+                <el-table-column :label="t('auditLog.time', 'Time')" width="160">
+                  <template #default="{ row }">
+                    {{ formatDate(row.createdAt) }}
+                  </template>
+                </el-table-column>
+              </el-table>
+              <el-empty v-else :description="t('auditLog.noLogs', 'No audit logs found')" />
+              <div v-if="auditLogTotal > 0" class="audit-log-pagination">
+                <el-pagination
+                  v-model:current-page="auditLogPage"
+                  v-model:page-size="auditLogPageSize"
+                  :total="auditLogTotal"
+                  :page-sizes="[10, 20, 50]"
+                  layout="total, sizes, prev, pager, next"
+                  small
+                  @current-change="handleAuditLogPageChange"
+                  @size-change="handleAuditLogSizeChange"
+                />
+              </div>
+            </div>
+          </el-tab-pane>
+        </el-tabs>
+      </template>
+      <!-- Simple form for create mode -->
+      <template v-else>
+        <el-form
+          ref="formRef"
+          :model="formData"
+          :rules="formRules()"
+          label-width="120px"
+          label-position="top"
+        >
+          <el-form-item label="Username" prop="username">
+            <el-input
+              v-model="formData.username"
+              placeholder="Enter username (letters, numbers, underscores)"
+              maxlength="50"
+              show-word-limit
+            />
+          </el-form-item>
+          <el-form-item label="Password" prop="password">
+            <el-input
+              v-model="formData.password"
+              type="password"
+              placeholder="Enter password (min 8 chars, with upper/lower/digit)"
+              show-password
+            />
+          </el-form-item>
+          <el-form-item label="Email" prop="email">
+            <el-input v-model="formData.email" placeholder="Enter email address" clearable />
+          </el-form-item>
+          <el-form-item label="Phone" prop="phone">
+            <el-input v-model="formData.phone" placeholder="Enter phone number" clearable />
+          </el-form-item>
+          <el-form-item label="Nickname" prop="nickname">
+            <el-input
+              v-model="formData.nickname"
+              placeholder="Enter display name"
+              maxlength="50"
+              show-word-limit
+              clearable
+            />
+          </el-form-item>
+          <el-form-item label="Status" prop="status">
+            <el-select v-model="formData.status" placeholder="Select status" class="status-full">
+              <el-option label="Active" value="active" />
+              <el-option label="Disabled" value="disabled" />
+              <el-option label="Pending" value="pending" />
+            </el-select>
+          </el-form-item>
+        </el-form>
+      </template>
+      <template #footer>
+        <el-button @click="dialogVisible = false">Cancel</el-button>
+        <el-button type="primary" :loading="formLoading" @click="handleSubmit">
+          {{ dialogMode === 'create' ? 'Create' : 'Save' }}
+        </el-button>
+      </template>
     </el-dialog>
     <el-dialog
       v-model="roleDialogVisible"
@@ -941,6 +1045,23 @@ watch(
 .role-desc {
   font-size: 12px;
   color: #909399;
+}
+/* Audit log styles */
+.audit-log-section {
+  min-height: 200px;
+}
+.details-preview {
+  font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+  font-size: 12px;
+  color: #606266;
+  cursor: pointer;
+}
+.audit-log-pagination {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid #ebeef5;
 }
 :deep(.el-empty) {
   padding: 48px 0;
