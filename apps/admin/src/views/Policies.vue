@@ -92,14 +92,14 @@ const auditLogPageSize = ref(10);
 const activeDialogTab = ref('details');
 
 // Form data
-const formData = reactive<CreatePolicyDto & { id?: string }>({
+const formData = reactive<CreatePolicyDto & { id?: string; permissionId?: string }>({
   name: '',
   description: '',
   effect: 'allow',
   subject: '',
   resource: '',
   action: '',
-  permissionIds: [],
+  permissionId: undefined,
   conditions: undefined,
   priority: 0,
   enabled: true,
@@ -278,7 +278,7 @@ function resetForm() {
   formData.subject = '';
   formData.resource = '';
   formData.action = '';
-  formData.permissionIds = [];
+  formData.permissionId = undefined;
   formData.conditions = undefined;
   formData.priority = 0;
   formData.enabled = true;
@@ -311,8 +311,8 @@ function openEditDialog(policy: Policy) {
   formData.subject = policy.subject;
   formData.resource = policy.resource;
   formData.action = policy.action;
-  // Extract permissionIds from policy.permissions if available
-  formData.permissionIds = policy.permissions?.map((p) => p.id) || [];
+  // Extract permissionId from policy.permissions if available
+  formData.permissionId = policy.permissions?.[0]?.id || undefined;
   formData.conditions = policy.conditions || undefined;
   formData.priority = policy.priority;
   formData.enabled = policy.enabled;
@@ -368,14 +368,14 @@ async function handleSubmit() {
     // Build conditions from UI state
     const conditions = conditionsPreview.value;
 
-    // Auto-fill resource and action from first selected permission for legacy compatibility
+    // Auto-fill resource and action from selected permission for legacy compatibility
     let resource = formData.resource;
     let action = formData.action;
-    if (formData.permissionIds && formData.permissionIds.length > 0) {
-      const firstPermission = permissions.value.find((p) => p.id === formData.permissionIds![0]);
-      if (firstPermission) {
-        resource = firstPermission.resource;
-        action = firstPermission.action;
+    if (formData.permissionId) {
+      const selectedPermission = permissions.value.find((p) => p.id === formData.permissionId);
+      if (selectedPermission) {
+        resource = selectedPermission.resource;
+        action = selectedPermission.action;
       }
     }
 
@@ -387,7 +387,7 @@ async function handleSubmit() {
         subject: formData.subject,
         resource,
         action,
-        permissionIds: formData.permissionIds,
+        permissionIds: formData.permissionId ? [formData.permissionId] : [],
         conditions: conditions,
         priority: formData.priority,
         enabled: formData.enabled,
@@ -401,7 +401,7 @@ async function handleSubmit() {
         subject: formData.subject,
         resource,
         action,
-        permissionIds: formData.permissionIds,
+        permissionIds: formData.permissionId ? [formData.permissionId] : [],
         conditions: conditions,
         priority: formData.priority,
         enabled: formData.enabled,
@@ -446,12 +446,10 @@ function formRules() {
         trigger: 'blur',
       },
     ],
-    permissionIds: [
+    permissionId: [
       {
         required: true,
-        type: 'array',
-        min: 1,
-        message: t('policies.permissionRequired', 'Please select at least one permission'),
+        message: t('policies.permissionRequired', 'Please select a permission'),
         trigger: 'change',
       },
     ],
@@ -1047,12 +1045,11 @@ onMounted(() => {
                 </el-col>
               </el-row>
 
-              <el-form-item :label="t('policies.permissions', 'Permissions')" prop="permissionIds">
+              <el-form-item :label="t('policies.permissions', 'Permission')" prop="permissionId">
                 <el-select
-                  v-model="formData.permissionIds"
-                  multiple
+                  v-model="formData.permissionId"
                   filterable
-                  :placeholder="t('policies.selectPermissions', 'Select permissions')"
+                  :placeholder="t('policies.selectPermission', 'Select a permission')"
                   class="full-width"
                 >
                   <el-option
@@ -1062,18 +1059,12 @@ onMounted(() => {
                     :value="option.value"
                   />
                 </el-select>
-                <div
-                  v-if="formData.permissionIds && formData.permissionIds.length > 0"
-                  class="selected-permissions-preview"
-                >
-                  <el-tag
-                    v-for="permId in formData.permissionIds"
-                    :key="permId"
-                    size="small"
-                    type="info"
-                    class="permission-preview-tag"
-                  >
-                    {{ permissionOptions.find((o) => o.value === permId)?.label || permId }}
+                <div v-if="formData.permissionId" class="selected-permissions-preview">
+                  <el-tag size="small" type="info" class="permission-preview-tag">
+                    {{
+                      permissionOptions.find((o) => o.value === formData.permissionId)?.label ||
+                      formData.permissionId
+                    }}
                   </el-tag>
                 </div>
               </el-form-item>
@@ -1355,12 +1346,11 @@ onMounted(() => {
             </el-col>
           </el-row>
 
-          <el-form-item :label="t('policies.permissions', 'Permissions')" prop="permissionIds">
+          <el-form-item :label="t('policies.permissions', 'Permission')" prop="permissionId">
             <el-select
-              v-model="formData.permissionIds"
-              multiple
+              v-model="formData.permissionId"
               filterable
-              :placeholder="t('policies.selectPermissions', 'Select permissions')"
+              :placeholder="t('policies.selectPermission', 'Select a permission')"
               class="full-width"
             >
               <el-option
@@ -1370,18 +1360,12 @@ onMounted(() => {
                 :value="option.value"
               />
             </el-select>
-            <div
-              v-if="formData.permissionIds && formData.permissionIds.length > 0"
-              class="selected-permissions-preview"
-            >
-              <el-tag
-                v-for="permId in formData.permissionIds"
-                :key="permId"
-                size="small"
-                type="info"
-                class="permission-preview-tag"
-              >
-                {{ permissionOptions.find((o) => o.value === permId)?.label || permId }}
+            <div v-if="formData.permissionId" class="selected-permissions-preview">
+              <el-tag size="small" type="info" class="permission-preview-tag">
+                {{
+                  permissionOptions.find((o) => o.value === formData.permissionId)?.label ||
+                  formData.permissionId
+                }}
               </el-tag>
             </div>
           </el-form-item>
