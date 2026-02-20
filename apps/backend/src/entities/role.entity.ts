@@ -5,8 +5,10 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   Index,
-  OneToMany,
+  ManyToMany,
+  JoinTable,
 } from 'typeorm';
+import { Permission } from './permission.entity';
 
 @Entity('roles')
 export class Role {
@@ -20,19 +22,17 @@ export class Role {
   @Column({ type: 'varchar', length: 255, nullable: true })
   description: string | null;
 
-  @Column({ type: 'simple-array', default: [] })
-  permissions: string[];
+  @ManyToMany(() => Permission)
+  @JoinTable({
+    name: 'role_permissions',
+    joinColumn: { name: 'role_id', referencedColumnName: 'id' },
+    inverseJoinColumn: { name: 'permission_id', referencedColumnName: 'id' },
+  })
+  permissions: Permission[];
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
-
-  // Relation to RolePermission (ABAC migration)
-  @OneToMany(
-    () => require('./role-permission.entity').RolePermission,
-    (rp: import('./role-permission.entity').RolePermission) => rp.role
-  )
-  rolePermissions: import('./role-permission.entity').RolePermission[];
 }

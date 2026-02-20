@@ -38,7 +38,7 @@ import type { StorageUrlResponse } from '../common/types/storage-url.dto';
 import type { MultiStorageConfig } from '../config/storage.config';
 
 @ApiTags('users')
-@Controller({ path: 'users', version: '1' })
+@Controller('users')
 @UseGuards(JwtAuthGuard, PermissionGuard)
 @ApiBearerAuth()
 export class UsersController {
@@ -239,11 +239,7 @@ export class UsersController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() body: { status: UserStatus }
   ): Promise<AdminUserResponse> {
-    await this.usersService.updateStatus(id, body.status);
-    const user = await this.usersService.findById(id);
-    if (!user) {
-      throw new NotFoundException('User not found after status update');
-    }
+    const user = await this.usersService.adminUpdateStatus(id, body.status);
     return this.toAdminUserResponse(user);
   }
 
@@ -284,7 +280,7 @@ export class UsersController {
   }
 
   /**
-   * Transform User entity to admin response (includes admin-visible fields)
+   * Transform User entity to admin response (more fields than profile)
    */
   private toAdminUserResponse(user: User): AdminUserResponse {
     const storageConfig = this.configService.get<MultiStorageConfig>('storage');
@@ -309,13 +305,12 @@ export class UsersController {
       avatar,
       status: user.status,
       locale: user.locale,
-      lastLoginAt: user.lastLoginAt,
-      lastLoginIp: user.lastLoginIp,
       emailVerifiedAt: user.emailVerifiedAt,
       phoneVerifiedAt: user.phoneVerifiedAt,
+      lastLoginAt: user.lastLoginAt,
+      lastLoginIp: user.lastLoginIp,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
-      deletedAt: user.deletedAt,
     };
   }
 }
@@ -338,7 +333,7 @@ export interface UserProfileResponse {
 }
 
 /**
- * Admin user response interface (includes admin-visible fields)
+ * Admin user response interface (more fields than profile)
  */
 export interface AdminUserResponse {
   id: string;
@@ -349,13 +344,12 @@ export interface AdminUserResponse {
   avatar: StorageUrlResponse;
   status: UserStatus;
   locale: string;
-  lastLoginAt: Date | null;
-  lastLoginIp: string | null;
   emailVerifiedAt: Date | null;
   phoneVerifiedAt: Date | null;
+  lastLoginAt: Date | null;
+  lastLoginIp: string | null;
   createdAt: Date;
   updatedAt: Date;
-  deletedAt: Date | null;
 }
 
 /**

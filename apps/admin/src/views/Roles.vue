@@ -57,7 +57,7 @@ async function fetchRoles() {
   loading.value = true;
   try {
     const response = await getRoles();
-    roles.value = response.data;
+    roles.value = response.data.data;
   } catch (error: unknown) {
     const apiError = extractApiError(error);
     ElMessage.error(apiError.displayMessage);
@@ -69,7 +69,7 @@ async function fetchRoles() {
 async function fetchPermissions() {
   try {
     const response = await getPermissions();
-    permissions.value = response.data;
+    permissions.value = response.data.data;
   } catch (error: unknown) {
     const apiError = extractApiError(error);
     ElMessage.error(apiError.displayMessage);
@@ -270,19 +270,17 @@ onMounted(() => {
           <template #default="{ row }">
             <div class="permission-tags">
               <el-tag
-                v-for="permission in row.permissions.slice(0, 3)"
+                v-for="permission in row.permissions?.slice(0, 3)"
                 :key="permission.id"
                 size="small"
                 class="permission-tag"
               >
                 {{ permission.name }}
               </el-tag>
-              <el-tag v-if="row.permissions.length > 3" size="small" type="info" class="more-tag">
+              <el-tag v-if="row.permissions?.length > 3" size="small" type="info" class="more-tag">
                 +{{ row.permissions.length - 3 }} more
               </el-tag>
-              <span v-if="row.permissions.length === 0" class="no-permissions">
-                No permissions
-              </span>
+              <span v-if="!row.permissions?.length" class="no-permissions"> No permissions </span>
             </div>
           </template>
         </el-table-column>

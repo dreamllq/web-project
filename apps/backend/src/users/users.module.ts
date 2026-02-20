@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { User } from '../entities/user.entity';
 import { SocialAccount } from '../entities/social-account.entity';
@@ -18,7 +18,7 @@ import { PolicyModule } from '../policy/policy.module';
   imports: [
     TypeOrmModule.forFeature([User, SocialAccount, LoginHistory, UserDevice]),
     StorageModule,
-    PolicyModule,
+    forwardRef(() => PolicyModule),
   ],
   controllers: [UsersController, LoginHistoryController, AvatarController, DeviceController],
   providers: [UsersService, LoginHistoryService, UserDeviceService],

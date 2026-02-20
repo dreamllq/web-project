@@ -22,7 +22,6 @@ describe('PolicyService', () => {
     createdAt: new Date(),
     updatedAt: new Date(),
     policyAttributes: [],
-    policyPermissions: [],
   };
 
   const mockRepository = {
@@ -141,7 +140,7 @@ describe('PolicyService', () => {
       expect(mockRepository.findAndCount).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { name: expect.any(Object) },
-        })
+        }),
       );
     });
 
@@ -153,7 +152,7 @@ describe('PolicyService', () => {
       expect(mockRepository.findAndCount).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { enabled: true },
-        })
+        }),
       );
     });
 
@@ -209,7 +208,7 @@ describe('PolicyService', () => {
       mockRepository.findOne.mockResolvedValue(null);
 
       await expect(service.update('non-existent', { name: 'Test' })).rejects.toThrow(
-        NotFoundException
+        NotFoundException,
       );
     });
   });

@@ -43,7 +43,6 @@ describe('PolicyEvaluatorService', () => {
       createdAt: new Date(),
       updatedAt: new Date(),
       policyAttributes: [],
-      policyPermissions: [],
     },
     {
       id: 'policy-2',
@@ -59,7 +58,6 @@ describe('PolicyEvaluatorService', () => {
       createdAt: new Date(),
       updatedAt: new Date(),
       policyAttributes: [],
-      policyPermissions: [],
     },
     {
       id: 'policy-3',
@@ -75,7 +73,6 @@ describe('PolicyEvaluatorService', () => {
       createdAt: new Date(),
       updatedAt: new Date(),
       policyAttributes: [],
-      policyPermissions: [],
     },
   ];
 
@@ -190,7 +187,6 @@ describe('PolicyEvaluatorService', () => {
           createdAt: new Date(),
           updatedAt: new Date(),
           policyAttributes: [],
-          policyPermissions: [],
         },
       ];
 
@@ -238,7 +234,7 @@ describe('PolicyEvaluatorService', () => {
       const result = await service.evaluateWithDetails(
         userWithUserRole,
         'unauthorized-resource',
-        'unauthorized-action'
+        'unauthorized-action',
       );
 
       expect(result.allowed).toBe(false);
@@ -293,7 +289,6 @@ describe('PolicyEvaluatorService', () => {
           createdAt: new Date(),
           updatedAt: new Date(),
           policyAttributes: [],
-          policyPermissions: [],
         },
       ];
 
@@ -320,7 +315,6 @@ describe('PolicyEvaluatorService', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
         policyAttributes: [],
-        policyPermissions: [],
       },
     ];
 
@@ -378,7 +372,6 @@ describe('PolicyEvaluatorService', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
         policyAttributes: [],
-        policyPermissions: [],
       },
     ];
 

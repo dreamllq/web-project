@@ -1,9 +1,7 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Like, FindOptionsWhere } from 'typeorm';
 import { Policy } from '../entities/policy.entity';
-import { PolicyPermission } from '../entities/policy-permission.entity';
-import { Permission } from '../entities/permission.entity';
 import { CreatePolicyDto, UpdatePolicyDto, QueryPolicyDto } from './dto';
 
 @Injectable()
@@ -11,10 +9,6 @@ export class PolicyService {
   constructor(
     @InjectRepository(Policy)
     private readonly policyRepo: Repository<Policy>,
-    @InjectRepository(PolicyPermission)
-    private readonly policyPermissionRepo: Repository<PolicyPermission>,
-    @InjectRepository(Permission)
-    private readonly permissionRepo: Repository<Permission>
   ) {}
 
   /**
@@ -114,18 +108,6 @@ export class PolicyService {
   }
 
   /**
-   * Get all enabled policies with PolicyPermission relations loaded
-   * Used by PolicyEvaluatorService for ABAC evaluation with permission-based matching
-   */
-  async getEnabledPoliciesWithPermissions(): Promise<Policy[]> {
-    return this.policyRepo.find({
-      where: { enabled: true },
-      relations: ['policyPermissions', 'policyPermissions.permission'],
-      order: { priority: 'DESC', createdAt: 'ASC' },
-    });
-  }
-
-  /**
    * Find policies by subject pattern
    */
   async findBySubject(subject: string): Promise<Policy[]> {
@@ -147,69 +129,5 @@ export class PolicyService {
       },
     });
     return count > 0;
-  }
-
-  /**
-   * Assign a permission to a policy
-   */
-  async assignPermissionToPolicy(
-    policyId: string,
-    permissionId: string
-  ): Promise<PolicyPermission> {
-    // Verify policy exists
-    await this.findOne(policyId);
-
-    // Verify permission exists
-    const permission = await this.permissionRepo.findOne({ where: { id: permissionId } });
-    if (!permission) {
-      throw new NotFoundException(`Permission with ID "${permissionId}" not found`);
-    }
-
-    // Check if already assigned
-    const existing = await this.policyPermissionRepo.findOne({
-      where: { policyId, permissionId },
-    });
-    if (existing) {
-      throw new ConflictException('Permission already assigned to this policy');
-    }
-
-    const policyPermission = this.policyPermissionRepo.create({
-      policyId,
-      permissionId,
-    });
-
-    return this.policyPermissionRepo.save(policyPermission);
-  }
-
-  /**
-   * Remove a permission from a policy
-   */
-  async removePermissionFromPolicy(policyId: string, permissionId: string): Promise<void> {
-    const policyPermission = await this.policyPermissionRepo.findOne({
-      where: { policyId, permissionId },
-    });
-    if (!policyPermission) {
-      throw new NotFoundException(`Permission "${permissionId}" not found on policy "${policyId}"`);
-    }
-    await this.policyPermissionRepo.remove(policyPermission);
-  }
-
-  /**
-   * Get all permissions for a policy
-   */
-  async getPolicyPermissions(policyId: string): Promise<Permission[]> {
-    // Verify policy exists
-    await this.findOne(policyId);
-
-    const policyPermissions = await this.policyPermissionRepo.find({
-      where: { policyId },
-    });
-
-    if (policyPermissions.length === 0) {
-      return [];
-    }
-
-    const permissionIds = policyPermissions.map((pp) => pp.permissionId);
-    return this.permissionRepo.findByIds(permissionIds);
   }
 }

@@ -2,9 +2,7 @@ import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Policy } from '../entities/policy.entity';
 import { PolicyAttribute } from '../entities/policy-attribute.entity';
-import { PolicyPermission } from '../entities/policy-permission.entity';
 import { Attribute } from '../entities/attribute.entity';
-import { Permission } from '../entities/permission.entity';
 import { PolicyService } from './policy.service';
 import { PolicyEvaluatorService } from './policy-evaluator.service';
 import { PolicyController } from './policy.controller';
@@ -14,7 +12,7 @@ import { RoleGuard } from './guards/role.guard';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Policy, PolicyAttribute, PolicyPermission, Attribute, Permission]),
+    TypeOrmModule.forFeature([Policy, PolicyAttribute, Attribute]),
     forwardRef(() => RbacModule),
   ],
   controllers: [PolicyController],

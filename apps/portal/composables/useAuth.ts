@@ -94,9 +94,16 @@ export const useAuth = () => {
     }
 
     try {
-      const response = await api.post<AuthResponse>('/auth/refresh', {
-        refresh_token: authStore.refreshToken,
-      });
+      // Use direct $fetch to avoid circular dependency with useApi's 401 handler
+      const config = useRuntimeConfig();
+      const response = await $fetch<{ access_token: string; refresh_token: string }>(
+        `${config.public.apiBase}/auth/refresh`,
+        {
+          method: 'POST',
+          body: { refresh_token: authStore.refreshToken },
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
 
       authStore.setToken(response.access_token, response.refresh_token);
       return response.access_token;

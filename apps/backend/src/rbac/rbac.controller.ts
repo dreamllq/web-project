@@ -31,18 +31,7 @@ export class RbacController {
   @ApiOperation({ summary: 'Create a new role' })
   @ApiResponse({ status: 201, description: 'Role created successfully' })
   async createRole(@Body() dto: CreateRoleDto): Promise<Role> {
-    const { permissionIds, ...roleData } = dto;
-    const role = await this.roleService.createRole(roleData);
-
-    if (permissionIds && permissionIds.length > 0) {
-      await Promise.all(
-        permissionIds.map((permissionId) =>
-          this.roleService.assignPermissionToRole(role.id, permissionId)
-        )
-      );
-    }
-
-    return role;
+    return this.roleService.createRole(dto);
   }
 
   @Get()
@@ -63,18 +52,7 @@ export class RbacController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateRoleDto
   ): Promise<Role> {
-    const { permissionIds, ...roleData } = dto;
-    const role = await this.roleService.updateRole(id, roleData);
-
-    if (permissionIds && permissionIds.length > 0) {
-      await Promise.all(
-        permissionIds.map((permissionId) =>
-          this.roleService.assignPermissionToRole(id, permissionId)
-        )
-      );
-    }
-
-    return role;
+    return this.roleService.updateRole(id, dto);
   }
 
   @Delete(':id')

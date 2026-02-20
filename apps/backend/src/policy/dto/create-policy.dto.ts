@@ -6,8 +6,6 @@ import {
   IsBoolean,
   IsNumber,
   IsObject,
-  IsArray,
-  IsUUID,
   MaxLength,
   Min,
 } from 'class-validator';
@@ -54,9 +52,4 @@ export class CreatePolicyDto {
   @IsOptional()
   @IsBoolean()
   enabled?: boolean;
-
-  @IsArray()
-  @IsUUID('4', { each: true })
-  @IsOptional()
-  permissionIds?: string[];
 }

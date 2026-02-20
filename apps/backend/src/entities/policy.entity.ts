@@ -67,11 +67,4 @@ export class Policy {
     (policyAttribute: PolicyAttribute) => policyAttribute.policy
   )
   policyAttributes: PolicyAttribute[];
-
-  // Relation to PolicyPermission (ABAC migration)
-  @OneToMany(
-    () => require('./policy-permission.entity').PolicyPermission,
-    (pp: import('./policy-permission.entity').PolicyPermission) => pp.policy
-  )
-  policyPermissions: import('./policy-permission.entity').PolicyPermission[];
 }

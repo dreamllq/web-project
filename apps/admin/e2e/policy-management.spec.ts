@@ -7,13 +7,16 @@ import { test, expect, Page } from '@playwright/test';
  * - Login as admin
  * - Navigate to Policies page
  * - List policies with filters
- * - Create new policy
- * - Edit existing policy
+ * - Create new policy (without permission selector)
+ * - Edit existing policy (with read-only associated permissions display)
  * - Configure time condition
  * - Configure IP condition
  * - Test permission check
  * - Toggle policy enabled/disabled
  * - Delete policy
+ *
+ * NOTE: Policy creation/edit no longer includes resource/action input fields.
+ * Associated permissions are displayed read-only in edit mode.
  */
 
 // Test configuration
@@ -68,7 +71,7 @@ test.describe('Policy Management E2E Tests', () => {
     await expect(page.locator('button:has-text("Add Policy")')).toBeVisible();
   });
 
-  test('should list policies with filters', async ({ page }) => {
+  test('should list policies with table columns', async ({ page }) => {
     await navigateToPolicies(page);
 
     // Wait for table to load
@@ -157,7 +160,7 @@ test.describe('Policy Management E2E Tests', () => {
     await page.locator('.filter-form button:has-text("Reset")').click();
   });
 
-  test('should create new policy', async ({ page }) => {
+  test('should create new policy with required fields', async ({ page }) => {
     await navigateToPolicies(page);
 
     // Wait for table to load
@@ -175,8 +178,6 @@ test.describe('Policy Management E2E Tests', () => {
 
     await page.locator('.el-dialog input[placeholder*="Policy Name"]').fill(policyName);
     await page.locator('.el-dialog input[placeholder*="subject"]').fill('role:user');
-    await page.locator('.el-dialog input[placeholder*="resource"]').fill('article');
-    await page.locator('.el-dialog input[placeholder*="action"]').fill('read');
 
     // Submit form
     await page.locator('.el-dialog button:has-text("Create")').click();
@@ -188,6 +189,58 @@ test.describe('Policy Management E2E Tests', () => {
     await expect(page.locator('.el-dialog:has-text("Create Policy")')).not.toBeVisible({
       timeout: 5000,
     });
+  });
+
+  test('should NOT have resource and action input fields in create dialog', async ({ page }) => {
+    await navigateToPolicies(page);
+
+    // Wait for table to load
+    await expect(page.locator('.policies-table')).toBeVisible({ timeout: 10000 });
+
+    // Click Add Policy button
+    await page.locator('button:has-text("Add Policy")').click();
+
+    // Verify dialog opens
+    await expect(page.locator('.el-dialog:has-text("Create Policy")')).toBeVisible();
+
+    // Verify resource input field is NOT present in dialog
+    const resourceInput = page.locator('.el-dialog input[placeholder*="resource"]');
+    await expect(resourceInput).not.toBeVisible();
+
+    // Verify action input field is NOT present in dialog
+    const actionInput = page.locator('.el-dialog input[placeholder*="action"]');
+    await expect(actionInput).not.toBeVisible();
+
+    // Close dialog
+    await page.locator('.el-dialog button:has-text("Cancel")').click();
+  });
+
+  test('should NOT have permission selector in create dialog', async ({ page }) => {
+    await navigateToPolicies(page);
+
+    // Wait for table to load
+    await expect(page.locator('.policies-table')).toBeVisible({ timeout: 10000 });
+
+    // Click Add Policy button
+    await page.locator('button:has-text("Add Policy")').click();
+
+    // Verify dialog opens
+    await expect(page.locator('.el-dialog:has-text("Create Policy")')).toBeVisible();
+
+    // Verify permission selector/selector input is NOT present in dialog
+    const permissionSelector = page.locator(
+      '.el-dialog .permission-selector, .el-dialog select[name*="permission"], .el-dialog .permission-select'
+    );
+    await expect(permissionSelector).not.toBeVisible();
+
+    // Also check for permission checkboxes or multi-select
+    const permissionCheckbox = page.locator(
+      '.el-dialog .permission-checkbox, .el-dialog .el-checkbox:has-text("Permission")'
+    );
+    await expect(permissionCheckbox).not.toBeVisible();
+
+    // Close dialog
+    await page.locator('.el-dialog button:has-text("Cancel")').click();
   });
 
   test('should edit existing policy', async ({ page }) => {
@@ -203,6 +256,9 @@ test.describe('Policy Management E2E Tests', () => {
     // Verify dialog opens in edit mode
     await expect(page.locator('.el-dialog:has-text("Edit Policy")')).toBeVisible();
 
+    // Verify Details tab is active
+    await expect(page.locator('.el-tabs__item:has-text("Details")')).toHaveClass(/is-active/);
+
     // Update description
     const descTextarea = page.locator('.el-dialog textarea[placeholder*="Describe"]');
     await descTextarea.fill(`Updated description ${Date.now()}`);
@@ -212,6 +268,57 @@ test.describe('Policy Management E2E Tests', () => {
 
     // Wait for success message
     await expect(page.locator('.el-message--success')).toBeVisible({ timeout: 10000 });
+  });
+
+  test('should display associated permissions read-only in edit mode', async ({ page }) => {
+    await navigateToPolicies(page);
+
+    // Wait for table to load
+    await expect(page.locator('.policies-table')).toBeVisible({ timeout: 10000 });
+
+    // Find first Edit button
+    const editButton = page.locator('.policies-table button:has-text("Edit")').first();
+    await editButton.click();
+
+    // Verify dialog opens in edit mode
+    await expect(page.locator('.el-dialog:has-text("Edit Policy")')).toBeVisible();
+
+    // Verify Associated Permissions section exists
+    const permissionsSection = page.locator(
+      '.el-form-item:has-text("Associated Permissions"), .associated-permissions'
+    );
+    await expect(permissionsSection).toBeVisible();
+
+    // Verify the hint text is present
+    const hintText = page.locator('text=Permissions are managed from the Permission page');
+    await expect(hintText).toBeVisible();
+
+    // Close dialog
+    await page.locator('.el-dialog button:has-text("Cancel")').click();
+  });
+
+  test('should have Audit Logs tab in edit mode', async ({ page }) => {
+    await navigateToPolicies(page);
+
+    // Wait for table to load
+    await expect(page.locator('.policies-table')).toBeVisible({ timeout: 10000 });
+
+    // Find first Edit button
+    const editButton = page.locator('.policies-table button:has-text("Edit")').first();
+    await editButton.click();
+
+    // Verify dialog opens in edit mode
+    await expect(page.locator('.el-dialog:has-text("Edit Policy")')).toBeVisible();
+
+    // Click on Audit Logs tab
+    const auditLogsTab = page.locator('.el-tabs__item:has-text("Audit Logs")');
+    await auditLogsTab.click();
+
+    // Verify audit logs section is visible
+    await expect(page.locator('.audit-log-section')).toBeVisible();
+
+    // Close dialog
+    await page.locator('.el-dialog button:has-text("Cancel")').click();
   });
 
   test('should configure time condition', async ({ page }) => {
@@ -370,8 +477,6 @@ test.describe('Policy Management E2E Tests', () => {
 
     await page.locator('.el-dialog input[placeholder*="Policy Name"]').fill(policyName);
     await page.locator('.el-dialog input[placeholder*="subject"]').fill('role:test');
-    await page.locator('.el-dialog input[placeholder*="resource"]').fill('test');
-    await page.locator('.el-dialog input[placeholder*="action"]').fill('delete');
     await page.locator('.el-dialog button:has-text("Create")').click();
     await expect(page.locator('.el-message--success')).toBeVisible({ timeout: 10000 });
 
@@ -413,8 +518,6 @@ test.describe('Policy Management E2E Tests', () => {
     // Fill required fields one by one and verify validation clears
     await page.locator('.el-dialog input[placeholder*="Policy Name"]').fill('Test Policy');
     await page.locator('.el-dialog input[placeholder*="subject"]').fill('role:test');
-    await page.locator('.el-dialog input[placeholder*="resource"]').fill('test');
-    await page.locator('.el-dialog input[placeholder*="action"]').fill('read');
 
     // Close dialog
     await page.locator('.el-dialog button:has-text("Cancel")').click();
@@ -548,8 +651,6 @@ test.describe('RBAC-ABAC Association E2E Tests', () => {
       .locator('.el-dialog input[placeholder*="Policy Name"]')
       .fill(`Perm Test ${timestamp}`);
     await page.locator('.el-dialog input[placeholder*="subject"]').fill('role:admin');
-    await page.locator('.el-dialog input[placeholder*="resource"]').fill('policy');
-    await page.locator('.el-dialog input[placeholder*="action"]').fill('*');
     await page.locator('.el-dialog button:has-text("Create")').click();
 
     await expect(page.locator('.el-message--success')).toBeVisible({ timeout: 10000 });

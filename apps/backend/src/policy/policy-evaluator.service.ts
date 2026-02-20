@@ -1,8 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Policy, PolicyEffect } from '../entities/policy.entity';
 import { User, UserStatus } from '../entities/user.entity';
-import { PolicyPermission } from '../entities/policy-permission.entity';
-import { Permission } from '../entities/permission.entity';
 import { PolicyService } from './policy.service';
 
 /**
@@ -48,19 +46,10 @@ export interface EvaluationResult {
  * 3. Matching resource and action patterns
  * 4. Returning allow/deny based on first matching policy
  */
-/**
- * Policy with loaded permissions for ABAC evaluation
- */
-type PolicyWithPermissions = Policy & {
-  policyPermissions: (PolicyPermission & {
-    permission: Permission;
-  })[];
-};
-
 @Injectable()
 export class PolicyEvaluatorService {
   private readonly logger = new Logger(PolicyEvaluatorService.name);
-  private policyCache: PolicyWithPermissions[] | null = null;
+  private policyCache: Policy[] | null = null;
   private cacheExpiry = 0;
   private readonly CACHE_TTL = 60000; // 1 minute cache
 
@@ -85,7 +74,7 @@ export class PolicyEvaluatorService {
   async evaluateWithDetails(
     user: User | UserAttributes,
     resource: string,
-    action: string
+    action: string,
   ): Promise<EvaluationResult> {
     // Get user attributes
     const userAttrs = this.extractUserAttributes(user);
@@ -98,37 +87,32 @@ export class PolicyEvaluatorService {
       };
     }
 
-    // Get enabled policies with permissions (from cache or database)
-    const policies = await this.getPoliciesWithPermissions();
+    // Get enabled policies (from cache or database)
+    const policies = await this.getPolicies();
 
     // Evaluate each policy in priority order
     for (const policy of policies) {
       const subjectMatch = this.matchSubject(policy.subject, userAttrs);
-      if (!subjectMatch) {
-        continue;
+      const resourceMatch = this.matchResource(policy.resource, resource);
+      const actionMatch = this.matchAction(policy.action, action);
+
+      if (subjectMatch && resourceMatch && actionMatch) {
+        // Check conditions if present
+        if (policy.conditions && !this.evaluateConditions(policy.conditions, userAttrs)) {
+          continue;
+        }
+
+        this.logger.debug(
+          `Policy "${policy.name}" matched for user ${userAttrs.username}: ` +
+            `${policy.effect} ${action} on ${resource}`,
+        );
+
+        return {
+          allowed: policy.effect === PolicyEffect.ALLOW,
+          matchedPolicy: policy,
+          reason: `Policy "${policy.name}" ${policy.effect}s ${action} on ${resource}`,
+        };
       }
-
-      // Check resource/action match - prefer PolicyPermission relation if available
-      const resourceActionMatch = this.matchResourceAction(policy, resource, action);
-      if (!resourceActionMatch) {
-        continue;
-      }
-
-      // Check conditions if present
-      if (policy.conditions && !this.evaluateConditions(policy.conditions, userAttrs)) {
-        continue;
-      }
-
-      this.logger.debug(
-        `Policy "${policy.name}" matched for user ${userAttrs.username}: ` +
-          `${policy.effect} ${action} on ${resource}`
-      );
-
-      return {
-        allowed: policy.effect === PolicyEffect.ALLOW,
-        matchedPolicy: policy,
-        reason: `Policy "${policy.name}" ${policy.effect}s ${action} on ${resource}`,
-      };
     }
 
     // Default: deny access
@@ -136,32 +120,6 @@ export class PolicyEvaluatorService {
       allowed: false,
       reason: `No matching policy found for user ${userAttrs.username} to ${action} on ${resource}`,
     };
-  }
-
-  /**
-   * Match resource/action against a policy
-   * Uses PolicyPermission relation if available, falls back to legacy resource/action matching
-   */
-  private matchResourceAction(
-    policy: PolicyWithPermissions,
-    resource: string,
-    action: string
-  ): boolean {
-    // If policy has PolicyPermission relations, use them for matching
-    if (policy.policyPermissions && policy.policyPermissions.length > 0) {
-      return policy.policyPermissions.some((pp) => {
-        const permission = pp.permission;
-        return (
-          this.matchResource(permission.resource, resource) &&
-          this.matchAction(permission.action, action)
-        );
-      });
-    }
-
-    // Fallback to legacy resource/action matching from policy entity
-    const resourceMatch = this.matchResource(policy.resource, resource);
-    const actionMatch = this.matchAction(policy.action, action);
-    return resourceMatch && actionMatch;
   }
 
   /**
@@ -222,9 +180,7 @@ export class PolicyEvaluatorService {
         return userAttrs.status === value;
 
       case 'email':
-        return (
-          userAttrs.email === value || (userAttrs.email?.endsWith(value.replace('*', '')) ?? false)
-        );
+        return userAttrs.email === value || (userAttrs.email?.endsWith(value.replace('*', '')) ?? false);
 
       default:
         // Try exact match
@@ -308,10 +264,10 @@ export class PolicyEvaluatorService {
    * - { "ip": { "in": ["192.168.1.0/24"] } } - IP-based conditions
    * - { "custom": { "key": "value" } } - Custom attribute matching
    */
-
+   
   private evaluateConditions(
     conditions: Record<string, unknown>,
-    _userAttrs: UserAttributes
+    _userAttrs: UserAttributes,
   ): boolean {
     // Time-based conditions
     if (conditions.time) {
@@ -333,16 +289,16 @@ export class PolicyEvaluatorService {
   }
 
   /**
-   * Get policies from cache or database with PolicyPermission relations loaded
+   * Get policies from cache or database
    */
-  private async getPoliciesWithPermissions(): Promise<PolicyWithPermissions[]> {
+  private async getPolicies(): Promise<Policy[]> {
     const now = Date.now();
 
     if (this.policyCache && now < this.cacheExpiry) {
       return this.policyCache;
     }
 
-    this.policyCache = await this.policyService.getEnabledPoliciesWithPermissions();
+    this.policyCache = await this.policyService.getEnabledPolicies();
     this.cacheExpiry = now + this.CACHE_TTL;
 
     return this.policyCache;
@@ -362,7 +318,7 @@ export class PolicyEvaluatorService {
    */
   async evaluateBulk(
     user: User | UserAttributes,
-    requests: Array<{ resource: string; action: string }>
+    requests: Array<{ resource: string; action: string }>,
   ): Promise<Record<string, boolean>> {
     const results: Record<string, boolean> = {};
 
