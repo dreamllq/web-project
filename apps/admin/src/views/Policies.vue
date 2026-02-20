@@ -23,6 +23,7 @@ import {
   checkPermission,
 } from '@/api/policy';
 import { getAuditLogsByResource } from '@/api/audit-log';
+import { getPermissions } from '@/api/rbac';
 import { extractApiError } from '@/api';
 import type {
   Policy,
@@ -35,6 +36,7 @@ import type {
   PermissionCheckResponse,
 } from '@/types/policy';
 import type { AuditLog, AuditLogListResponse } from '@/types/audit-log';
+import type { Permission } from '@/types/rbac';
 
 // ============================================
 // Types
@@ -66,6 +68,9 @@ const filters = reactive<FilterState>({
 
 const deleteLoading = ref<string | null>(null);
 
+// Permissions for selector
+const permissions = ref<Permission[]>([]);
+
 // Permission test state
 const testResource = ref('');
 const testAction = ref('');
@@ -94,6 +99,7 @@ const formData = reactive<CreatePolicyDto & { id?: string }>({
   subject: '',
   resource: '',
   action: '',
+  permissionIds: [],
   conditions: undefined,
   priority: 0,
   enabled: true,
@@ -124,6 +130,15 @@ const effectOptions = [
   { value: 'allow', label: t('policies.effectAllow', 'Allow') },
   { value: 'deny', label: t('policies.effectDeny', 'Deny') },
 ];
+
+const permissionOptions = computed(() =>
+  permissions.value.map((p) => ({
+    value: p.id,
+    label: `${p.name} (${p.resource}:${p.action})`,
+    resource: p.resource,
+    action: p.action,
+  }))
+);
 
 // Computed conditions object for JSON preview
 const conditionsPreview = computed((): PolicyCondition | undefined => {
@@ -213,6 +228,16 @@ async function fetchPolicies() {
   }
 }
 
+async function fetchPermissions() {
+  try {
+    const response = await getPermissions();
+    permissions.value = response.data;
+  } catch (error: unknown) {
+    const apiError = extractApiError(error);
+    ElMessage.error(apiError.displayMessage);
+  }
+}
+
 async function handleToggleEnabled(policy: Policy) {
   try {
     await togglePolicyEnabled(policy.id, !policy.enabled);
@@ -253,6 +278,7 @@ function resetForm() {
   formData.subject = '';
   formData.resource = '';
   formData.action = '';
+  formData.permissionIds = [];
   formData.conditions = undefined;
   formData.priority = 0;
   formData.enabled = true;
@@ -285,6 +311,8 @@ function openEditDialog(policy: Policy) {
   formData.subject = policy.subject;
   formData.resource = policy.resource;
   formData.action = policy.action;
+  // Extract permissionIds from policy.permissions if available
+  formData.permissionIds = policy.permissions?.map((p) => p.id) || [];
   formData.conditions = policy.conditions || undefined;
   formData.priority = policy.priority;
   formData.enabled = policy.enabled;
@@ -340,14 +368,26 @@ async function handleSubmit() {
     // Build conditions from UI state
     const conditions = conditionsPreview.value;
 
+    // Auto-fill resource and action from first selected permission for legacy compatibility
+    let resource = formData.resource;
+    let action = formData.action;
+    if (formData.permissionIds && formData.permissionIds.length > 0) {
+      const firstPermission = permissions.value.find((p) => p.id === formData.permissionIds![0]);
+      if (firstPermission) {
+        resource = firstPermission.resource;
+        action = firstPermission.action;
+      }
+    }
+
     if (dialogMode.value === 'create') {
       await createPolicy({
         name: formData.name,
         description: formData.description || undefined,
         effect: formData.effect,
         subject: formData.subject,
-        resource: formData.resource,
-        action: formData.action,
+        resource,
+        action,
+        permissionIds: formData.permissionIds,
         conditions: conditions,
         priority: formData.priority,
         enabled: formData.enabled,
@@ -359,8 +399,9 @@ async function handleSubmit() {
         description: formData.description || undefined,
         effect: formData.effect,
         subject: formData.subject,
-        resource: formData.resource,
-        action: formData.action,
+        resource,
+        action,
+        permissionIds: formData.permissionIds,
         conditions: conditions,
         priority: formData.priority,
         enabled: formData.enabled,
@@ -405,18 +446,13 @@ function formRules() {
         trigger: 'blur',
       },
     ],
-    resource: [
+    permissionIds: [
       {
         required: true,
-        message: t('policies.resourceRequired', 'Please enter resource'),
-        trigger: 'blur',
-      },
-    ],
-    action: [
-      {
-        required: true,
-        message: t('policies.actionRequired', 'Please enter action'),
-        trigger: 'blur',
+        type: 'array',
+        min: 1,
+        message: t('policies.permissionRequired', 'Please select at least one permission'),
+        trigger: 'change',
       },
     ],
   };
@@ -609,6 +645,7 @@ watch(
 // ============================================
 onMounted(() => {
   fetchPolicies();
+  fetchPermissions();
 });
 </script>
 
@@ -999,25 +1036,6 @@ onMounted(() => {
                   </el-form-item>
                 </el-col>
                 <el-col :span="12">
-                  <el-form-item :label="t('policies.resource', 'Resource')" prop="resource">
-                    <el-input
-                      v-model="formData.resource"
-                      :placeholder="t('policies.resourcePlaceholder', 'e.g., policy, user, *')"
-                    />
-                  </el-form-item>
-                </el-col>
-              </el-row>
-
-              <el-row :gutter="16">
-                <el-col :span="12">
-                  <el-form-item :label="t('policies.action', 'Action')" prop="action">
-                    <el-input
-                      v-model="formData.action"
-                      :placeholder="t('policies.actionPlaceholder', 'e.g., read, create, *')"
-                    />
-                  </el-form-item>
-                </el-col>
-                <el-col :span="12">
                   <el-form-item :label="t('policies.priority', 'Priority')">
                     <el-input-number
                       v-model="formData.priority"
@@ -1028,6 +1046,37 @@ onMounted(() => {
                   </el-form-item>
                 </el-col>
               </el-row>
+
+              <el-form-item :label="t('policies.permissions', 'Permissions')" prop="permissionIds">
+                <el-select
+                  v-model="formData.permissionIds"
+                  multiple
+                  filterable
+                  :placeholder="t('policies.selectPermissions', 'Select permissions')"
+                  class="full-width"
+                >
+                  <el-option
+                    v-for="option in permissionOptions"
+                    :key="option.value"
+                    :label="option.label"
+                    :value="option.value"
+                  />
+                </el-select>
+                <div
+                  v-if="formData.permissionIds && formData.permissionIds.length > 0"
+                  class="selected-permissions-preview"
+                >
+                  <el-tag
+                    v-for="permId in formData.permissionIds"
+                    :key="permId"
+                    size="small"
+                    type="info"
+                    class="permission-preview-tag"
+                  >
+                    {{ permissionOptions.find((o) => o.value === permId)?.label || permId }}
+                  </el-tag>
+                </div>
+              </el-form-item>
 
               <el-form-item :label="t('common.status', 'Enabled')">
                 <el-switch
@@ -1295,25 +1344,6 @@ onMounted(() => {
               </el-form-item>
             </el-col>
             <el-col :span="12">
-              <el-form-item :label="t('policies.resource', 'Resource')" prop="resource">
-                <el-input
-                  v-model="formData.resource"
-                  :placeholder="t('policies.resourcePlaceholder', 'e.g., policy, user, *')"
-                />
-              </el-form-item>
-            </el-col>
-          </el-row>
-
-          <el-row :gutter="16">
-            <el-col :span="12">
-              <el-form-item :label="t('policies.action', 'Action')" prop="action">
-                <el-input
-                  v-model="formData.action"
-                  :placeholder="t('policies.actionPlaceholder', 'e.g., read, create, *')"
-                />
-              </el-form-item>
-            </el-col>
-            <el-col :span="12">
               <el-form-item :label="t('policies.priority', 'Priority')">
                 <el-input-number
                   v-model="formData.priority"
@@ -1324,6 +1354,37 @@ onMounted(() => {
               </el-form-item>
             </el-col>
           </el-row>
+
+          <el-form-item :label="t('policies.permissions', 'Permissions')" prop="permissionIds">
+            <el-select
+              v-model="formData.permissionIds"
+              multiple
+              filterable
+              :placeholder="t('policies.selectPermissions', 'Select permissions')"
+              class="full-width"
+            >
+              <el-option
+                v-for="option in permissionOptions"
+                :key="option.value"
+                :label="option.label"
+                :value="option.value"
+              />
+            </el-select>
+            <div
+              v-if="formData.permissionIds && formData.permissionIds.length > 0"
+              class="selected-permissions-preview"
+            >
+              <el-tag
+                v-for="permId in formData.permissionIds"
+                :key="permId"
+                size="small"
+                type="info"
+                class="permission-preview-tag"
+              >
+                {{ permissionOptions.find((o) => o.value === permId)?.label || permId }}
+              </el-tag>
+            </div>
+          </el-form-item>
 
           <el-form-item :label="t('common.status', 'Enabled')">
             <el-switch
@@ -1616,6 +1677,20 @@ onMounted(() => {
 
 .full-width {
   width: 100%;
+}
+
+/* Permission Preview Styles */
+.selected-permissions-preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.permission-preview-tag {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+  color: #fff;
 }
 
 /* Pagination Section */
