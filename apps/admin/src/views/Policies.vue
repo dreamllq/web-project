@@ -184,8 +184,8 @@ async function fetchPolicies() {
   loading.value = true;
   try {
     const query: QueryPolicyDto = {
+      page: currentPage.value,
       limit: pageSize.value,
-      offset: (currentPage.value - 1) * pageSize.value,
     };
 
     // Add filters if they have values

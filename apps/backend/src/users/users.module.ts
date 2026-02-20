@@ -12,11 +12,13 @@ import { AvatarController } from './controllers/avatar.controller';
 import { DeviceController } from './controllers/device.controller';
 import { UserDeviceService } from './services/user-device.service';
 import { StorageModule } from '../storage/storage.module';
+import { PolicyModule } from '../policy/policy.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([User, SocialAccount, LoginHistory, UserDevice]),
     StorageModule,
+    PolicyModule,
   ],
   controllers: [UsersController, LoginHistoryController, AvatarController, DeviceController],
   providers: [UsersService, LoginHistoryService, UserDeviceService],

@@ -57,7 +57,7 @@ async function fetchRoles() {
   loading.value = true;
   try {
     const response = await getRoles();
-    roles.value = response.data.data;
+    roles.value = response.data;
   } catch (error: unknown) {
     const apiError = extractApiError(error);
     ElMessage.error(apiError.displayMessage);
@@ -69,7 +69,7 @@ async function fetchRoles() {
 async function fetchPermissions() {
   try {
     const response = await getPermissions();
-    permissions.value = response.data.data;
+    permissions.value = response.data;
   } catch (error: unknown) {
     const apiError = extractApiError(error);
     ElMessage.error(apiError.displayMessage);

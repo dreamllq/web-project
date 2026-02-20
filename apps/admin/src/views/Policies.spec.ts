@@ -1293,12 +1293,16 @@ describe('Policies.vue', () => {
     });
 
     it('should have allow option', () => {
-      const allowOption = wrapper.vm.effectOptions.find((o) => o.value === 'allow');
+      const allowOption = wrapper.vm.effectOptions.find(
+        (o: { value: string }) => o.value === 'allow'
+      );
       expect(allowOption).toBeDefined();
     });
 
     it('should have deny option', () => {
-      const denyOption = wrapper.vm.effectOptions.find((o) => o.value === 'deny');
+      const denyOption = wrapper.vm.effectOptions.find(
+        (o: { value: string }) => o.value === 'deny'
+      );
       expect(denyOption).toBeDefined();
     });
   });
@@ -1316,7 +1320,7 @@ describe('Policies.vue', () => {
     });
 
     it('should have correct day values (0-6)', () => {
-      const values = wrapper.vm.dayOfWeekOptions.map((d) => d.value);
+      const values = wrapper.vm.dayOfWeekOptions.map((d: { value: number }) => d.value);
       expect(values).toEqual([0, 1, 2, 3, 4, 5, 6]);
     });
   });

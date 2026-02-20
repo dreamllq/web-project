@@ -38,7 +38,7 @@ import type { StorageUrlResponse } from '../common/types/storage-url.dto';
 import type { MultiStorageConfig } from '../config/storage.config';
 
 @ApiTags('users')
-@Controller('users')
+@Controller({ path: 'users', version: '1' })
 @UseGuards(JwtAuthGuard, PermissionGuard)
 @ApiBearerAuth()
 export class UsersController {

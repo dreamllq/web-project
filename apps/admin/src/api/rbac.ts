@@ -1,10 +1,9 @@
 import api from './index';
 import type {
   Role,
+  Permission,
   CreateRoleDto,
   UpdateRoleDto,
-  RoleListResponse,
-  PermissionListResponse,
   AssignRolesDto,
   UserRoleAssignment,
 } from '@/types/rbac';
@@ -17,40 +16,49 @@ import type {
  * Get all roles
  * GET /api/v1/roles
  */
-export function getRoles(): Promise<{ data: RoleListResponse }> {
-  return api.get('/v1/roles');
+export async function getRoles(): Promise<{ data: Role[] }> {
+  const response = await api.get<{ data: Role[] }>('/v1/roles');
+  return response.data;
 }
 
 /**
  * Create a new role
  * POST /api/v1/roles
  */
-export function createRole(data: CreateRoleDto): Promise<{ data: Role }> {
-  return api.post('/v1/roles', data);
+export async function createRole(data: CreateRoleDto): Promise<{ data: Role }> {
+  const response = await api.post<{ data: Role }>('/v1/roles', data);
+  return response.data;
 }
 
 /**
  * Update an existing role
  * PATCH /api/v1/roles/:id
  */
-export function updateRole(id: string, data: UpdateRoleDto): Promise<{ data: Role }> {
-  return api.patch(`/v1/roles/${id}`, data);
+export async function updateRole(id: string, data: UpdateRoleDto): Promise<{ data: Role }> {
+  const response = await api.patch<{ data: Role }>(`/v1/roles/${id}`, data);
+  return response.data;
 }
 
 /**
  * Delete a role
  * DELETE /api/v1/roles/:id
  */
-export function deleteRole(id: string): Promise<{ data: { success: boolean; message: string } }> {
-  return api.delete(`/v1/roles/${id}`);
+export async function deleteRole(
+  id: string
+): Promise<{ data: { success: boolean; message: string } }> {
+  const response = await api.delete<{ data: { success: boolean; message: string } }>(
+    `/v1/roles/${id}`
+  );
+  return response.data;
 }
 
 /**
  * Get all available permissions
  * GET /api/v1/permissions
  */
-export function getPermissions(): Promise<{ data: PermissionListResponse }> {
-  return api.get('/v1/permissions');
+export async function getPermissions(): Promise<{ data: Permission[] }> {
+  const response = await api.get<{ data: Permission[] }>('/v1/permissions');
+  return response.data;
 }
 
 // ============================================
@@ -61,36 +69,45 @@ export function getPermissions(): Promise<{ data: PermissionListResponse }> {
  * Get roles assigned to a user
  * GET /api/v1/roles/users/:id/roles
  */
-export function getUserRoles(userId: string): Promise<{ data: UserRoleAssignment }> {
-  return api.get(`/v1/roles/users/${userId}/roles`);
+export async function getUserRoles(userId: string): Promise<{ data: UserRoleAssignment }> {
+  const response = await api.get<{ data: UserRoleAssignment }>(`/v1/roles/users/${userId}/roles`);
+  return response.data;
 }
 
 /**
  * Assign roles to a user
  * POST /api/v1/roles/users/:id/roles
  */
-export function assignUserRoles(
+export async function assignUserRoles(
   userId: string,
   data: AssignRolesDto
 ): Promise<{ data: { success: boolean; message: string; roles: Role[] } }> {
-  return api.post(`/v1/roles/users/${userId}/roles`, data);
+  const response = await api.post<{ data: { success: boolean; message: string; roles: Role[] } }>(
+    `/v1/roles/users/${userId}/roles`,
+    data
+  );
+  return response.data;
 }
 
 /**
  * Remove a specific role from a user
  * DELETE /api/v1/roles/users/:id/roles/:roleId
  */
-export function removeUserRole(
+export async function removeUserRole(
   userId: string,
   roleId: string
 ): Promise<{ data: { success: boolean; message: string } }> {
-  return api.delete(`/v1/roles/users/${userId}/roles/${roleId}`);
+  const response = await api.delete<{ data: { success: boolean; message: string } }>(
+    `/v1/roles/users/${userId}/roles/${roleId}`
+  );
+  return response.data;
 }
 
 /**
  * Get permissions for a user
  * GET /api/v1/roles/users/:id/permissions
  */
-export function getUserPermissions(userId: string): Promise<{ data: string[] }> {
-  return api.get(`/v1/roles/users/${userId}/permissions`);
+export async function getUserPermissions(userId: string): Promise<{ data: string[] }> {
+  const response = await api.get<{ data: string[] }>(`/v1/roles/users/${userId}/permissions`);
+  return response.data;
 }
