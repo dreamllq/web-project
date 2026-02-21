@@ -74,7 +74,7 @@ export class PolicyEvaluatorService {
   async evaluateWithDetails(
     user: User | UserAttributes,
     resource: string,
-    action: string,
+    action: string
   ): Promise<EvaluationResult> {
     // Get user attributes
     const userAttrs = this.extractUserAttributes(user);
@@ -104,7 +104,7 @@ export class PolicyEvaluatorService {
 
         this.logger.debug(
           `Policy "${policy.name}" matched for user ${userAttrs.username}: ` +
-            `${policy.effect} ${action} on ${resource}`,
+            `${policy.effect} ${action} on ${resource}`
         );
 
         return {
@@ -137,7 +137,7 @@ export class PolicyEvaluatorService {
           email: userEntity.email,
           phone: userEntity.phone,
           status: userEntity.status,
-          roles: [], // Roles would be loaded from user-role relationship
+          roles: userEntity.roles?.map((role) => role.name) ?? [],
           departments: [], // Departments would be loaded from user-department relationship
           customAttributes: {},
         };
@@ -180,7 +180,9 @@ export class PolicyEvaluatorService {
         return userAttrs.status === value;
 
       case 'email':
-        return userAttrs.email === value || (userAttrs.email?.endsWith(value.replace('*', '')) ?? false);
+        return (
+          userAttrs.email === value || (userAttrs.email?.endsWith(value.replace('*', '')) ?? false)
+        );
 
       default:
         // Try exact match
@@ -264,10 +266,10 @@ export class PolicyEvaluatorService {
    * - { "ip": { "in": ["192.168.1.0/24"] } } - IP-based conditions
    * - { "custom": { "key": "value" } } - Custom attribute matching
    */
-   
+
   private evaluateConditions(
     conditions: Record<string, unknown>,
-    _userAttrs: UserAttributes,
+    _userAttrs: UserAttributes
   ): boolean {
     // Time-based conditions
     if (conditions.time) {
@@ -318,7 +320,7 @@ export class PolicyEvaluatorService {
    */
   async evaluateBulk(
     user: User | UserAttributes,
-    requests: Array<{ resource: string; action: string }>,
+    requests: Array<{ resource: string; action: string }>
   ): Promise<Record<string, boolean>> {
     const results: Record<string, boolean> = {};
 

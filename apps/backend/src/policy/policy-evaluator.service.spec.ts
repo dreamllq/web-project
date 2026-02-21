@@ -19,6 +19,11 @@ describe('PolicyEvaluatorService', () => {
     locale: 'en-US',
     lastLoginAt: null,
     lastLoginIp: null,
+    emailVerifiedAt: null,
+    phoneVerifiedAt: null,
+    mfaEnabled: false,
+    mfaSecret: null,
+    recoveryCodes: null,
     createdAt: new Date(),
     updatedAt: new Date(),
     deletedAt: null,
@@ -26,6 +31,8 @@ describe('PolicyEvaluatorService', () => {
     notifications: [],
     files: [],
     oauthTokens: [],
+    verificationTokens: [],
+    roles: [],
   };
 
   const mockPolicies: Policy[] = [
@@ -234,7 +241,7 @@ describe('PolicyEvaluatorService', () => {
       const result = await service.evaluateWithDetails(
         userWithUserRole,
         'unauthorized-resource',
-        'unauthorized-action',
+        'unauthorized-action'
       );
 
       expect(result.allowed).toBe(false);
@@ -475,6 +482,77 @@ describe('PolicyEvaluatorService', () => {
 
       expect(result['user:profile:read']).toBe(true);
       expect(result['any-resource:delete']).toBe(false);
+    });
+  });
+
+  describe('extractUserAttributes', () => {
+    it('should extract roles from User entity when roles are loaded', async () => {
+      mockPolicyService.getEnabledPolicies.mockResolvedValue(mockPolicies);
+
+      const userWithRoles: User = {
+        ...mockUser,
+        roles: [
+          {
+            id: 'role-1',
+            name: 'admin',
+            description: 'Admin role',
+            permissions: [],
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+          {
+            id: 'role-2',
+            name: 'editor',
+            description: 'Editor role',
+            permissions: [],
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        ],
+      };
+
+      const result = await service.evaluateWithDetails(userWithRoles, 'any-resource', 'any-action');
+
+      // Admin policy should match because user has 'admin' role
+      expect(result.allowed).toBe(true);
+      expect(result.matchedPolicy?.name).toBe('Admin Full Access');
+    });
+
+    it('should handle User entity without loaded roles', async () => {
+      mockPolicyService.getEnabledPolicies.mockResolvedValue(mockPolicies);
+
+      const userWithoutRoles: User = {
+        ...mockUser,
+        roles: undefined as unknown as never[],
+      };
+
+      // Should not match admin role policy since roles are not loaded
+      const result = await service.evaluateWithDetails(
+        userWithoutRoles,
+        'any-resource',
+        'any-action'
+      );
+
+      expect(result.allowed).toBe(false);
+      expect(result.reason).toContain('No matching policy');
+    });
+
+    it('should handle User entity with empty roles array', async () => {
+      mockPolicyService.getEnabledPolicies.mockResolvedValue(mockPolicies);
+
+      const userWithEmptyRoles: User = {
+        ...mockUser,
+        roles: [],
+      };
+
+      // Should not match any role-based policy since roles array is empty
+      const result = await service.evaluateWithDetails(
+        userWithEmptyRoles,
+        'any-resource',
+        'any-action'
+      );
+
+      expect(result.allowed).toBe(false);
     });
   });
 });
