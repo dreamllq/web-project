@@ -4,6 +4,7 @@ import { PolicyService } from './policy.service';
 import { PolicyEvaluatorService } from './policy-evaluator.service';
 import { Policy, PolicyEffect } from '../entities/policy.entity';
 import { User, UserStatus } from '../entities/user.entity';
+import { RoleService } from '../rbac/role.service';
 
 describe('PolicyController', () => {
   let controller: PolicyController;
@@ -20,6 +21,11 @@ describe('PolicyController', () => {
     locale: 'en-US',
     lastLoginAt: null,
     lastLoginIp: null,
+    emailVerifiedAt: null,
+    phoneVerifiedAt: null,
+    mfaEnabled: false,
+    mfaSecret: null,
+    recoveryCodes: null,
     createdAt: new Date(),
     updatedAt: new Date(),
     deletedAt: null,
@@ -27,6 +33,8 @@ describe('PolicyController', () => {
     notifications: [],
     files: [],
     oauthTokens: [],
+    verificationTokens: [],
+    roles: [],
   };
 
   const mockPolicy: Policy = {
@@ -59,6 +67,13 @@ describe('PolicyController', () => {
     invalidateCache: jest.fn(),
   };
 
+  const mockRoleService = {
+    findAll: jest.fn(),
+    findOne: jest.fn(),
+    findByName: jest.fn(),
+    getUserRoles: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [PolicyController],
@@ -70,6 +85,10 @@ describe('PolicyController', () => {
         {
           provide: PolicyEvaluatorService,
           useValue: mockPolicyEvaluator,
+        },
+        {
+          provide: RoleService,
+          useValue: mockRoleService,
         },
       ],
     }).compile();

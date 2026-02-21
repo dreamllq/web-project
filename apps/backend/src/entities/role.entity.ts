@@ -22,6 +22,9 @@ export class Role {
   @Column({ type: 'varchar', length: 255, nullable: true })
   description: string | null;
 
+  @Column({ name: 'is_super_admin', type: 'boolean', default: false })
+  isSuperAdmin: boolean;
+
   @ManyToMany(() => Permission)
   @JoinTable({
     name: 'role_permissions',

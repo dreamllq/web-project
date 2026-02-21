@@ -10,7 +10,9 @@
     "format": "prettier --write \"**/*.{js,ts,json,md,vue}\"",
     "format:check": "prettier --check \"**/*.{js,ts,json,md,vue}\"",
     "prepare": "husky",
-    "tools:audit-permissions": "tsx tools/audit-permissions.ts"
+    "tools:audit-permissions": "tsx tools/audit-permissions.ts",
+    "tools:seed-role-policies": "tsx tools/seed-role-policies.ts",
+    "tools:seed-role-111-policies": "tsx tools/seed-role-111-policies.ts"
   },
   "devDependencies": {
     "@commitlint/cli": "^19.7.1",
