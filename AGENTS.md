@@ -1,3 +1,4 @@
+使用中文
 # AGENTS.md - AI Agent Code Generation Guide
 
 This document provides comprehensive guidelines for AI agents to generate code that matches this project's conventions.
