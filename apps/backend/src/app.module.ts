@@ -15,6 +15,7 @@ import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { PolicyModule } from './policy/policy.module';
 import { RbacModule } from './rbac/rbac.module';
+import { AbacModule } from './abac/abac.module';
 import { AuditModule } from './audit/audit.module';
 import { NotificationModule } from './notification/notification.module';
 import { WebsocketModule } from './websocket/websocket.module';
@@ -69,6 +70,7 @@ import { permissionConfig } from './config/permission.config';
     UsersModule,
     PolicyModule,
     RbacModule,
+    AbacModule,
     AuditModule,
     NotificationModule,
     WebsocketModule,
