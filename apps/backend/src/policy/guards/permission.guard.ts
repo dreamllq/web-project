@@ -68,14 +68,14 @@ export class PermissionGuard implements CanActivate {
     const useAbacOnly =
       this.configService.get<PermissionConfig>('permission')?.useAbacOnly ?? false;
 
-    // Step 1: Try ABAC policy evaluation
-    const abacResult = await this.policyEvaluator.evaluate(
+    // Step 1: Try ABAC policy evaluation with details
+    const abacResult = await this.policyEvaluator.evaluateWithDetails(
       user,
       permission.resource,
       permission.action
     );
 
-    if (abacResult) {
+    if (abacResult.allowed) {
       if (useAbacOnly) {
         this.logger.debug(
           `Permission granted via ABAC only: User ${user.username} can ${permission.action} on ${permission.resource}`
@@ -94,9 +94,18 @@ export class PermissionGuard implements CanActivate {
       this.logger.warn(
         `Permission denied (ABAC only mode): User ${user.username} cannot ${permission.action} on ${permission.resource}`
       );
-      throw new ForbiddenException(
-        `You do not have permission to ${permission.action} on ${permission.resource}`
-      );
+      throw new ForbiddenException({
+        message: `You do not have permission to ${permission.action} on ${permission.resource}`,
+        details: {
+          resource: permission.resource,
+          action: permission.action,
+          reason: abacResult.reason?.includes('conditions')
+            ? 'condition_failed'
+            : 'no_matching_policy',
+          matchedPolicies: abacResult.matchedPolicy ? [abacResult.matchedPolicy.name] : [],
+          suggestion: `Contact administrator to get '${permission.resource}:${permission.action}' permission`,
+        },
+      });
     }
 
     // Try RBAC permission check
@@ -117,9 +126,18 @@ export class PermissionGuard implements CanActivate {
     this.logger.warn(
       `Permission denied: User ${user.username} cannot ${permission.action} on ${permission.resource}`
     );
-    throw new ForbiddenException(
-      `You do not have permission to ${permission.action} on ${permission.resource}`
-    );
+    throw new ForbiddenException({
+      message: `You do not have permission to ${permission.action} on ${permission.resource}`,
+      details: {
+        resource: permission.resource,
+        action: permission.action,
+        reason: abacResult.reason?.includes('conditions')
+          ? 'condition_failed'
+          : 'no_matching_policy',
+        matchedPolicies: abacResult.matchedPolicy ? [abacResult.matchedPolicy.name] : [],
+        suggestion: `Contact administrator to get '${permission.resource}:${permission.action}' permission`,
+      },
+    });
   }
 
   /**

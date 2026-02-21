@@ -23,7 +23,7 @@ interface MockUser {
 describe('PermissionGuard', () => {
   let guard: PermissionGuard;
   let mockReflector: { getAllAndOverride: jest.Mock };
-  let mockPolicyEvaluator: { evaluate: jest.Mock };
+  let mockPolicyEvaluator: { evaluateWithDetails: jest.Mock };
   let mockRoleService: { getUserPermissions: jest.Mock };
   let mockConfigService: { get: jest.Mock };
 
@@ -50,7 +50,7 @@ describe('PermissionGuard', () => {
     };
 
     mockPolicyEvaluator = {
-      evaluate: jest.fn(),
+      evaluateWithDetails: jest.fn(),
     };
 
     mockRoleService = {
@@ -72,7 +72,7 @@ describe('PermissionGuard', () => {
 
   afterEach(() => {
     mockReflector.getAllAndOverride.mockClear();
-    mockPolicyEvaluator.evaluate.mockClear();
+    mockPolicyEvaluator.evaluateWithDetails.mockClear();
     mockRoleService.getUserPermissions.mockClear();
     mockConfigService.get.mockClear();
   });
@@ -106,18 +106,28 @@ describe('PermissionGuard', () => {
 
       it('should allow access when ABAC grants permission', async () => {
         mockReflector.getAllAndOverride.mockReturnValue(permission);
-        mockPolicyEvaluator.evaluate.mockResolvedValue(true);
+        mockPolicyEvaluator.evaluateWithDetails.mockResolvedValue({
+          allowed: true,
+          reason: 'Policy matched',
+        });
 
         const context = mockExecutionContext(mockUser);
         const result = await guard.canActivate(context as any);
 
         expect(result).toBe(true);
-        expect(mockPolicyEvaluator.evaluate).toHaveBeenCalledWith(mockUser, 'policy', 'read');
+        expect(mockPolicyEvaluator.evaluateWithDetails).toHaveBeenCalledWith(
+          mockUser,
+          'policy',
+          'read'
+        );
       });
 
       it('should allow access when RBAC grants permission (ABAC denied)', async () => {
         mockReflector.getAllAndOverride.mockReturnValue(permission);
-        mockPolicyEvaluator.evaluate.mockResolvedValue(false);
+        mockPolicyEvaluator.evaluateWithDetails.mockResolvedValue({
+          allowed: false,
+          reason: 'No matching policy found',
+        });
         mockRoleService.getUserPermissions.mockResolvedValue(['policy:read']);
 
         const context = mockExecutionContext(mockUser);
@@ -129,7 +139,10 @@ describe('PermissionGuard', () => {
 
       it('should deny access when both ABAC and RBAC deny', async () => {
         mockReflector.getAllAndOverride.mockReturnValue(permission);
-        mockPolicyEvaluator.evaluate.mockResolvedValue(false);
+        mockPolicyEvaluator.evaluateWithDetails.mockResolvedValue({
+          allowed: false,
+          reason: 'No matching policy found',
+        });
         mockRoleService.getUserPermissions.mockResolvedValue(['other:action']);
 
         const context = mockExecutionContext(mockUser);
@@ -138,7 +151,10 @@ describe('PermissionGuard', () => {
 
       it('should check wildcard permissions in RBAC', async () => {
         mockReflector.getAllAndOverride.mockReturnValue(permission);
-        mockPolicyEvaluator.evaluate.mockResolvedValue(false);
+        mockPolicyEvaluator.evaluateWithDetails.mockResolvedValue({
+          allowed: false,
+          reason: 'No matching policy found',
+        });
         mockRoleService.getUserPermissions.mockResolvedValue(['policy:*']);
 
         const context = mockExecutionContext(mockUser);
@@ -149,7 +165,10 @@ describe('PermissionGuard', () => {
 
       it('should check full wildcard permissions in RBAC', async () => {
         mockReflector.getAllAndOverride.mockReturnValue(permission);
-        mockPolicyEvaluator.evaluate.mockResolvedValue(false);
+        mockPolicyEvaluator.evaluateWithDetails.mockResolvedValue({
+          allowed: false,
+          reason: 'No matching policy found',
+        });
         mockRoleService.getUserPermissions.mockResolvedValue(['*:*']);
 
         const context = mockExecutionContext(mockUser);
@@ -166,18 +185,28 @@ describe('PermissionGuard', () => {
 
       it('should allow access when ABAC grants permission', async () => {
         mockReflector.getAllAndOverride.mockReturnValue(permission);
-        mockPolicyEvaluator.evaluate.mockResolvedValue(true);
+        mockPolicyEvaluator.evaluateWithDetails.mockResolvedValue({
+          allowed: true,
+          reason: 'Policy matched',
+        });
 
         const context = mockExecutionContext(mockUser);
         const result = await guard.canActivate(context as any);
 
         expect(result).toBe(true);
-        expect(mockPolicyEvaluator.evaluate).toHaveBeenCalledWith(mockUser, 'policy', 'read');
+        expect(mockPolicyEvaluator.evaluateWithDetails).toHaveBeenCalledWith(
+          mockUser,
+          'policy',
+          'read'
+        );
       });
 
       it('should skip RBAC check when ABAC denies (ABAC-only mode)', async () => {
         mockReflector.getAllAndOverride.mockReturnValue(permission);
-        mockPolicyEvaluator.evaluate.mockResolvedValue(false);
+        mockPolicyEvaluator.evaluateWithDetails.mockResolvedValue({
+          allowed: false,
+          reason: 'No matching policy found',
+        });
         mockRoleService.getUserPermissions.mockResolvedValue(['policy:read']);
 
         const context = mockExecutionContext(mockUser);
@@ -189,7 +218,10 @@ describe('PermissionGuard', () => {
 
       it('should deny access when ABAC denies, even if RBAC would allow', async () => {
         mockReflector.getAllAndOverride.mockReturnValue(permission);
-        mockPolicyEvaluator.evaluate.mockResolvedValue(false);
+        mockPolicyEvaluator.evaluateWithDetails.mockResolvedValue({
+          allowed: false,
+          reason: 'No matching policy found',
+        });
         // User has RBAC permission but it should be ignored
         mockRoleService.getUserPermissions.mockResolvedValue(['policy:*', '*:*']);
 
@@ -202,7 +234,10 @@ describe('PermissionGuard', () => {
       it('should default to useAbacOnly=false when config is undefined', async () => {
         mockConfigService.get.mockReturnValue(undefined);
         mockReflector.getAllAndOverride.mockReturnValue(permission);
-        mockPolicyEvaluator.evaluate.mockResolvedValue(false);
+        mockPolicyEvaluator.evaluateWithDetails.mockResolvedValue({
+          allowed: false,
+          reason: 'No matching policy found',
+        });
         mockRoleService.getUserPermissions.mockResolvedValue(['policy:read']);
 
         const context = mockExecutionContext(mockUser);
@@ -216,7 +251,10 @@ describe('PermissionGuard', () => {
       it('should default to useAbacOnly=false when permission config is null', async () => {
         mockConfigService.get.mockReturnValue(null);
         mockReflector.getAllAndOverride.mockReturnValue(permission);
-        mockPolicyEvaluator.evaluate.mockResolvedValue(false);
+        mockPolicyEvaluator.evaluateWithDetails.mockResolvedValue({
+          allowed: false,
+          reason: 'No matching policy found',
+        });
         mockRoleService.getUserPermissions.mockResolvedValue(['policy:read']);
 
         const context = mockExecutionContext(mockUser);
@@ -230,7 +268,10 @@ describe('PermissionGuard', () => {
       it('should default to useAbacOnly=false when useAbacOnly is not set', async () => {
         mockConfigService.get.mockReturnValue({});
         mockReflector.getAllAndOverride.mockReturnValue(permission);
-        mockPolicyEvaluator.evaluate.mockResolvedValue(false);
+        mockPolicyEvaluator.evaluateWithDetails.mockResolvedValue({
+          allowed: false,
+          reason: 'No matching policy found',
+        });
         mockRoleService.getUserPermissions.mockResolvedValue(['policy:read']);
 
         const context = mockExecutionContext(mockUser);
