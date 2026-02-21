@@ -20,8 +20,15 @@ import { Role } from '../entities/role.entity';
 @ApiTags('rbac')
 @Controller({ path: 'roles', version: '1' })
 @UseGuards(JwtAuthGuard, PermissionGuard)
-@ApiBearerAuth()
+@ApiBearerAuth('JWT-auth')
 export class RbacController {
+  /**
+   * Role Management Endpoints
+   *
+   * Authorization: All endpoints require ABAC policy evaluation.
+   * Permissions are checked via @RequirePermission decorator.
+   * See docs/api-authentication.md for details on ABAC authorization.
+   */
   constructor(private readonly roleService: RoleService) {}
 
   // ========== Role Management ==========

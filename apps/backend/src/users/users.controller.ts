@@ -40,8 +40,15 @@ import type { MultiStorageConfig } from '../config/storage.config';
 @ApiTags('users')
 @Controller('users')
 @UseGuards(JwtAuthGuard, PermissionGuard)
-@ApiBearerAuth()
+@ApiBearerAuth('JWT-auth')
 export class UsersController {
+  /**
+   * User Management Endpoints
+   *
+   * Authorization: Admin endpoints require ABAC policy evaluation.
+   * Permissions are checked via @RequirePermission decorator.
+   * See docs/api-authentication.md for details on ABAC authorization.
+   */
   constructor(
     private readonly usersService: UsersService,
     private readonly configService: ConfigService
