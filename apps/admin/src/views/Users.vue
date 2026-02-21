@@ -9,6 +9,7 @@ import {
   deleteAdminUser,
   updateUserStatus,
 } from '@/api/admin-user';
+import { getRoles, getUserRoles, assignRole, removeRole } from '@/api/role';
 import { extractApiError } from '@/api';
 import type {
   AdminUserResponse,
@@ -17,6 +18,7 @@ import type {
   UserQueryParams,
 } from '@/types/user';
 import type { UserStatus } from '@/types/auth';
+import type { Role } from '@/types/permission';
 
 // ============================================
 // State
@@ -46,6 +48,12 @@ const userForm = reactive<CreateAdminUserDto & { id?: string }>({
   status: 'active',
 });
 const formLoading = ref(false);
+
+// Role management
+const allRoles = ref<Role[]>([]);
+const userRoles = ref<Role[]>([]);
+const selectedRoleId = ref<string>('');
+const rolesLoading = ref(false);
 
 // ============================================
 // Computed
@@ -119,6 +127,8 @@ function openCreateDialog() {
   userForm.phone = '';
   userForm.nickname = '';
   userForm.status = 'active';
+  userRoles.value = [];
+  selectedRoleId.value = '';
   dialogVisible.value = true;
 }
 
@@ -131,7 +141,10 @@ function openEditDialog(user: AdminUserResponse) {
   userForm.phone = user.phone || '';
   userForm.nickname = user.nickname || '';
   userForm.status = user.status;
+  userRoles.value = [];
+  selectedRoleId.value = '';
   dialogVisible.value = true;
+  fetchUserRoles(user.id);
 }
 
 async function handleSubmit() {
@@ -199,6 +212,61 @@ async function handleStatusChange(user: AdminUserResponse, newStatus: UserStatus
 }
 
 // ============================================
+// Role Management Functions
+// ============================================
+async function fetchAllRoles() {
+  try {
+    const response = await getRoles();
+    allRoles.value = response.data.data;
+  } catch (error: unknown) {
+    const apiError = extractApiError(error);
+    ElMessage.error(apiError.displayMessage);
+  }
+}
+
+async function fetchUserRoles(userId: string) {
+  rolesLoading.value = true;
+  try {
+    const response = await getUserRoles(userId);
+    userRoles.value = response.data.roles;
+  } catch (error: unknown) {
+    const apiError = extractApiError(error);
+    ElMessage.error(apiError.displayMessage);
+    userRoles.value = [];
+  } finally {
+    rolesLoading.value = false;
+  }
+}
+
+async function handleAssignRole(roleId: string) {
+  if (!roleId || !userForm.id) return;
+
+  try {
+    await assignRole(userForm.id, { roleId });
+    ElMessage.success('角色分配成功');
+    await fetchUserRoles(userForm.id);
+    selectedRoleId.value = '';
+  } catch (error: unknown) {
+    const apiError = extractApiError(error);
+    ElMessage.error(apiError.displayMessage);
+    selectedRoleId.value = '';
+  }
+}
+
+async function handleRemoveRole(roleId: string) {
+  if (!userForm.id) return;
+
+  try {
+    await removeRole(userForm.id, roleId);
+    ElMessage.success('角色移除成功');
+    await fetchUserRoles(userForm.id);
+  } catch (error: unknown) {
+    const apiError = extractApiError(error);
+    ElMessage.error(apiError.displayMessage);
+  }
+}
+
+// ============================================
 // Utility Functions
 // ============================================
 function formatDate(dateString: string | null): string {
@@ -249,6 +317,7 @@ function formRules() {
 // ============================================
 onMounted(() => {
   fetchUsers();
+  fetchAllRoles();
 });
 </script>
 
@@ -457,6 +526,48 @@ onMounted(() => {
             <el-option label="待激活" value="pending" />
           </el-select>
         </el-form-item>
+
+        <!-- Role Assignment (Edit mode only) -->
+        <el-form-item v-if="dialogMode === 'edit'" label="分配角色">
+          <div v-loading="rolesLoading" class="role-section">
+            <!-- Assigned roles -->
+            <div class="assigned-roles">
+              <template v-if="userRoles.length > 0">
+                <el-popconfirm
+                  v-for="role in userRoles"
+                  :key="role.id"
+                  title="确定要移除此角色吗？"
+                  confirm-button-text="确定"
+                  cancel-button-text="取消"
+                  @confirm="handleRemoveRole(role.id)"
+                >
+                  <template #reference>
+                    <el-tag closable class="role-tag">
+                      {{ role.name }}
+                    </el-tag>
+                  </template>
+                </el-popconfirm>
+              </template>
+              <span v-else class="no-roles-text">暂无角色</span>
+            </div>
+            <!-- Add role selector -->
+            <el-select
+              v-model="selectedRoleId"
+              placeholder="可选角色"
+              clearable
+              class="role-select"
+              @change="handleAssignRole"
+            >
+              <el-option
+                v-for="role in allRoles"
+                :key="role.id"
+                :label="role.name"
+                :value="role.id"
+                :disabled="userRoles.some((r) => r.id === role.id)"
+              />
+            </el-select>
+          </div>
+        </el-form-item>
       </el-form>
 
       <template #footer>
@@ -623,6 +734,32 @@ onMounted(() => {
 }
 
 .status-form-select {
+  width: 100%;
+}
+
+/* Role Section Styles */
+.role-section {
+  width: 100%;
+}
+
+.assigned-roles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+  min-height: 24px;
+}
+
+.role-tag {
+  cursor: pointer;
+}
+
+.no-roles-text {
+  color: #909399;
+  font-size: 14px;
+}
+
+.role-select {
   width: 100%;
 }
 

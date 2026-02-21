@@ -58,6 +58,21 @@ const routes: RouteRecordRaw[] = [
         name: 'PhoneVerification',
         component: () => import('@/views/PhoneVerification.vue'),
       },
+      {
+        path: 'policies',
+        name: 'Policies',
+        component: () => import('@/views/Policies.vue'),
+      },
+      {
+        path: 'roles',
+        name: 'Roles',
+        component: () => import('@/views/Roles.vue'),
+      },
+      {
+        path: 'permissions',
+        name: 'Permissions',
+        component: () => import('@/views/Permissions.vue'),
+      },
     ],
   },
   {

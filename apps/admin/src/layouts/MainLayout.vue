@@ -52,6 +52,18 @@ function logout() {
           <el-icon><Clock /></el-icon>
           <span>{{ t('menu.loginHistory') }}</span>
         </el-menu-item>
+        <el-menu-item index="/admin/policies">
+          <el-icon><Setting /></el-icon>
+          <span>{{ t('menu.policies') }}</span>
+        </el-menu-item>
+        <el-menu-item index="/admin/roles">
+          <el-icon><Avatar /></el-icon>
+          <span>{{ t('menu.roles') }}</span>
+        </el-menu-item>
+        <el-menu-item index="/admin/permissions">
+          <el-icon><Lock /></el-icon>
+          <span>{{ t('menu.permissions') }}</span>
+        </el-menu-item>
       </el-menu>
     </el-aside>
 
