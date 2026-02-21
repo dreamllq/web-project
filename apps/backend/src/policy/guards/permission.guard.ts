@@ -124,6 +124,8 @@ export class PermissionGuard implements CanActivate {
 
   /**
    * Check RBAC permissions
+   * @deprecated Use ABAC policies instead. See docs/abac-migration-guide.md for migration instructions.
+   * This method will be removed in a future version.
    */
   private async checkRbacPermission(
     userId: string,
