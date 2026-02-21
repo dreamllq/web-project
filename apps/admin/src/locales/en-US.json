@@ -12,7 +12,8 @@
     "reset": "Reset",
     "success": "Success",
     "error": "Error",
-    "warning": "Warning"
+    "warning": "Warning",
+    "noData": "No data available"
   },
   "login": {
     "title": "Admin Login",
@@ -35,7 +36,8 @@
     "loginHistory": "Login History",
     "roles": "Role Management",
     "twoFactorSettings": "Two-Factor Auth",
-    "phoneVerification": "Phone Verification"
+    "phoneVerification": "Phone Verification",
+    "abacDashboard": "ABAC Dashboard"
   },
   "dashboard": {
     "title": "Dashboard",
@@ -248,5 +250,24 @@
     "nameRequired": "Please enter role name",
     "nameLength": "Name must be 2-50 characters",
     "noDescription": "No description"
+  },
+  "abac": {
+    "dashboard": {
+      "title": "ABAC Dashboard",
+      "coveragePercent": "Coverage",
+      "rbacCount": "RBAC Permissions",
+      "abacCount": "ABAC Policies",
+      "enabledCount": "Enabled Policies",
+      "roleCoverage": "Role Coverage",
+      "role": "Role",
+      "policies": "Policies",
+      "permissions": "Permissions",
+      "missingPolicies": "Missing Policies",
+      "permissionName": "Permission Name",
+      "resource": "Resource",
+      "action": "Action",
+      "fullCoverage": "Full Coverage Achieved",
+      "fullCoverageDesc": "All permissions have corresponding ABAC policies configured."
+    }
   }
 }

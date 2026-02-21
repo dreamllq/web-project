@@ -12,7 +12,8 @@
     "reset": "Reset",
     "success": "Success",
     "error": "Error",
-    "warning": "Warning"
+    "warning": "Warning",
+    "noData": "暂无数据"
   },
   "login": {
     "title": "Admin Login",
@@ -35,7 +36,8 @@
     "loginHistory": "登录历史",
     "roles": "角色管理",
     "twoFactorSettings": "两步验证",
-    "phoneVerification": "手机验证"
+    "phoneVerification": "手机验证",
+    "abacDashboard": "ABAC 仪表盘"
   },
   "dashboard": {
     "title": "Dashboard",
@@ -248,5 +250,24 @@
     "nameRequired": "请输入角色名称",
     "nameLength": "名称长度必须在 2-50 个字符之间",
     "noDescription": "无描述"
+  },
+  "abac": {
+    "dashboard": {
+      "title": "ABAC 仪表盘",
+      "coveragePercent": "覆盖率",
+      "rbacCount": "RBAC 权限数",
+      "abacCount": "ABAC 策略数",
+      "enabledCount": "已启用策略",
+      "roleCoverage": "角色覆盖情况",
+      "role": "角色",
+      "policies": "策略数",
+      "permissions": "权限数",
+      "missingPolicies": "缺失的策略",
+      "permissionName": "权限名称",
+      "resource": "资源",
+      "action": "操作",
+      "fullCoverage": "已完成全覆盖",
+      "fullCoverageDesc": "所有权限都已配置相应的 ABAC 策略。"
+    }
   }
 }

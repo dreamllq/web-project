@@ -68,6 +68,16 @@ const routes: RouteRecordRaw[] = [
         name: 'Roles',
         component: () => import('@/views/Roles.vue'),
       },
+      {
+        path: 'abac/dashboard',
+        name: 'AbacDashboard',
+        component: () => import('@/views/abac/Dashboard.vue'),
+      },
+      {
+        path: 'abac/test',
+        name: 'AbacPolicyTest',
+        component: () => import('@/views/abac/PolicyTest.vue'),
+      },
     ],
   },
   {
