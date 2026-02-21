@@ -76,11 +76,23 @@ export class PolicyEvaluatorService {
     resource: string,
     action: string
   ): Promise<EvaluationResult> {
+    const startTime = Date.now();
+
     // Get user attributes
     const userAttrs = this.extractUserAttributes(user);
 
     // Check if user is active
     if (userAttrs.status !== UserStatus.ACTIVE) {
+      this.logger.debug({
+        message: 'Policy evaluation rejected: inactive user',
+        userId: userAttrs.id,
+        username: userAttrs.username,
+        status: userAttrs.status,
+        resource,
+        action,
+        evaluationTimeMs: Date.now() - startTime,
+      });
+
       return {
         allowed: false,
         reason: `User status is ${userAttrs.status}, not active`,
@@ -99,13 +111,39 @@ export class PolicyEvaluatorService {
       if (subjectMatch && resourceMatch && actionMatch) {
         // Check conditions if present
         if (policy.conditions && !this.evaluateConditions(policy.conditions, userAttrs)) {
+          this.logger.debug({
+            message: 'Policy matched but conditions not satisfied',
+            policyName: policy.name,
+            policyId: policy.id,
+            userId: userAttrs.id,
+            resource,
+            action,
+            conditions: policy.conditions,
+            evaluationTimeMs: Date.now() - startTime,
+          });
           continue;
         }
 
-        this.logger.debug(
-          `Policy "${policy.name}" matched for user ${userAttrs.username}: ` +
-            `${policy.effect} ${action} on ${resource}`
+        // Build match reason string
+        const matchReason = this.buildMatchReason(
+          policy.subject,
+          policy.resource,
+          policy.action,
+          userAttrs
         );
+
+        this.logger.debug({
+          message: 'Policy evaluation complete: policy matched',
+          policyName: policy.name,
+          policyId: policy.id,
+          userId: userAttrs.id,
+          username: userAttrs.username,
+          resource,
+          action,
+          result: policy.effect,
+          matchReason,
+          evaluationTimeMs: Date.now() - startTime,
+        });
 
         return {
           allowed: policy.effect === PolicyEffect.ALLOW,
@@ -116,10 +154,48 @@ export class PolicyEvaluatorService {
     }
 
     // Default: deny access
+    this.logger.debug({
+      message: 'Policy evaluation complete: no matching policy',
+      userId: userAttrs.id,
+      username: userAttrs.username,
+      resource,
+      action,
+      result: 'DENY',
+      evaluationTimeMs: Date.now() - startTime,
+    });
+
     return {
       allowed: false,
       reason: `No matching policy found for user ${userAttrs.username} to ${action} on ${resource}`,
     };
+  }
+
+  /**
+   * Build a human-readable match reason string
+   */
+  private buildMatchReason(
+    subjectPattern: string,
+    resourcePattern: string,
+    actionPattern: string,
+    _userAttrs: UserAttributes
+  ): string {
+    const parts: string[] = [];
+
+    // Subject match reason
+    if (subjectPattern === '*') {
+      parts.push('subject:*');
+    } else {
+      const [type, value] = subjectPattern.split(':');
+      parts.push(`subject:${type}:${value}`);
+    }
+
+    // Resource match reason
+    parts.push(`resource:${resourcePattern}`);
+
+    // Action match reason
+    parts.push(`action:${actionPattern}`);
+
+    return parts.join(', ');
   }
 
   /**

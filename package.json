@@ -11,6 +11,7 @@
     "format:check": "prettier --check \"**/*.{js,ts,json,md,vue}\"",
     "prepare": "husky",
     "tools:audit-permissions": "tsx tools/audit-permissions.ts",
+    "tools:verify-migration": "tsx tools/verify-migration.ts",
     "tools:seed-role-policies": "tsx tools/seed-role-policies.ts",
     "tools:seed-role-111-policies": "tsx tools/seed-role-111-policies.ts"
   },

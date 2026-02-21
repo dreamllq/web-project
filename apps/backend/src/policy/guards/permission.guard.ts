@@ -6,10 +6,12 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import { ConfigService } from '@nestjs/config';
 import { PolicyEvaluatorService } from '../policy-evaluator.service';
 import { RoleService } from '../../rbac/role.service';
 import { PERMISSION_KEY, PermissionMetadata } from '../decorators/require-permission.decorator';
 import { User } from '../../entities/user.entity';
+import { PermissionConfig } from '../../config/permission.config';
 
 /**
  * Permission Guard
@@ -18,7 +20,9 @@ import { User } from '../../entities/user.entity';
  * Works with @RequirePermission decorator to check if the user
  * has the required permission based on ABAC policies first, then RBAC.
  *
- * Permission check flow: ABAC → RBAC → either passes = allowed
+ * Permission check flow:
+ * - When useAbacOnly=true: ABAC only (no RBAC fallback)
+ * - When useAbacOnly=false: ABAC → RBAC → either passes = allowed
  *
  * @example
  * @UseGuards(JwtAuthGuard, PermissionGuard)
@@ -33,7 +37,8 @@ export class PermissionGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     private readonly policyEvaluator: PolicyEvaluatorService,
-    private readonly roleService: RoleService
+    private readonly roleService: RoleService,
+    private readonly configService: ConfigService
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -59,6 +64,10 @@ export class PermissionGuard implements CanActivate {
       throw new ForbiddenException('Authentication required');
     }
 
+    // Get ABAC-only mode from config (defaults to false for backward compatibility)
+    const useAbacOnly =
+      this.configService.get<PermissionConfig>('permission')?.useAbacOnly ?? false;
+
     // Step 1: Try ABAC policy evaluation
     const abacResult = await this.policyEvaluator.evaluate(
       user,
@@ -67,13 +76,30 @@ export class PermissionGuard implements CanActivate {
     );
 
     if (abacResult) {
-      this.logger.debug(
-        `Permission granted via ABAC: User ${user.username} can ${permission.action} on ${permission.resource}`
-      );
+      if (useAbacOnly) {
+        this.logger.debug(
+          `Permission granted via ABAC only: User ${user.username} can ${permission.action} on ${permission.resource}`
+        );
+      } else {
+        this.logger.debug(
+          `Permission granted via ABAC: User ${user.username} can ${permission.action} on ${permission.resource}`
+        );
+      }
       return true;
     }
 
-    // Step 2: Try RBAC permission check
+    // Step 2: RBAC fallback (only when not in ABAC-only mode)
+    if (useAbacOnly) {
+      // ABAC-only mode: no RBAC fallback
+      this.logger.warn(
+        `Permission denied (ABAC only mode): User ${user.username} cannot ${permission.action} on ${permission.resource}`
+      );
+      throw new ForbiddenException(
+        `You do not have permission to ${permission.action} on ${permission.resource}`
+      );
+    }
+
+    // Try RBAC permission check
     const rbacResult = await this.checkRbacPermission(
       user.id,
       permission.resource,

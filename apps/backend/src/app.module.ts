@@ -23,6 +23,7 @@ import { OAuthModule } from './oauth/oauth.module';
 import { InitModule } from './init/init.module';
 import { MailModule } from './mail/mail.module';
 import { storageConfig } from './config/storage.config';
+import { permissionConfig } from './config/permission.config';
 
 @Module({
   imports: [
@@ -54,6 +55,7 @@ import { storageConfig } from './config/storage.config';
         wechatMiniprogramConfig,
         dingtalkMiniprogramConfig,
         storageConfig,
+        permissionConfig,
       ],
     }),
     TypeOrmModule.forRootAsync({
