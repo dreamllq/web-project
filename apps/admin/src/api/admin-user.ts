@@ -5,8 +5,6 @@ import type {
   UserQueryParams,
   CreateAdminUserDto,
   UpdateAdminUserDto,
-  BatchAssignRolesDto,
-  BatchAssignRolesResponse,
 } from '@/types/user';
 import type { UserStatus } from '@/types/auth';
 
@@ -68,14 +66,4 @@ export function updateUserStatus(
   status: UserStatus
 ): Promise<{ data: AdminUserResponse }> {
   return api.patch(`/v1/users/${id}/status`, { status });
-}
-
-/**
- * Batch assign roles to multiple users
- * POST /api/v1/users/batch-roles
- */
-export function batchAssignRoles(
-  dto: BatchAssignRolesDto
-): Promise<{ data: BatchAssignRolesResponse }> {
-  return api.post('/v1/users/batch-roles', dto);
 }

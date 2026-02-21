@@ -3,17 +3,12 @@ import { mount, flushPromises } from '@vue/test-utils';
 import { nextTick, defineComponent, h } from 'vue';
 import Users from './Users.vue';
 import type { AdminUserResponse, AdminUserListResponse } from '@/types/user';
-import type { Role } from '@/types/rbac';
 
 // Mock API functions
 const mockGetAdminUsers = vi.fn();
 const mockCreateAdminUser = vi.fn();
 const mockUpdateAdminUser = vi.fn();
 const mockDeleteAdminUser = vi.fn();
-const mockBatchAssignRoles = vi.fn();
-const mockGetRoles = vi.fn();
-const mockGetUserRoles = vi.fn();
-const mockAssignUserRoles = vi.fn();
 const mockGetAuditLogsByUser = vi.fn();
 
 vi.mock('@/api/admin-user', () => ({
@@ -21,13 +16,6 @@ vi.mock('@/api/admin-user', () => ({
   createAdminUser: (...args: unknown[]) => mockCreateAdminUser(...args),
   updateAdminUser: (...args: unknown[]) => mockUpdateAdminUser(...args),
   deleteAdminUser: (...args: unknown[]) => mockDeleteAdminUser(...args),
-  batchAssignRoles: (...args: unknown[]) => mockBatchAssignRoles(...args),
-}));
-
-vi.mock('@/api/rbac', () => ({
-  getRoles: () => mockGetRoles(),
-  getUserRoles: (...args: unknown[]) => mockGetUserRoles(...args),
-  assignUserRoles: (...args: unknown[]) => mockAssignUserRoles(...args),
 }));
 
 vi.mock('@/api/audit-log', () => ({
@@ -86,16 +74,6 @@ const mockUsers: AdminUserResponse[] = [
     lastLoginIp: '192.168.1.1',
     createdAt: '2024-01-01T00:00:00Z',
     updatedAt: '2024-01-15T10:30:00Z',
-    roles: [
-      {
-        id: 'role-1',
-        name: 'Admin',
-        description: 'Administrator role',
-        permissions: [],
-        createdAt: '2024-01-01T00:00:00Z',
-        updatedAt: '2024-01-01T00:00:00Z',
-      },
-    ],
   },
   {
     id: '2',
@@ -112,7 +90,6 @@ const mockUsers: AdminUserResponse[] = [
     lastLoginIp: null,
     createdAt: '2024-01-10T00:00:00Z',
     updatedAt: '2024-01-10T00:00:00Z',
-    roles: [],
   },
   {
     id: '3',
@@ -129,34 +106,6 @@ const mockUsers: AdminUserResponse[] = [
     lastLoginIp: null,
     createdAt: '2024-01-05T00:00:00Z',
     updatedAt: '2024-01-20T00:00:00Z',
-    roles: [],
-  },
-];
-
-const mockRoles: Role[] = [
-  {
-    id: 'role-1',
-    name: 'Admin',
-    description: 'Administrator role',
-    permissions: [],
-    createdAt: '2024-01-01T00:00:00Z',
-    updatedAt: '2024-01-01T00:00:00Z',
-  },
-  {
-    id: 'role-2',
-    name: 'Editor',
-    description: 'Editor role',
-    permissions: [],
-    createdAt: '2024-01-01T00:00:00Z',
-    updatedAt: '2024-01-01T00:00:00Z',
-  },
-  {
-    id: 'role-3',
-    name: 'Viewer',
-    description: 'Viewer role',
-    permissions: [],
-    createdAt: '2024-01-01T00:00:00Z',
-    updatedAt: '2024-01-01T00:00:00Z',
   },
 ];
 
@@ -257,8 +206,6 @@ describe('Users.vue', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetAdminUsers.mockResolvedValue(mockUserListResponse);
-    mockGetRoles.mockResolvedValue({ data: { data: mockRoles } });
-    mockGetUserRoles.mockResolvedValue({ data: { roles: [] } });
     mockGetAuditLogsByUser.mockResolvedValue({ data: [], total: 0 });
   });
 
@@ -677,96 +624,6 @@ describe('Users.vue', () => {
     });
   });
 
-  describe('Role assignment', () => {
-    it('should open role dialog for single user', async () => {
-      const wrapper = createWrapper();
-      await flushPromises();
-
-      const vm = wrapper.vm as unknown as {
-        openRoleDialog: (user: AdminUserResponse) => void;
-        roleDialogVisible: boolean;
-        currentUserForRole: AdminUserResponse | null;
-      };
-
-      vm.openRoleDialog(mockUsers[0]);
-      await flushPromises();
-
-      expect(vm.roleDialogVisible).toBe(true);
-      expect(vm.currentUserForRole).toEqual(mockUsers[0]);
-      expect(mockGetUserRoles).toHaveBeenCalledWith('1');
-    });
-
-    it('should call assignUserRoles API on single user role submit', async () => {
-      mockAssignUserRoles.mockResolvedValueOnce({ data: { success: true } });
-
-      const wrapper = createWrapper();
-      await flushPromises();
-
-      const vm = wrapper.vm as unknown as {
-        currentUserForRole: AdminUserResponse | null;
-        isBatchRoleAssign: boolean;
-        selectedRoleIds: string[];
-        handleRoleSubmit: () => Promise<void>;
-      };
-
-      vm.currentUserForRole = mockUsers[0];
-      vm.isBatchRoleAssign = false;
-      vm.selectedRoleIds = ['role-1', 'role-2'];
-
-      await vm.handleRoleSubmit();
-      await flushPromises();
-
-      expect(mockAssignUserRoles).toHaveBeenCalledWith('1', {
-        roleIds: ['role-1', 'role-2'],
-      });
-    });
-
-    it('should open batch role dialog', async () => {
-      const wrapper = createWrapper();
-      await flushPromises();
-
-      const vm = wrapper.vm as unknown as {
-        openBatchRoleDialog: () => void;
-        roleDialogVisible: boolean;
-        isBatchRoleAssign: boolean;
-      };
-
-      vm.openBatchRoleDialog();
-      await nextTick();
-
-      expect(vm.roleDialogVisible).toBe(true);
-      expect(vm.isBatchRoleAssign).toBe(true);
-    });
-
-    it('should call batchAssignRoles API for batch role assignment', async () => {
-      mockBatchAssignRoles.mockResolvedValueOnce({
-        data: { success: true, message: 'Roles assigned', assignedCount: 2 },
-      });
-
-      const wrapper = createWrapper();
-      await flushPromises();
-
-      const vm = wrapper.vm as unknown as {
-        isBatchRoleAssign: boolean;
-        selectedUsers: AdminUserResponse[];
-        selectedRoleIds: string[];
-        handleRoleSubmit: () => Promise<void>;
-      };
-
-      vm.isBatchRoleAssign = true;
-      vm.selectedUsers = [mockUsers[0], mockUsers[1]];
-      vm.selectedRoleIds = ['role-1'];
-
-      await vm.handleRoleSubmit();
-      await flushPromises();
-
-      expect(mockBatchAssignRoles).toHaveBeenCalledWith({
-        userIds: ['1', '2'],
-        roleIds: ['role-1'],
-      });
-    });
-  });
-
   describe('Pagination', () => {
     it('should handle page change', async () => {
       const wrapper = createWrapper();
@@ -916,53 +773,6 @@ describe('Users.vue', () => {
     });
   });
 
-  describe('Selection handling', () => {
-    it('should handle selection change', async () => {
-      const wrapper = createWrapper();
-      await flushPromises();
-
-      const vm = wrapper.vm as unknown as {
-        handleSelectionChange: (selection: AdminUserResponse[]) => void;
-        selectedUsers: AdminUserResponse[];
-      };
-
-      vm.handleSelectionChange([mockUsers[0], mockUsers[1]]);
-      await nextTick();
-
-      expect(vm.selectedUsers).toEqual([mockUsers[0], mockUsers[1]]);
-    });
-
-    it('should enable batch assign button when users selected', async () => {
-      const wrapper = createWrapper();
-      await flushPromises();
-
-      const vm = wrapper.vm as unknown as {
-        selectedUsers: AdminUserResponse[];
-        canBatchAssign: boolean;
-      };
-
-      vm.selectedUsers = [mockUsers[0]];
-      await nextTick();
-
-      expect(vm.canBatchAssign).toBe(true);
-    });
-
-    it('should disable batch assign button when no users selected', async () => {
-      const wrapper = createWrapper();
-      await flushPromises();
-
-      const vm = wrapper.vm as unknown as {
-        selectedUsers: AdminUserResponse[];
-        canBatchAssign: boolean;
-      };
-
-      vm.selectedUsers = [];
-      await nextTick();
-
-      expect(vm.canBatchAssign).toBe(false);
-    });
-  });
-
   describe('Utility functions', () => {
     it('should format date correctly', async () => {
       const wrapper = createWrapper();
@@ -1048,33 +858,12 @@ describe('Users.vue', () => {
     });
   });
 
-  describe('Fetch roles', () => {
-    it('should fetch roles on mount', async () => {
-      const wrapper = createWrapper();
-      await flushPromises();
-
-      const vm = wrapper.vm as unknown as { roles: Role[] };
-      expect(vm.roles).toEqual(mockRoles);
-      expect(mockGetRoles).toHaveBeenCalled();
-    });
-  });
-
   describe('Error handling', () => {
     it('should handle fetch users error', async () => {
       const { ElMessage } = await import('element-plus');
       mockGetAdminUsers.mockRejectedValueOnce(new Error('Fetch failed'));
 
-      const wrapper = createWrapper();
-      await flushPromises();
-
-      expect(ElMessage.error).toHaveBeenCalled();
-    });
-
-    it('should handle fetch roles error', async () => {
-      const { ElMessage } = await import('element-plus');
-      mockGetRoles.mockRejectedValueOnce(new Error('Fetch roles failed'));
-
-      const wrapper = createWrapper();
+      createWrapper();
       await flushPromises();
 
       expect(ElMessage.error).toHaveBeenCalled();

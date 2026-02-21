@@ -3,17 +3,6 @@ import { useAuthStore } from '@/stores/auth';
 import router from '@/router';
 
 /**
- * ABAC permission error details from backend
- */
-export interface PermissionDetails {
-  resource: string;
-  action: string;
-  reason: string;
-  matchedPolicies: Array<{ id: string; name: string }>;
-  suggestion?: string;
-}
-
-/**
  * Standardized API error interface matching backend response
  */
 export interface ApiError {
@@ -22,10 +11,6 @@ export interface ApiError {
   error: string;
   timestamp?: string;
   path?: string;
-  /** ABAC permission details for 403 errors */
-  details?: PermissionDetails;
-  /** Suggestion for resolving the error (from ABAC details) */
-  suggestion?: string;
   /** Formatted message for display: "[statusCode] message" */
   displayMessage: string;
 }
@@ -40,7 +25,6 @@ export function extractApiError(error: unknown): ApiError {
     error?: string;
     timestamp?: string;
     path?: string;
-    details?: PermissionDetails;
   }>;
 
   const response = axiosError.response;
@@ -50,14 +34,6 @@ export function extractApiError(error: unknown): ApiError {
     const statusCode = data.statusCode || response.status || 500;
     const message = data.message || 'An error occurred';
     const errorType = data.error || 'Error';
-    const details = data.details;
-    const suggestion = details?.suggestion;
-
-    // Build display message with suggestion for 403 errors
-    let displayMessage = `[${statusCode}] ${message}`;
-    if (statusCode === 403 && suggestion) {
-      displayMessage = `[${statusCode}] ${message}\n💡 ${suggestion}`;
-    }
 
     return {
       statusCode,
@@ -65,9 +41,7 @@ export function extractApiError(error: unknown): ApiError {
       error: errorType,
       timestamp: data.timestamp,
       path: data.path,
-      details,
-      suggestion,
-      displayMessage,
+      displayMessage: `[${statusCode}] ${message}`,
     };
   }
 

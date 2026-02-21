@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import { useI18n } from 'vue-i18n'
+import { useI18n } from 'vue-i18n';
 
-const { t } = useI18n()
+const { t } = useI18n();
 </script>
 
 <template>
   <div class="home-page">
     <h1 class="page-title">{{ t('dashboard.title') }}</h1>
-    
+
     <el-row :gutter="24" class="stats-row">
       <el-col :span="6">
         <el-card class="stat-card">
@@ -20,7 +20,7 @@ const { t } = useI18n()
           </div>
         </el-card>
       </el-col>
-      
+
       <el-col :span="6">
         <el-card class="stat-card">
           <div class="stat-icon active">
@@ -32,19 +32,7 @@ const { t } = useI18n()
           </div>
         </el-card>
       </el-col>
-      
-      <el-col :span="6">
-        <el-card class="stat-card">
-          <div class="stat-icon policies">
-            <el-icon :size="32"><Key /></el-icon>
-          </div>
-          <div class="stat-content">
-            <div class="stat-value">24</div>
-            <div class="stat-label">{{ t('dashboard.totalPolicies') }}</div>
-          </div>
-        </el-card>
-      </el-col>
-      
+
       <el-col :span="6">
         <el-card class="stat-card">
           <div class="stat-icon activity">
@@ -72,7 +60,7 @@ const { t } = useI18n()
           </div>
         </el-card>
       </el-col>
-      
+
       <el-col :span="8">
         <el-card class="quick-actions-card">
           <template #header>
@@ -123,7 +111,9 @@ const { t } = useI18n()
   border-radius: 12px;
   border: none;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
-  transition: transform 0.2s, box-shadow 0.2s;
+  transition:
+    transform 0.2s,
+    box-shadow 0.2s;
 }
 
 .stat-card:hover {
@@ -148,10 +138,6 @@ const { t } = useI18n()
 
 .stat-icon.active {
   background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-}
-
-.stat-icon.policies {
-  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
 }
 
 .stat-icon.activity {

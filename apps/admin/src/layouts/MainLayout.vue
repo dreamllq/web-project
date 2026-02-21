@@ -40,18 +40,6 @@ function logout() {
           <el-icon><User /></el-icon>
           <span>{{ t('menu.users') }}</span>
         </el-menu-item>
-        <el-menu-item index="/admin/policies">
-          <el-icon><Key /></el-icon>
-          <span>{{ t('menu.policies') }}</span>
-        </el-menu-item>
-        <el-menu-item index="/admin/roles">
-          <el-icon><Collection /></el-icon>
-          <span>{{ t('menu.roles') }}</span>
-        </el-menu-item>
-        <el-menu-item index="/admin/abac/dashboard">
-          <el-icon><Shield /></el-icon>
-          <span>{{ t('menu.abacDashboard') }}</span>
-        </el-menu-item>
         <el-menu-item index="/admin/audit-logs">
           <el-icon><Document /></el-icon>
           <span>{{ t('menu.auditLogs') }}</span>

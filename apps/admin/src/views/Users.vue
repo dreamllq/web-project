@@ -9,7 +9,6 @@ import {
   deleteAdminUser,
   updateUserStatus,
 } from '@/api/admin-user';
-import { getRoles, assignUserRoles, getUserRoles } from '@/api/rbac';
 import { extractApiError } from '@/api';
 import type {
   AdminUserResponse,
@@ -18,7 +17,6 @@ import type {
   UserQueryParams,
 } from '@/types/user';
 import type { UserStatus } from '@/types/auth';
-import type { Role } from '@/types/rbac';
 
 // ============================================
 // State
@@ -39,19 +37,15 @@ const filterStatus = ref<UserStatus | ''>('');
 const dialogVisible = ref(false);
 const dialogMode = ref<'create' | 'edit'>('create');
 const userFormRef = ref();
-const userForm = reactive<CreateAdminUserDto & { id?: string; roleIds: string[] }>({
+const userForm = reactive<CreateAdminUserDto & { id?: string }>({
   username: '',
   password: '',
   email: '',
   phone: '',
   nickname: '',
   status: 'active',
-  roleIds: [],
 });
 const formLoading = ref(false);
-
-// Roles
-const roles = ref<Role[]>([]);
 
 // ============================================
 // Computed
@@ -93,15 +87,6 @@ async function fetchUsers() {
   }
 }
 
-async function fetchRoles() {
-  try {
-    const response = await getRoles();
-    roles.value = response.data.data;
-  } catch {
-    // Ignore error
-  }
-}
-
 function handleSearch() {
   pagination.offset = 0;
   fetchUsers();
@@ -134,11 +119,10 @@ function openCreateDialog() {
   userForm.phone = '';
   userForm.nickname = '';
   userForm.status = 'active';
-  userForm.roleIds = [];
   dialogVisible.value = true;
 }
 
-async function openEditDialog(user: AdminUserResponse) {
+function openEditDialog(user: AdminUserResponse) {
   dialogMode.value = 'edit';
   userForm.id = user.id;
   userForm.username = user.username;
@@ -147,16 +131,6 @@ async function openEditDialog(user: AdminUserResponse) {
   userForm.phone = user.phone || '';
   userForm.nickname = user.nickname || '';
   userForm.status = user.status;
-  userForm.roleIds = [];
-
-  // Load user's current roles
-  try {
-    const response = await getUserRoles(user.id);
-    userForm.roleIds = response.data.roles.map((r) => r.id);
-  } catch {
-    // Ignore error, use empty roles
-  }
-
   dialogVisible.value = true;
 }
 
@@ -180,14 +154,7 @@ async function handleSubmit() {
         nickname: userForm.nickname || undefined,
         status: userForm.status,
       };
-      const response = await createAdminUser(dto);
-      const newUserId = response.data.id;
-
-      // Assign roles if any
-      if (userForm.roleIds.length > 0) {
-        await assignUserRoles(newUserId, { roleIds: userForm.roleIds });
-      }
-
+      await createAdminUser(dto);
       ElMessage.success('用户创建成功');
     } else if (userForm.id) {
       const dto: UpdateAdminUserDto = {
@@ -197,10 +164,6 @@ async function handleSubmit() {
         status: userForm.status,
       };
       await updateAdminUser(userForm.id, dto);
-
-      // Update roles
-      await assignUserRoles(userForm.id, { roleIds: userForm.roleIds });
-
       ElMessage.success('用户更新成功');
     }
     dialogVisible.value = false;
@@ -286,7 +249,6 @@ function formRules() {
 // ============================================
 onMounted(() => {
   fetchUsers();
-  fetchRoles();
 });
 </script>
 
@@ -386,25 +348,6 @@ onMounted(() => {
                 </el-dropdown-menu>
               </template>
             </el-dropdown>
-          </template>
-        </el-table-column>
-
-        <el-table-column prop="roles" label="角色" min-width="150">
-          <template #default="{ row }">
-            <div v-if="row.roles && row.roles.length > 0" class="role-tags">
-              <el-tag
-                v-for="role in row.roles.slice(0, 2)"
-                :key="role.id"
-                size="small"
-                class="role-tag"
-              >
-                {{ role.name }}
-              </el-tag>
-              <el-tag v-if="row.roles.length > 2" size="small" type="info" class="more-tag">
-                +{{ row.roles.length - 2 }}
-              </el-tag>
-            </div>
-            <span v-else class="no-data">-</span>
           </template>
         </el-table-column>
 
@@ -514,23 +457,6 @@ onMounted(() => {
             <el-option label="待激活" value="pending" />
           </el-select>
         </el-form-item>
-
-        <el-form-item label="角色">
-          <el-select
-            v-model="userForm.roleIds"
-            multiple
-            filterable
-            placeholder="请选择角色"
-            class="status-form-select"
-          >
-            <el-option v-for="role in roles" :key="role.id" :label="role.name" :value="role.id">
-              <span>{{ role.name }}</span>
-              <span v-if="role.description" class="role-option-desc">
-                - {{ role.description }}
-              </span>
-            </el-option>
-          </el-select>
-        </el-form-item>
       </el-form>
 
       <template #footer>
@@ -633,24 +559,6 @@ onMounted(() => {
   cursor: pointer;
 }
 
-.role-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  align-items: center;
-}
-
-.role-tag {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border: none;
-  color: #fff;
-}
-
-.more-tag {
-  background: #f0f0f0;
-  border: none;
-}
-
 .action-buttons {
   display: flex;
   align-items: center;
@@ -716,12 +624,6 @@ onMounted(() => {
 
 .status-form-select {
   width: 100%;
-}
-
-.role-option-desc {
-  margin-left: 8px;
-  color: #909399;
-  font-size: 12px;
 }
 
 /* Empty State */

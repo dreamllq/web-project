@@ -30,21 +30,17 @@
   "menu": {
     "dashboard": "Dashboard",
     "users": "Users",
-    "policies": "Policies",
     "auditLogs": "Audit Logs",
     "devices": "设备管理",
     "loginHistory": "登录历史",
-    "roles": "角色管理",
     "twoFactorSettings": "两步验证",
-    "phoneVerification": "手机验证",
-    "abacDashboard": "ABAC 仪表盘"
+    "phoneVerification": "手机验证"
   },
   "dashboard": {
     "title": "Dashboard",
     "welcome": "Welcome to 4A Admin",
     "totalUsers": "Total Users",
     "activeUsers": "Active Users",
-    "totalPolicies": "Total Policies",
     "recentActivity": "Recent Activity"
   },
   "header": {
@@ -215,59 +211,5 @@
     "codeSent": "验证码已发送",
     "enterCodeError": "请输入验证码",
     "verifySuccess": "手机验证成功"
-  },
-  "roles": {
-    "title": "角色管理",
-    "createRole": "创建角色",
-    "editRole": "编辑角色",
-    "assignRoles": "为用户分配角色",
-    "roleName": "角色名称",
-    "description": "描述",
-    "permissions": "权限",
-    "createdAt": "创建时间",
-    "actions": "操作",
-    "edit": "编辑",
-    "delete": "删除",
-    "noRoles": "暂无角色",
-    "createFirst": "创建第一个角色",
-    "more": "+{count} 更多",
-    "noPermissions": "无权限",
-    "enterName": "请输入角色名称",
-    "enterDescription": "请输入角色描述",
-    "selectPermissions": "选择权限",
-    "deleteConfirm": "确定要删除此角色吗？",
-    "userId": "用户 ID",
-    "enterUserId": "请输入用户 ID",
-    "search": "搜索",
-    "currentRoles": "当前角色",
-    "availableRoles": "可用角色",
-    "saveAssignment": "保存分配",
-    "enterUserIdWarning": "请输入用户 ID",
-    "assignSuccess": "角色分配成功",
-    "createSuccess": "角色创建成功",
-    "updateSuccess": "角色更新成功",
-    "deleteSuccess": "角色删除成功",
-    "nameRequired": "请输入角色名称",
-    "nameLength": "名称长度必须在 2-50 个字符之间",
-    "noDescription": "无描述"
-  },
-  "abac": {
-    "dashboard": {
-      "title": "ABAC 仪表盘",
-      "coveragePercent": "覆盖率",
-      "rbacCount": "RBAC 权限数",
-      "abacCount": "ABAC 策略数",
-      "enabledCount": "已启用策略",
-      "roleCoverage": "角色覆盖情况",
-      "role": "角色",
-      "policies": "策略数",
-      "permissions": "权限数",
-      "missingPolicies": "缺失的策略",
-      "permissionName": "权限名称",
-      "resource": "资源",
-      "action": "操作",
-      "fullCoverage": "已完成全覆盖",
-      "fullCoverageDesc": "所有权限都已配置相应的 ABAC 策略。"
-    }
   }
 }

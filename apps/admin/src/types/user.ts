@@ -6,8 +6,6 @@ import type {
   TwoFactorEnableResponse,
   VerifyPhoneDto,
 } from './auth';
-import type { Role } from './rbac';
-
 // Re-export User types for convenience
 export type { User, UserStatus };
 
@@ -211,7 +209,6 @@ export interface AdminUserResponse {
   lastLoginIp: string | null;
   createdAt: string;
   updatedAt: string;
-  roles?: Role[];
 }
 
 /**
@@ -256,21 +253,4 @@ export interface UserQueryParams {
   status?: UserStatus;
   limit?: number;
   offset?: number;
-}
-
-/**
- * DTO for batch assigning roles to users
- */
-export interface BatchAssignRolesDto {
-  userIds: string[];
-  roleIds: string[];
-}
-
-/**
- * Response for batch role assignment
- */
-export interface BatchAssignRolesResponse {
-  success: boolean;
-  message: string;
-  assignedCount: number;
 }

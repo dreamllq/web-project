@@ -24,11 +24,6 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/Users.vue'),
       },
       {
-        path: 'policies',
-        name: 'Policies',
-        component: () => import('@/views/Policies.vue'),
-      },
-      {
         path: 'audit-logs',
         name: 'AuditLogs',
         component: () => import('@/views/AuditLogs.vue'),
@@ -62,21 +57,6 @@ const routes: RouteRecordRaw[] = [
         path: 'phone-verification',
         name: 'PhoneVerification',
         component: () => import('@/views/PhoneVerification.vue'),
-      },
-      {
-        path: 'roles',
-        name: 'Roles',
-        component: () => import('@/views/Roles.vue'),
-      },
-      {
-        path: 'abac/dashboard',
-        name: 'AbacDashboard',
-        component: () => import('@/views/abac/Dashboard.vue'),
-      },
-      {
-        path: 'abac/test',
-        name: 'AbacPolicyTest',
-        component: () => import('@/views/abac/PolicyTest.vue'),
       },
     ],
   },

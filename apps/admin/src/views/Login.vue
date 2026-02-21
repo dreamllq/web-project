@@ -3,7 +3,7 @@ import { reactive, ref } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
-import { User, Lock, Key, Document } from '@element-plus/icons-vue';
+import { User, Lock, Document } from '@element-plus/icons-vue';
 import { useAuthStore } from '@/stores/auth';
 import api from '@/api';
 
@@ -74,10 +74,7 @@ async function handleLogin() {
             <el-icon :size="24"><Lock /></el-icon>
             <span>Secure Authentication</span>
           </div>
-          <div class="feature">
-            <el-icon :size="24"><Key /></el-icon>
-            <span>Policy-Based Authorization</span>
-          </div>
+
           <div class="feature">
             <el-icon :size="24"><Document /></el-icon>
             <span>Comprehensive Audit Logs</span>
