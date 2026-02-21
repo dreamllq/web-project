@@ -141,3 +141,5 @@ vite.config.ts.timestamp-*
 
 
 .sisyphus
+playwright-report
+test-results
