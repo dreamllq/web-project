@@ -1,13 +1,17 @@
+import { NotFoundException } from '@nestjs/common';
 import { AbacService } from './abac.service';
 import { Permission } from '../entities/permission.entity';
 import { Policy, PolicyEffect } from '../entities/policy.entity';
 import { Role } from '../entities/role.entity';
+import { User, UserStatus } from '../entities/user.entity';
 
 describe('AbacService', () => {
   let service: AbacService;
   let mockPermissionRepo: { find: jest.Mock };
   let mockPolicyRepo: { find: jest.Mock };
   let mockRoleRepo: { find: jest.Mock };
+  let mockUserRepo: { find: jest.Mock; findOne: jest.Mock };
+  let mockPolicyEvaluator: { evaluateWithDetails: jest.Mock };
 
   const mockPermissions: Permission[] = [
     { id: '1', name: 'user:read', resource: 'user', action: 'read', description: 'Read users' },
@@ -94,12 +98,16 @@ describe('AbacService', () => {
     mockPermissionRepo = { find: jest.fn() };
     mockPolicyRepo = { find: jest.fn() };
     mockRoleRepo = { find: jest.fn() };
+    mockUserRepo = { find: jest.fn(), findOne: jest.fn() };
+    mockPolicyEvaluator = { evaluateWithDetails: jest.fn() };
 
     // Create service instance directly with mocked repositories
     service = new AbacService(
       mockPermissionRepo as any,
       mockPolicyRepo as any,
-      mockRoleRepo as any
+      mockRoleRepo as any,
+      mockUserRepo as any,
+      mockPolicyEvaluator as any
     );
   });
 
@@ -248,6 +256,150 @@ describe('AbacService', () => {
       // read and write should be covered
       expect(result.missing_policies).toHaveLength(1);
       expect(result.missing_policies[0].action).toBe('delete');
+    });
+  });
+
+  describe('testPermission', () => {
+    const mockUser: Partial<User> = {
+      id: 'user-1',
+      username: 'testuser',
+      email: 'test@example.com',
+      phone: null,
+      passwordHash: 'hash',
+      status: UserStatus.ACTIVE,
+      roles: [
+        {
+          id: 'role-1',
+          name: 'admin',
+          description: 'Admin',
+          isSuperAdmin: true,
+          permissions: [],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ],
+    };
+
+    it('should return permission result when user has access', async () => {
+      mockUserRepo.findOne.mockResolvedValue(mockUser);
+      mockPolicyEvaluator.evaluateWithDetails.mockResolvedValue({
+        allowed: true,
+        matchedPolicy: {
+          id: 'policy-1',
+          name: 'Admin Full Access',
+          effect: PolicyEffect.ALLOW,
+          subject: 'role:admin',
+          resource: '*',
+          action: '*',
+          conditions: null,
+          priority: 100,
+          enabled: true,
+          description: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          policyAttributes: [],
+        },
+        reason: 'Policy "Admin Full Access" allows * on *',
+      });
+
+      const result = await service.testPermission({
+        userId: 'user-1',
+        resource: 'user',
+        action: 'read',
+      });
+
+      expect(result.allowed).toBe(true);
+      expect(result.user.id).toBe('user-1');
+      expect(result.user.username).toBe('testuser');
+      expect(result.user.roles).toContain('admin');
+      expect(result.resource).toBe('user');
+      expect(result.action).toBe('read');
+      expect(result.matchedPolicies).toHaveLength(1);
+      expect(result.matchedPolicies[0].id).toBe('policy-1');
+      expect(result.evaluationTimeMs).toBeGreaterThanOrEqual(0);
+    });
+
+    it('should return denied result when user has no access', async () => {
+      mockUserRepo.findOne.mockResolvedValue(mockUser);
+      mockPolicyEvaluator.evaluateWithDetails.mockResolvedValue({
+        allowed: false,
+        reason: 'No matching policy found',
+      });
+
+      const result = await service.testPermission({
+        userId: 'user-1',
+        resource: 'sensitive',
+        action: 'delete',
+      });
+
+      expect(result.allowed).toBe(false);
+      expect(result.matchedPolicies).toHaveLength(0);
+    });
+
+    it('should throw NotFoundException when user does not exist', async () => {
+      mockUserRepo.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.testPermission({
+          userId: 'non-existent',
+          resource: 'user',
+          action: 'read',
+        })
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should return user roles in response', async () => {
+      const userWithRoles = {
+        ...mockUser,
+        roles: [
+          {
+            id: 'role-1',
+            name: 'admin',
+            description: 'Admin',
+            isSuperAdmin: true,
+            permissions: [],
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+          {
+            id: 'role-2',
+            name: 'user',
+            description: 'User',
+            isSuperAdmin: false,
+            permissions: [],
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        ],
+      };
+      mockUserRepo.findOne.mockResolvedValue(userWithRoles);
+      mockPolicyEvaluator.evaluateWithDetails.mockResolvedValue({
+        allowed: true,
+        matchedPolicy: {
+          id: 'policy-1',
+          name: 'Test',
+          effect: PolicyEffect.ALLOW,
+          subject: 'role:admin',
+          resource: 'user',
+          action: 'read',
+          conditions: null,
+          priority: 50,
+          enabled: true,
+          description: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          policyAttributes: [],
+        },
+        reason: 'Test',
+      });
+
+      const result = await service.testPermission({
+        userId: 'user-1',
+        resource: 'user',
+        action: 'read',
+      });
+
+      expect(result.user.roles).toEqual(['admin', 'user']);
     });
   });
 });

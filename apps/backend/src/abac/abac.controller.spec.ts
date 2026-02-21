@@ -1,7 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { ConfigService } from '@nestjs/config';
 import { AbacController } from './abac.controller';
 import { AbacService, CoverageResponse, TestPermissionResult } from './abac.service';
 import { TestPermissionDto } from './dto/test-permission.dto';
+import { PolicyEvaluatorService } from '../policy/policy-evaluator.service';
+import { RoleService } from '../rbac/role.service';
 
 describe('AbacController', () => {
   let controller: AbacController;
@@ -23,6 +26,24 @@ describe('AbacController', () => {
     testPermission: jest.fn(),
   };
 
+  const mockPolicyEvaluator = {
+    evaluateWithDetails: jest.fn(),
+  };
+
+  const mockRoleService = {
+    findAll: jest.fn(),
+    findOne: jest.fn(),
+    findByName: jest.fn(),
+    getUserRoles: jest.fn(),
+  };
+
+  const mockConfigService = {
+    get: jest.fn((key: string, defaultValue?: unknown) => {
+      if (key === 'permission.useAbacOnly') return false;
+      return defaultValue;
+    }),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [AbacController],
@@ -30,6 +51,18 @@ describe('AbacController', () => {
         {
           provide: AbacService,
           useValue: mockAbacService,
+        },
+        {
+          provide: PolicyEvaluatorService,
+          useValue: mockPolicyEvaluator,
+        },
+        {
+          provide: RoleService,
+          useValue: mockRoleService,
+        },
+        {
+          provide: ConfigService,
+          useValue: mockConfigService,
         },
       ],
     }).compile();

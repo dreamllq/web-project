@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { ConfigService } from '@nestjs/config';
 import { PolicyController } from './policy.controller';
 import { PolicyService } from './policy.service';
 import { PolicyEvaluatorService } from './policy-evaluator.service';
@@ -74,6 +75,13 @@ describe('PolicyController', () => {
     getUserRoles: jest.fn(),
   };
 
+  const mockConfigService = {
+    get: jest.fn((key: string, defaultValue?: unknown) => {
+      if (key === 'permission.useAbacOnly') return false;
+      return defaultValue;
+    }),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [PolicyController],
@@ -89,6 +97,10 @@ describe('PolicyController', () => {
         {
           provide: RoleService,
           useValue: mockRoleService,
+        },
+        {
+          provide: ConfigService,
+          useValue: mockConfigService,
         },
       ],
     }).compile();
