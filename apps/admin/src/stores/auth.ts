@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import type { User } from '@/types/auth';
+import { clearRefreshQueue } from '@/api';
 
 const ACCESS_TOKEN_KEY = 'admin-access-token';
 const REFRESH_TOKEN_KEY = 'admin-refresh-token';
@@ -50,6 +51,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   function logout() {
+    clearRefreshQueue();
     accessToken.value = null;
     refreshToken.value = null;
     user.value = null;
