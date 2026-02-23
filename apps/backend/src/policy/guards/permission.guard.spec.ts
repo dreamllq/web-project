@@ -1,4 +1,23 @@
 import { ForbiddenException } from '@nestjs/common';
+import { mock, describe, it, expect, beforeEach, afterEach } from 'bun:test';
+
+// Mock entities to avoid circular dependency issues
+mock.module('../../entities/user.entity', () => ({
+  User: class User {
+    id: string = '';
+    username: string = '';
+    email: string | null = null;
+    status: string = 'active';
+    isSuperuser: boolean = false;
+  },
+}));
+
+// Mock RoleService to avoid entity imports
+mock.module('../../rbac/role.service', () => ({
+  RoleService: class RoleService {
+    getUserPermissions = async () => [];
+  },
+}));
 
 import { PermissionGuard } from './permission.guard';
 import { PermissionMetadata } from '../decorators/require-permission.decorator';
@@ -25,7 +44,8 @@ describe('PermissionGuard', () => {
   let guard: PermissionGuard;
   let mockReflector: { getAllAndOverride: jest.Mock };
   let mockPolicyEvaluator: { canAccessData: jest.Mock };
-  let mockPermissionCache: { getUserPermissions: jest.Mock };
+  let mockPermissionCache: { getUserPermissions: jest.Mock; setUserPermissions: jest.Mock };
+  let mockRoleService: { getUserPermissions: jest.Mock };
 
   const mockUser: MockUser = {
     id: 'uuid-123',
@@ -65,13 +85,19 @@ describe('PermissionGuard', () => {
 
     mockPermissionCache = {
       getUserPermissions: jest.fn(),
+      setUserPermissions: jest.fn(),
+    };
+
+    mockRoleService = {
+      getUserPermissions: jest.fn(),
     };
 
     // Manually construct the guard with mock dependencies
     guard = new PermissionGuard(
       mockReflector as any,
       mockPolicyEvaluator as any,
-      mockPermissionCache as any
+      mockPermissionCache as any,
+      mockRoleService as any
     );
   });
 
@@ -79,6 +105,8 @@ describe('PermissionGuard', () => {
     mockReflector.getAllAndOverride.mockClear();
     mockPolicyEvaluator.canAccessData.mockClear();
     mockPermissionCache.getUserPermissions.mockClear();
+    mockPermissionCache.setUserPermissions.mockClear();
+    mockRoleService.getUserPermissions.mockClear();
   });
 
   describe('canActivate', () => {
@@ -133,14 +161,16 @@ describe('PermissionGuard', () => {
     });
 
     describe('RBAC check', () => {
-      it('should deny access when permission cache is empty (cache miss)', async () => {
+      it('should recover from cache miss by fetching permissions from RoleService', async () => {
         mockReflector.getAllAndOverride.mockReturnValue(readPermission);
         mockPermissionCache.getUserPermissions.mockResolvedValue(null);
-
+        mockRoleService.getUserPermissions.mockResolvedValue(['policy:read']);
         const context = mockExecutionContext(mockUser);
-        await expect(guard.canActivate(context as any)).rejects.toThrow(ForbiddenException);
+        const result = await guard.canActivate(context as any);
 
-        expect(mockPermissionCache.getUserPermissions).toHaveBeenCalledWith('uuid-123');
+        expect(result).toBe(true);
+        expect(mockRoleService.getUserPermissions).toHaveBeenCalledWith('uuid-123');
+        expect(mockPermissionCache.setUserPermissions).toHaveBeenCalledWith('uuid-123', ['policy:read']);
       });
 
       it('should allow access when user has exact RBAC permission', async () => {

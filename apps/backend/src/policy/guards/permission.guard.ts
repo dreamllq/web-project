@@ -4,10 +4,14 @@ import {
   ExecutionContext,
   ForbiddenException,
   Logger,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
+
 import { Reflector } from '@nestjs/core';
 import { PolicyEvaluatorService } from '../policy-evaluator.service';
 import { PermissionCacheService } from '../services/permission-cache.service';
+import { RoleService } from '../../rbac/role.service';
 import { PERMISSION_KEY, PermissionMetadata } from '../decorators/require-permission.decorator';
 import { User } from '../../entities/user.entity';
 
@@ -31,7 +35,9 @@ export class PermissionGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     private readonly policyEvaluator: PolicyEvaluatorService,
-    private readonly permissionCache: PermissionCacheService
+    private readonly permissionCache: PermissionCacheService,
+    @Inject(forwardRef(() => RoleService))
+    private readonly roleService: RoleService
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -66,21 +72,13 @@ export class PermissionGuard implements CanActivate {
     }
 
     // Step 2: RBAC check - get cached permissions
-    const userPermissions = await this.permissionCache.getUserPermissions(user.id);
-
+    let userPermissions = await this.permissionCache.getUserPermissions(user.id);
     if (!userPermissions) {
-      // Cache miss - this shouldn't happen normally as permissions should be cached on login
-      // But we can still check by returning false (permissions will be cached on next login)
-      this.logger.warn(`Permission cache miss for user ${user.username}. Denying access.`);
-      throw new ForbiddenException({
-        message: `You do not have permission to ${permission.action} on ${permission.resource}`,
-        details: {
-          resource: permission.resource,
-          action: permission.action,
-          reason: 'cache_miss',
-          suggestion: 'Please log out and log in again to refresh permissions',
-        },
-      });
+      // Cache miss - recover by fetching from database and caching
+      this.logger.debug(`Permission cache miss for user ${user.username}. Fetching from database...`);
+      userPermissions = await this.roleService.getUserPermissions(user.id);
+      await this.permissionCache.setUserPermissions(user.id, userPermissions);
+      this.logger.debug(`Permission cache recovered for user ${user.username}: ${userPermissions.length} permissions`);
     }
 
     // Check for RBAC permission
