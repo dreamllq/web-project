@@ -10,6 +10,7 @@ import {
   ValidateNested,
   IsArray,
   ValidateIf,
+  Allow,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { PolicyEffect } from '../../entities/policy.entity';
@@ -46,6 +47,7 @@ export class ConditionDto {
   })
   operator: 'eq' | 'ne' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'nin' | 'like' | 'isNull';
 
+  @Allow()
   value: string | number | boolean | null | string[];
 
   @IsOptional()
@@ -59,12 +61,14 @@ export class ConditionDto {
  * DTO for condition expression validation (AND only, max 3 conditions)
  */
 export class ConditionExpressionDto implements ConditionExpression {
+  @IsOptional()
   @ValidateIf((o: ConditionExpressionDto) => !o.condition)
   @IsArray({ message: 'Conditions must be an array' })
   @ValidateNested({ each: true })
   @Type(() => ConditionDto)
   and?: ConditionDto[];
 
+  @IsOptional()
   @ValidateIf((o: ConditionExpressionDto) => !o.and)
   @ValidateNested()
   @Type(() => ConditionDto)
