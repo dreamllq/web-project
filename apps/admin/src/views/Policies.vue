@@ -114,15 +114,18 @@ async function loadSubjectTypes() {
 }
 
 async function loadSubjectValues(type: string) {
-  if (type === 'all') {
-    subjectValues.value = [{ id: '*', label: '*' }];
-    policyForm.subject.value = ['*'];
-    return;
-  }
   loadingSubjectValues.value = true;
   try {
     const response = await getSubjectValues(type);
-    subjectValues.value = response.data.values;
+    // Add wildcard '*' option at the beginning for all types
+    subjectValues.value = [
+      { id: '*', label: '*' },
+      ...response.data.values,
+    ];
+    // Auto-select '*' for 'all' type
+    if (type === 'all') {
+      policyForm.subject.value = ['*'];
+    }
   } catch (error: unknown) {
     const apiError = extractApiError(error);
     ElMessage.error(apiError.displayMessage);
@@ -135,7 +138,8 @@ async function loadResources() {
   loadingResources.value = true;
   try {
     const response = await getResources();
-    resources.value = ['*', ...response.data.resources];
+    // Backend already includes '*' in the response
+    resources.value = response.data.resources;
   } catch (error: unknown) {
     const apiError = extractApiError(error);
     ElMessage.error(apiError.displayMessage);
@@ -148,7 +152,8 @@ async function loadActions() {
   loadingActions.value = true;
   try {
     const response = await getActions();
-    actions.value = ['*', ...response.data.actions];
+    // Backend already includes '*' in the response
+    actions.value = response.data.actions;
   } catch (error: unknown) {
     const apiError = extractApiError(error);
     ElMessage.error(apiError.displayMessage);
