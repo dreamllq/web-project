@@ -421,6 +421,27 @@ function formRules() {
 }
 
 // ============================================
+// JSON Examples for Help Panel
+// ============================================
+const jsonExamples: Record<string, string> = {
+  single:
+    '{\n  "condition": {\n    "field": "status",\n    "operator": "eq",\n    "value": "active"\n  }\n}',
+  and:
+    '{\n  "and": [\n    {\n      "field": "status",\n      "operator": "eq",\n      "value": "active"\n    },\n    {\n      "field": "roles",\n      "operator": "in",\n      "value": ["admin", "editor"]\n    }\n  ]\n}',
+  userAttr:
+    '{\n  "condition": {\n    "field": "id",\n    "operator": "eq",\n    "value": "id",\n    "valueType": "userAttr"\n  }\n}',
+};
+
+async function copyExample(key: string) {
+  try {
+    await navigator.clipboard.writeText(jsonExamples[key]);
+    ElMessage.success('复制成功');
+  } catch {
+    ElMessage.error('复制失败，请手动复制');
+  }
+}
+
+// ============================================
 // Lifecycle
 // ============================================
 onMounted(() => {
@@ -583,10 +604,13 @@ onMounted(() => {
     <el-dialog
       v-model="dialogVisible"
       :title="dialogTitle"
-      width="600px"
+      class="policy-dialog"
+      width="900px"
       :close-on-click-modal="false"
     >
-      <el-form
+      <div class="policy-dialog-content">
+        <div class="policy-form-container">
+          <el-form
         ref="policyFormRef"
         :model="policyForm"
         :rules="formRules()"
@@ -730,7 +754,125 @@ onMounted(() => {
             </el-form-item>
           </el-col>
         </el-row>
-      </el-form>
+        </el-form>
+        </div>
+        <div class="policy-help-container">
+          <div class="help-panel">
+            <h4 class="help-title">条件格式说明</h4>
+
+            <!-- 运算符说明 -->
+            <div class="help-section">
+              <h5>运算符</h5>
+              <table class="help-table">
+                <thead>
+                  <tr>
+                    <th>运算符</th>
+                    <th>说明</th>
+                    <th>示例</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><code>eq</code></td>
+                    <td>等于</td>
+                    <td>status == "active"</td>
+                  </tr>
+                  <tr>
+                    <td><code>ne</code></td>
+                    <td>不等于</td>
+                    <td>status != "deleted"</td>
+                  </tr>
+                  <tr>
+                    <td><code>gt</code></td>
+                    <td>大于</td>
+                    <td>age > 18</td>
+                  </tr>
+                  <tr>
+                    <td><code>gte</code></td>
+                    <td>大于等于</td>
+                    <td>score >= 60</td>
+                  </tr>
+                  <tr>
+                    <td><code>lt</code></td>
+                    <td>小于</td>
+                    <td>count &lt; 100</td>
+                  </tr>
+                  <tr>
+                    <td><code>lte</code></td>
+                    <td>小于等于</td>
+                    <td>price &lt;= 1000</td>
+                  </tr>
+                  <tr>
+                    <td><code>in</code></td>
+                    <td>在列表中</td>
+                    <td>role in ["admin", "editor"]</td>
+                  </tr>
+                  <tr>
+                    <td><code>nin</code></td>
+                    <td>不在列表中</td>
+                    <td>status not in ["banned"]</td>
+                  </tr>
+                  <tr>
+                    <td><code>like</code></td>
+                    <td>包含（字符串）</td>
+                    <td>email contains "@"</td>
+                  </tr>
+                  <tr>
+                    <td><code>isNull</code></td>
+                    <td>为空</td>
+                    <td>deletedAt is null</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- 值类型说明 -->
+            <div class="help-section">
+              <h5>值类型</h5>
+              <ul class="help-list">
+                <li><code>literal</code>（默认）: 直接值，如 "active", 100, true</li>
+                <li><code>userAttr</code>: 用户属性引用，如 "departmentId", "id"</li>
+                <li><code>env</code>: 环境变量引用</li>
+              </ul>
+            </div>
+
+            <!-- 条件表达式说明 -->
+            <div class="help-section">
+              <h5>条件表达式</h5>
+              <p class="help-text">支持单条件或 AND 多条件（最多 3 个）</p>
+            </div>
+
+            <!-- JSON 示例 -->
+            <div class="help-section">
+              <h5>示例</h5>
+
+              <div class="example-item">
+                <div class="example-header">
+                  <span>单条件</span>
+                  <el-button size="small" text @click="copyExample('single')">复制</el-button>
+                </div>
+                <pre class="example-code">{{ jsonExamples.single }}</pre>
+              </div>
+
+              <div class="example-item">
+                <div class="example-header">
+                  <span>多条件 AND</span>
+                  <el-button size="small" text @click="copyExample('and')">复制</el-button>
+                </div>
+                <pre class="example-code">{{ jsonExamples.and }}</pre>
+              </div>
+
+              <div class="example-item">
+                <div class="example-header">
+                  <span>用户属性引用</span>
+                  <el-button size="small" text @click="copyExample('userAttr')">复制</el-button>
+                </div>
+                <pre class="example-code">{{ jsonExamples.userAttr }}</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <template #footer>
         <el-button @click="dialogVisible = false">{{ t('common.cancel') }}</el-button>
@@ -921,5 +1063,144 @@ onMounted(() => {
 /* Empty State */
 :deep(.el-empty) {
   padding: 48px 0;
+}
+
+/* 弹窗双栏布局 */
+.policy-dialog-content {
+  display: flex;
+  gap: 20px;
+}
+
+.policy-form-container {
+  flex: 0 0 60%;
+  min-width: 0;
+}
+
+.policy-help-container {
+  flex: 0 0 40%;
+  min-width: 0;
+  padding-left: 16px;
+  border-left: 1px solid #ebeef5;
+}
+
+.help-placeholder {
+  color: #909399;
+  font-size: 14px;
+  text-align: center;
+  padding: 40px 0;
+}
+
+/* 帮助面板样式 */
+.help-panel {
+  height: 100%;
+  overflow-y: auto;
+}
+
+.help-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #303133;
+  margin: 0 0 16px 0;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #ebeef5;
+}
+
+.help-section {
+  margin-bottom: 20px;
+}
+
+.help-section h5 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #606266;
+  margin: 0 0 8px 0;
+}
+
+.help-text {
+  font-size: 13px;
+  color: #909399;
+  margin: 0;
+  line-height: 1.6;
+}
+
+.help-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.help-table th,
+.help-table td {
+  padding: 6px 8px;
+  border: 1px solid #ebeef5;
+  text-align: left;
+}
+
+.help-table th {
+  background-color: #f5f7fa;
+  font-weight: 600;
+}
+
+.help-table code {
+  background-color: #f5f7fa;
+  padding: 2px 4px;
+  border-radius: 3px;
+  font-family: monospace;
+  color: #409eff;
+}
+
+.help-list {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 13px;
+  color: #606266;
+  line-height: 1.8;
+}
+
+.help-list code {
+  background-color: #f5f7fa;
+  padding: 2px 4px;
+  border-radius: 3px;
+  font-family: monospace;
+  color: #409eff;
+}
+
+.example-item {
+  margin-bottom: 12px;
+}
+
+.example-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+  font-size: 12px;
+  color: #909399;
+}
+
+.example-code {
+  background-color: #f5f7fa;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-family: monospace;
+  color: #303133;
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+  line-height: 1.5;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+/* 响应式：小屏恢复单列 */
+@media (max-width: 1199px) {
+  .policy-dialog-content {
+    display: block;
+  }
+
+  .policy-help-container {
+    display: none;
+  }
 }
 </style>
