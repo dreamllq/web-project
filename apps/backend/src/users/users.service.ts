@@ -10,6 +10,8 @@ import { Repository, ILike } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { User, UserStatus } from '../entities/user.entity';
 import { SocialAccount, SocialProvider } from '../entities/social-account.entity';
+import { RegisterSubjectType } from '../policy/decorators/register-subject-type.decorator';
+import { SubjectValue } from '../policy/services/subject-type-registry.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 
 export interface CreateUserData {
@@ -51,6 +53,7 @@ export interface AdminUpdateUserData {
   status?: UserStatus;
 }
 
+@RegisterSubjectType({ type: 'user', label: '用户' })
 @Injectable()
 export class UsersService {
   constructor(
@@ -464,5 +467,13 @@ export class UsersService {
 
     await this.usersRepository.update(id, { status });
     return (await this.findById(id))!;
+  }
+
+  /**
+   * Get all user values for subject type selection
+   */
+  async getValues(): Promise<SubjectValue[]> {
+    const { data: users } = await this.findAll({ limit: 1000 });
+    return users.map((u) => ({ id: u.id, label: u.username }));
   }
 }

@@ -13,8 +13,11 @@ import { Permission } from '../entities/permission.entity';
 import { UserRole } from '../entities/user-role.entity';
 import { User } from '../entities/user.entity';
 import { PermissionCacheService } from '../policy/services/permission-cache.service';
+import { RegisterSubjectType } from '../policy/decorators/register-subject-type.decorator';
+import { SubjectValue } from '../policy/services/subject-type-registry.service';
 import { CreateRoleDto, UpdateRoleDto } from './dto';
 
+@RegisterSubjectType({ type: 'role', label: '角色' })
 @Injectable()
 export class RoleService {
   private readonly logger = new Logger(RoleService.name);
@@ -356,5 +359,13 @@ export class RoleService {
     for (const userRole of userRoles) {
       await this.permissionCacheService.invalidateUser(userRole.userId);
     }
+  }
+
+  /**
+   * Get all role values for subject type selection
+   */
+  async getValues(): Promise<SubjectValue[]> {
+    const roles = await this.getRoles();
+    return roles.map((r) => ({ id: r.id, label: r.name }));
   }
 }

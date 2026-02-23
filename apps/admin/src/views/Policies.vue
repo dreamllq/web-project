@@ -1,10 +1,25 @@
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted, watch } from 'vue';
 import { ElMessage } from 'element-plus';
 import { Plus, Edit, Delete, Search, Refresh, Key } from '@element-plus/icons-vue';
-import { getPolicies, createPolicy, updatePolicy, deletePolicy } from '@/api/policy';
+import {
+  getPolicies,
+  createPolicy,
+  updatePolicy,
+  deletePolicy,
+  getSubjectTypes,
+  getSubjectValues,
+  getResources,
+  getActions,
+} from '@/api/policy';
 import { extractApiError } from '@/api';
-import type { Policy, CreatePolicyDto, UpdatePolicyDto, QueryPolicyDto } from '@/types/permission';
+import type {
+  Policy,
+  CreatePolicyDto,
+  UpdatePolicyDto,
+  QueryPolicyDto,
+  PolicySubject,
+} from '@/types/permission';
 import { PolicyEffect } from '@/types/permission';
 import { useI18n } from 'vue-i18n';
 
@@ -29,11 +44,22 @@ const filterEnabled = ref<boolean | ''>('');
 const dialogVisible = ref(false);
 const dialogMode = ref<'create' | 'edit'>('create');
 const policyFormRef = ref();
-const policyForm = reactive<CreatePolicyDto & { id?: string }>({
+const policyForm = reactive<{
+  id?: string;
+  name: string;
+  description: string;
+  effect: PolicyEffect;
+  subject: PolicySubject;
+  resource: string;
+  action: string;
+  conditions: Record<string, unknown> | undefined;
+  priority: number;
+  enabled: boolean;
+}>({
   name: '',
   description: '',
   effect: PolicyEffect.ALLOW,
-  subject: '',
+  subject: { type: 'role', value: [] },
   resource: '',
   action: '',
   conditions: undefined,
@@ -43,6 +69,19 @@ const policyForm = reactive<CreatePolicyDto & { id?: string }>({
 const conditionsText = ref('');
 const conditionsError = ref('');
 const formLoading = ref(false);
+
+// Subject type and value selectors
+const subjectTypes = ref<Array<{ type: string; label: string }>>([]);
+const subjectValues = ref<Array<{ id: string; label: string }>>([]);
+const resources = ref<string[]>([]);
+const actions = ref<string[]>([]);
+const loadingSubjectTypes = ref(false);
+const loadingSubjectValues = ref(false);
+const loadingResources = ref(false);
+const loadingActions = ref(false);
+
+// Computed for subject value disabled state
+const isSubjectValueDisabled = computed(() => policyForm.subject.type === 'all');
 
 // ============================================
 // Computed
@@ -57,6 +96,75 @@ const currentPage = computed({
     pagination.offset = (val - 1) * pagination.limit;
   },
 });
+
+// ============================================
+// Subject/Resource/Action Loaders
+// ============================================
+async function loadSubjectTypes() {
+  loadingSubjectTypes.value = true;
+  try {
+    const response = await getSubjectTypes();
+    subjectTypes.value = response.data.types;
+  } catch (error: unknown) {
+    const apiError = extractApiError(error);
+    ElMessage.error(apiError.displayMessage);
+  } finally {
+    loadingSubjectTypes.value = false;
+  }
+}
+
+async function loadSubjectValues(type: string) {
+  if (type === 'all') {
+    subjectValues.value = [{ id: '*', label: '*' }];
+    policyForm.subject.value = ['*'];
+    return;
+  }
+  loadingSubjectValues.value = true;
+  try {
+    const response = await getSubjectValues(type);
+    subjectValues.value = response.data.values;
+  } catch (error: unknown) {
+    const apiError = extractApiError(error);
+    ElMessage.error(apiError.displayMessage);
+  } finally {
+    loadingSubjectValues.value = false;
+  }
+}
+
+async function loadResources() {
+  loadingResources.value = true;
+  try {
+    const response = await getResources();
+    resources.value = ['*', ...response.data.resources];
+  } catch (error: unknown) {
+    const apiError = extractApiError(error);
+    ElMessage.error(apiError.displayMessage);
+  } finally {
+    loadingResources.value = false;
+  }
+}
+
+async function loadActions() {
+  loadingActions.value = true;
+  try {
+    const response = await getActions();
+    actions.value = ['*', ...response.data.actions];
+  } catch (error: unknown) {
+    const apiError = extractApiError(error);
+    ElMessage.error(apiError.displayMessage);
+  } finally {
+    loadingActions.value = false;
+  }
+}
+
+// Watch subject type change to load corresponding values
+watch(
+  () => policyForm.subject.type,
+  (newType) => {
+    policyForm.subject.value = [];
+    loadSubjectValues(newType);
+  }
+);
 
 // ============================================
 // Policy CRUD Functions
@@ -109,13 +217,13 @@ function handleSizeChange(size: number) {
   fetchPolicies();
 }
 
-function openCreateDialog() {
+async function openCreateDialog() {
   dialogMode.value = 'create';
   policyForm.id = undefined;
   policyForm.name = '';
   policyForm.description = '';
   policyForm.effect = PolicyEffect.ALLOW;
-  policyForm.subject = '';
+  policyForm.subject = { type: 'role', value: [] };
   policyForm.resource = '';
   policyForm.action = '';
   policyForm.conditions = undefined;
@@ -123,16 +231,31 @@ function openCreateDialog() {
   policyForm.enabled = true;
   conditionsText.value = '';
   conditionsError.value = '';
+
+  // Load dropdown data
+  await Promise.all([loadSubjectTypes(), loadResources(), loadActions()]);
+  await loadSubjectValues('role');
+
   dialogVisible.value = true;
 }
 
-function openEditDialog(policy: Policy) {
+async function openEditDialog(policy: Policy) {
   dialogMode.value = 'edit';
   policyForm.id = policy.id;
   policyForm.name = policy.name;
   policyForm.description = policy.description || '';
   policyForm.effect = policy.effect;
-  policyForm.subject = policy.subject;
+
+  // Handle subject parsing - could be string or object
+  if (typeof policy.subject === 'string') {
+    policyForm.subject = { type: 'role', value: [policy.subject] };
+  } else {
+    policyForm.subject = {
+      type: policy.subject.type,
+      value: Array.isArray(policy.subject.value) ? policy.subject.value : [policy.subject.value],
+    };
+  }
+
   policyForm.resource = policy.resource;
   policyForm.action = policy.action;
   policyForm.conditions = policy.conditions || undefined;
@@ -140,6 +263,11 @@ function openEditDialog(policy: Policy) {
   policyForm.enabled = policy.enabled;
   conditionsText.value = policy.conditions ? JSON.stringify(policy.conditions, null, 2) : '';
   conditionsError.value = '';
+
+  // Load dropdown data
+  await Promise.all([loadSubjectTypes(), loadResources(), loadActions()]);
+  await loadSubjectValues(policyForm.subject.type);
+
   dialogVisible.value = true;
 }
 
@@ -178,6 +306,12 @@ async function handleSubmit() {
     return;
   }
 
+  // Build subject object
+  const subjectData: PolicySubject = {
+    type: policyForm.subject.type,
+    value: policyForm.subject.type === 'all' ? '*' : policyForm.subject.value,
+  };
+
   formLoading.value = true;
   try {
     if (dialogMode.value === 'create') {
@@ -185,7 +319,7 @@ async function handleSubmit() {
         name: policyForm.name,
         description: policyForm.description || undefined,
         effect: policyForm.effect,
-        subject: policyForm.subject,
+        subject: subjectData,
         resource: policyForm.resource,
         action: policyForm.action,
         conditions: policyForm.conditions,
@@ -199,7 +333,7 @@ async function handleSubmit() {
         name: policyForm.name,
         description: policyForm.description || null,
         effect: policyForm.effect,
-        subject: policyForm.subject,
+        subject: subjectData,
         resource: policyForm.resource,
         action: policyForm.action,
         conditions: policyForm.conditions || null,
@@ -261,9 +395,23 @@ function getEffectText(effect: PolicyEffect): string {
 function formRules() {
   return {
     name: [{ required: true, message: t('policies.nameRequired'), trigger: 'blur' }],
-    subject: [{ required: true, message: t('policies.subjectRequired'), trigger: 'blur' }],
-    resource: [{ required: true, message: t('policies.resourceRequired'), trigger: 'blur' }],
-    action: [{ required: true, message: t('policies.actionRequired'), trigger: 'blur' }],
+    'subject.type': [
+      { required: true, message: t('policies.subjectTypeRequired'), trigger: 'change' },
+    ],
+    'subject.value': [
+      {
+        validator: (_rule: unknown, value: string[], callback: (error?: Error) => void) => {
+          if (!value || value.length === 0) {
+            callback(new Error(t('policies.subjectValueRequired')));
+          } else {
+            callback();
+          }
+        },
+        trigger: 'change',
+      },
+    ],
+    resource: [{ required: true, message: t('policies.resourceRequired'), trigger: 'change' }],
+    action: [{ required: true, message: t('policies.actionRequired'), trigger: 'change' }],
   };
 }
 
@@ -338,7 +486,13 @@ onMounted(() => {
 
         <el-table-column prop="subject" :label="t('policies.subject')" min-width="120">
           <template #default="{ row }">
-            <el-tag type="info" size="small" effect="plain">{{ row.subject }}</el-tag>
+            <el-tag type="info" size="small" effect="plain">
+              {{
+                typeof row.subject === 'string'
+                  ? row.subject
+                  : `${row.subject.type}:${Array.isArray(row.subject.value) ? row.subject.value.join(',') : row.subject.value}`
+              }}
+            </el-tag>
           </template>
         </el-table-column>
 
@@ -447,7 +601,7 @@ onMounted(() => {
           </el-col>
           <el-col :span="12">
             <el-form-item :label="t('policies.effect')" prop="effect">
-              <el-select v-model="policyForm.effect" class="effect-select">
+              <el-select v-model="policyForm.effect" class="full-width">
                 <el-option :label="t('policies.effectAllow')" value="allow" />
                 <el-option :label="t('policies.effectDeny')" value="deny" />
               </el-select>
@@ -467,31 +621,71 @@ onMounted(() => {
         </el-form-item>
 
         <el-row :gutter="16">
-          <el-col :span="8">
-            <el-form-item :label="t('policies.subject')" prop="subject">
-              <el-input
-                v-model="policyForm.subject"
-                :placeholder="t('policies.subject')"
-                maxlength="100"
-              />
+          <el-col :span="12">
+            <el-form-item :label="t('policies.subjectType')" prop="subject.type">
+              <el-select
+                v-model="policyForm.subject.type"
+                :placeholder="t('policies.selectSubjectType')"
+                :loading="loadingSubjectTypes"
+                class="full-width"
+              >
+                <el-option
+                  v-for="item in subjectTypes"
+                  :key="item.type"
+                  :label="item.label"
+                  :value="item.type"
+                />
+              </el-select>
             </el-form-item>
           </el-col>
-          <el-col :span="8">
+          <el-col :span="12">
+            <el-form-item :label="t('policies.subjectValue')" prop="subject.value">
+              <el-select
+                v-model="policyForm.subject.value"
+                :placeholder="t('policies.selectSubjectValue')"
+                :loading="loadingSubjectValues"
+                :disabled="isSubjectValueDisabled"
+                :multiple="!isSubjectValueDisabled"
+                :collapse-tags="!isSubjectValueDisabled"
+                :collapse-tags-tooltip="!isSubjectValueDisabled"
+                class="full-width"
+              >
+                <el-option
+                  v-for="item in subjectValues"
+                  :key="item.id"
+                  :label="item.label"
+                  :value="item.id"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <el-row :gutter="16">
+          <el-col :span="12">
             <el-form-item :label="t('policies.resource')" prop="resource">
-              <el-input
+              <el-select
                 v-model="policyForm.resource"
-                :placeholder="t('policies.resource')"
-                maxlength="100"
-              />
+                :placeholder="t('policies.selectResource')"
+                :loading="loadingResources"
+                filterable
+                class="full-width"
+              >
+                <el-option v-for="item in resources" :key="item" :label="item" :value="item" />
+              </el-select>
             </el-form-item>
           </el-col>
-          <el-col :span="8">
+          <el-col :span="12">
             <el-form-item :label="t('policies.action')" prop="action">
-              <el-input
+              <el-select
                 v-model="policyForm.action"
-                :placeholder="t('policies.action')"
-                maxlength="50"
-              />
+                :placeholder="t('policies.selectAction')"
+                :loading="loadingActions"
+                filterable
+                class="full-width"
+              >
+                <el-option v-for="item in actions" :key="item" :label="item" :value="item" />
+              </el-select>
             </el-form-item>
           </el-col>
         </el-row>
@@ -517,7 +711,7 @@ onMounted(() => {
                 :min="0"
                 :max="9999"
                 controls-position="right"
-                class="priority-input"
+                class="full-width"
               />
             </el-form-item>
           </el-col>
@@ -705,11 +899,7 @@ onMounted(() => {
   padding-top: 16px;
 }
 
-.effect-select {
-  width: 100%;
-}
-
-.priority-input {
+.full-width {
   width: 100%;
 }
 

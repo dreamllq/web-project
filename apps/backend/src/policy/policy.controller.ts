@@ -10,9 +10,12 @@ import {
   UseGuards,
   Version,
 } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { PolicyService } from './policy.service';
 import { PolicyEvaluatorService } from './policy-evaluator.service';
+import { SubjectTypeRegistryService } from './services/subject-type-registry.service';
 import { CreatePolicyDto, UpdatePolicyDto, QueryPolicyDto } from './dto';
 import { RequirePermission } from './decorators/require-permission.decorator';
 import { PermissionGuard } from './guards/permission.guard';
@@ -20,6 +23,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Policy } from '../entities/policy.entity';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User } from '../entities/user.entity';
+import { Permission } from '../entities/permission.entity';
 
 @ApiTags('policies')
 @Controller('policies')
@@ -35,7 +39,10 @@ export class PolicyController {
    */
   constructor(
     private readonly policyService: PolicyService,
-    private readonly policyEvaluator: PolicyEvaluatorService
+    private readonly policyEvaluator: PolicyEvaluatorService,
+    private readonly subjectTypeRegistry: SubjectTypeRegistryService,
+    @InjectRepository(Permission)
+    private readonly permissionRepository: Repository<Permission>
   ) {}
 
   /**
@@ -154,5 +161,139 @@ export class PolicyController {
     @Body() requests: Array<{ resource: string; action: string }>
   ): Promise<Record<string, boolean>> {
     return this.policyEvaluator.evaluateBulk(user, requests);
+  }
+
+  // ==================== Policy Metadata Endpoints ====================
+
+  /**
+   * Get all registered subject types
+   * GET /api/v1/policies/subject-types
+   */
+  @Get('subject-types')
+  @Version('1')
+  @RequirePermission('policy', 'read')
+  @ApiOperation({ summary: 'Get all registered subject types for policy assignment' })
+  @ApiResponse({
+    status: 200,
+    description: 'List of subject types',
+    schema: {
+      type: 'object',
+      properties: {
+        types: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              type: { type: 'string', example: 'role' },
+              label: { type: 'string', example: '角色' },
+            },
+          },
+        },
+      },
+    },
+  })
+  async getSubjectTypes(): Promise<{ types: Array<{ type: string; label: string }> }> {
+    const types = this.subjectTypeRegistry.getTypes();
+    return { types };
+  }
+
+  /**
+   * Get available values for a specific subject type
+   * GET /api/v1/policies/subject-values/:type
+   */
+  @Get('subject-values/:type')
+  @Version('1')
+  @RequirePermission('policy', 'read')
+  @ApiOperation({ summary: 'Get available values for a specific subject type' })
+  @ApiResponse({
+    status: 200,
+    description: 'List of subject values',
+    schema: {
+      type: 'object',
+      properties: {
+        values: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'string', example: 'uuid-1' },
+              label: { type: 'string', example: 'Admin' },
+            },
+          },
+        },
+      },
+    },
+  })
+  async getSubjectValues(
+    @Param('type') type: string
+  ): Promise<{ values: Array<{ id: string; label: string }> }> {
+    const values = await this.subjectTypeRegistry.getValues(type);
+    return { values };
+  }
+
+  /**
+   * Get all available resources from permissions
+   * GET /api/v1/policies/resources
+   */
+  @Get('resources')
+  @Version('1')
+  @RequirePermission('policy', 'read')
+  @ApiOperation({ summary: 'Get all available resources for policy assignment' })
+  @ApiResponse({
+    status: 200,
+    description: 'List of resources',
+    schema: {
+      type: 'object',
+      properties: {
+        resources: {
+          type: 'array',
+          items: { type: 'string' },
+          example: ['*', 'user', 'role', 'policy', 'permission'],
+        },
+      },
+    },
+  })
+  async getResources(): Promise<{ resources: string[] }> {
+    const result = await this.permissionRepository
+      .createQueryBuilder('permission')
+      .select('DISTINCT permission.resource', 'resource')
+      .getRawMany();
+
+    const resources = result.map((r) => r.resource).sort();
+    // Add wildcard '*' option at the beginning
+    return { resources: ['*', ...resources] };
+  }
+
+  /**
+   * Get all available actions from permissions
+   * GET /api/v1/policies/actions
+   */
+  @Get('actions')
+  @Version('1')
+  @RequirePermission('policy', 'read')
+  @ApiOperation({ summary: 'Get all available actions for policy assignment' })
+  @ApiResponse({
+    status: 200,
+    description: 'List of actions',
+    schema: {
+      type: 'object',
+      properties: {
+        actions: {
+          type: 'array',
+          items: { type: 'string' },
+          example: ['*', 'create', 'read', 'update', 'delete'],
+        },
+      },
+    },
+  })
+  async getActions(): Promise<{ actions: string[] }> {
+    const result = await this.permissionRepository
+      .createQueryBuilder('permission')
+      .select('DISTINCT permission.action', 'action')
+      .getRawMany();
+
+    const actions = result.map((r) => r.action).sort();
+    // Add wildcard '*' option at the beginning
+    return { actions: ['*', ...actions] };
   }
 }

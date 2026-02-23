@@ -7,6 +7,23 @@ export enum PolicyEffect {
 }
 
 // ============================================
+// Subject Types
+// ============================================
+
+/**
+ * Subject type - matches backend subject types
+ */
+export type SubjectType = 'role' | 'user' | 'department' | 'all';
+
+/**
+ * Policy subject definition - matches backend JSONB format
+ */
+export interface PolicySubject {
+  type: SubjectType;
+  value: string | string[];
+}
+
+// ============================================
 // Entity Types
 // ============================================
 
@@ -42,7 +59,7 @@ export interface Policy {
   name: string;
   description: string | null;
   effect: PolicyEffect;
-  subject: string;
+  subject: PolicySubject;
   resource: string;
   action: string;
   conditions: Record<string, unknown> | null;
@@ -63,7 +80,7 @@ export interface CreatePolicyDto {
   name: string;
   description?: string;
   effect: PolicyEffect;
-  subject: string;
+  subject: PolicySubject;
   resource: string;
   action: string;
   conditions?: Record<string, unknown>;
@@ -78,7 +95,7 @@ export interface UpdatePolicyDto {
   name?: string;
   description?: string | null;
   effect?: PolicyEffect;
-  subject?: string;
+  subject?: PolicySubject;
   resource?: string;
   action?: string;
   conditions?: Record<string, unknown> | null;
@@ -195,4 +212,36 @@ export interface UserRoleResponse {
  */
 export interface UserPermissionsResponse {
   permissions: string[];
+}
+
+// ============================================
+// Policy Subject API Response Types
+// ============================================
+
+/**
+ * Subject types response - for subject type dropdown
+ */
+export interface SubjectTypeResponse {
+  types: Array<{ type: string; label: string }>;
+}
+
+/**
+ * Subject values response - for subject value dropdown (roles, users, etc.)
+ */
+export interface SubjectValueResponse {
+  values: Array<{ id: string; label: string }>;
+}
+
+/**
+ * Resources response - for resource dropdown
+ */
+export interface ResourcesResponse {
+  resources: string[];
+}
+
+/**
+ * Actions response - for action dropdown
+ */
+export interface ActionsResponse {
+  actions: string[];
 }

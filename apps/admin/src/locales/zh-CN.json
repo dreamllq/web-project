@@ -227,6 +227,12 @@
     "effectAllow": "允许",
     "effectDeny": "拒绝",
     "subject": "主体",
+    "subjectType": "主体类型",
+    "subjectValue": "主体值",
+    "selectSubjectType": "请选择主体类型",
+    "selectSubjectValue": "请选择主体值",
+    "selectResource": "请选择资源",
+    "selectAction": "请选择操作",
     "resource": "资源",
     "action": "操作",
     "conditions": "条件",
@@ -243,9 +249,10 @@
     "updateSuccess": "策略更新成功",
     "deleteSuccess": "策略删除成功",
     "nameRequired": "请输入策略名称",
-    "subjectRequired": "请输入主体",
-    "resourceRequired": "请输入资源",
-    "actionRequired": "请输入操作"
+    "subjectTypeRequired": "请选择主体类型",
+    "subjectValueRequired": "请选择主体值",
+    "resourceRequired": "请选择资源",
+    "actionRequired": "请选择操作"
   },
   "roles": {
     "title": "角色管理",

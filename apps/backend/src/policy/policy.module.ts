@@ -13,13 +13,16 @@ import { PermissionGuard } from './guards/permission.guard';
 import { RoleGuard } from './guards/role.guard';
 import { PermissionSyncService } from './services/permission-sync.service';
 import { PermissionCacheService } from './services/permission-cache.service';
+import { SubjectTypeRegistryService } from './services/subject-type-registry.service';
 import { CustomCacheModule } from '../custom-cache/custom-cache.module';
+import { UsersModule } from '../users/users.module';
 
 @Module({
   imports: [
     DiscoveryModule,
     TypeOrmModule.forFeature([Policy, PolicyAttribute, Attribute, Permission]),
     forwardRef(() => RbacModule),
+    forwardRef(() => UsersModule),
     CustomCacheModule,
   ],
   controllers: [PolicyController],
@@ -30,6 +33,7 @@ import { CustomCacheModule } from '../custom-cache/custom-cache.module';
     RoleGuard,
     PermissionSyncService,
     PermissionCacheService,
+    SubjectTypeRegistryService,
   ],
   exports: [
     PolicyService,
@@ -37,6 +41,7 @@ import { CustomCacheModule } from '../custom-cache/custom-cache.module';
     PermissionGuard,
     RoleGuard,
     PermissionCacheService,
+    SubjectTypeRegistryService,
     RbacModule, // Re-export RbacModule so consumers get RoleService
   ],
 })
