@@ -8,14 +8,13 @@ dotenv.config({ path: path.resolve(__dirname, '../../../../.env') });
 
 // Detect if using Neon (requires SSL)
 const isNeon = process.env.DATABASE_URL?.includes('neon.tech');
-console.log(111,process.env.DATABASE_URL);
 
 export const dataSourceOptions: DataSourceOptions = {
   type: 'postgres',
   url: process.env.DATABASE_URL || 'postgresql://postgres:postgres123@localhost:5432/app',
   entities: [path.resolve(__dirname, '../entities/*.entity.{ts,js}')],
   migrations: [path.resolve(__dirname, '../../migrations/*.{ts,js}')],
-  synchronize: false,
+  synchronize: true,
   logging: process.env.NODE_ENV === 'development',
   ssl: isNeon || process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
 };

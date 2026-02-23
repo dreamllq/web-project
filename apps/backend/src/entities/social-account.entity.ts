@@ -8,7 +8,7 @@ import {
   JoinColumn,
   Index,
 } from 'typeorm';
-import type { User } from './user.entity';
+import { User } from './user.entity';
 
 export enum SocialProvider {
   WECHAT = 'wechat',
@@ -43,8 +43,8 @@ export class SocialAccount {
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 
-  // Relations - use lazy import to avoid circular dependency
-  @ManyToOne(() => require('./user.entity').User, (user: User) => user.socialAccounts)
+  // Relations
+  @ManyToOne(() => User, (user) => user.socialAccounts)
   @JoinColumn({ name: 'user_id' })
   user: User;
 }

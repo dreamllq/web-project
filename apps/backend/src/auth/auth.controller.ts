@@ -411,4 +411,40 @@ export class AuthController {
       message: 'Phone number verified successfully',
     };
   }
+
+  // ==================== User Permissions Endpoint ====================
+
+  /**
+   * Get current user's permissions
+   * GET /api/v1/auth/me/permissions
+   * Requires authentication
+   */
+  @Version('1')
+  @Get('me/permissions')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get current user permissions' })
+  @ApiResponse({
+    status: 200,
+    description: 'Returns user permissions and superuser status',
+    schema: {
+      type: 'object',
+      properties: {
+        permissions: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'List of permission names',
+        },
+        isSuperuser: {
+          type: 'boolean',
+          description: 'Whether the user is a superuser',
+        },
+      },
+    },
+  })
+  async getUserPermissions(
+    @CurrentUser() user: User
+  ): Promise<{ permissions: string[]; isSuperuser: boolean }> {
+    return this.authService.getUserPermissions(user.id);
+  }
 }

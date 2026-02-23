@@ -12,63 +12,65 @@ import type {
 // Policy Management API Functions
 // ============================================
 
+const VERSION_PREFIX = '/v1';
+
 /**
  * Get paginated list of policies
- * GET /api/policies
+ * GET /api/v1/policies
  */
 export function getPolicies(params?: QueryPolicyDto): Promise<{ data: PolicyListResponse }> {
-  return api.get('/policies', { params });
+  return api.get(`${VERSION_PREFIX}/policies`, { params });
 }
 
 /**
  * Get a single policy by ID
- * GET /api/policies/:id
+ * GET /api/v1/policies/:id
  */
 export function getPolicy(id: string): Promise<{ data: Policy }> {
-  return api.get(`/policies/${id}`);
+  return api.get(`${VERSION_PREFIX}/policies/${id}`);
 }
 
 /**
  * Create a new policy
- * POST /api/policies
+ * POST /api/v1/policies
  */
 export function createPolicy(dto: CreatePolicyDto): Promise<{ data: Policy }> {
-  return api.post('/policies', dto);
+  return api.post(`${VERSION_PREFIX}/policies`, dto);
 }
 
 /**
  * Update a policy
- * PUT /api/policies/:id
+ * PUT /api/v1/policies/:id
  */
 export function updatePolicy(id: string, dto: UpdatePolicyDto): Promise<{ data: Policy }> {
-  return api.put(`/policies/${id}`, dto);
+  return api.put(`${VERSION_PREFIX}/policies/${id}`, dto);
 }
 
 /**
  * Delete a policy
- * DELETE /api/policies/:id
+ * DELETE /api/v1/policies/:id
  */
 export function deletePolicy(id: string): Promise<{ data: { message: string } }> {
-  return api.delete(`/policies/${id}`);
+  return api.delete(`${VERSION_PREFIX}/policies/${id}`);
 }
 
 /**
  * Check permission
- * GET /api/policies/check/permission
+ * GET /api/v1/policies/check/permission
  */
 export function checkPermission(
   resource: string,
   action: string
 ): Promise<{ data: CheckPermissionResponse }> {
-  return api.get('/policies/check/permission', { params: { resource, action } });
+  return api.get(`${VERSION_PREFIX}/policies/check/permission`, { params: { resource, action } });
 }
 
 /**
  * Bulk check permissions
- * POST /api/policies/check/bulk
+ * POST /api/v1/policies/check/bulk
  */
 export function checkBulkPermissions(
   requests: Array<{ resource: string; action: string }>
 ): Promise<{ data: Record<string, boolean> }> {
-  return api.post('/policies/check/bulk', requests);
+  return api.post(`${VERSION_PREFIX}/policies/check/bulk`, requests);
 }

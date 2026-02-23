@@ -24,6 +24,10 @@ describe('DeviceController', () => {
     lastLoginIp: '192.168.1.1',
     emailVerifiedAt: new Date(),
     phoneVerifiedAt: null,
+    mfaEnabled: false,
+    mfaSecret: null,
+    recoveryCodes: null,
+    isSuperuser: false,
     createdAt: new Date(),
     updatedAt: new Date(),
     deletedAt: null,
@@ -32,6 +36,7 @@ describe('DeviceController', () => {
     files: [],
     oauthTokens: [],
     verificationTokens: [],
+    roles: [],
   };
 
   const mockDeviceInfo: DeviceInfo = {

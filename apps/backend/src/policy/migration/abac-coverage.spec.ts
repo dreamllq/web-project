@@ -3,6 +3,7 @@ import { PolicyEvaluatorService, UserAttributes } from '../policy-evaluator.serv
 import { PolicyService } from '../policy.service';
 import { Policy, PolicyEffect } from '../../entities/policy.entity';
 import { UserStatus } from '../../entities/user.entity';
+import { PolicySubject } from '../types/policy.types';
 
 /**
  * ABAC Coverage Test Suite
@@ -55,6 +56,18 @@ describe('ABAC Migration - Coverage Tests', () => {
     roles,
   });
 
+  // Helper to convert string subjects (e.g., 'role:admin') to PolicySubject objects
+  const parseSubjectString = (subjectStr: string): PolicySubject => {
+    const colonIndex = subjectStr.indexOf(':');
+    if (colonIndex === -1) {
+      // No colon - treat as role name directly
+      return { type: 'role', value: [subjectStr] };
+    }
+    const type = subjectStr.slice(0, colonIndex) as PolicySubject['type'];
+    const value = subjectStr.slice(colonIndex + 1);
+    return { type, value: [value] };
+  };
+
   // Helper to create policy objects
   const createPolicy = (
     id: string,
@@ -72,7 +85,7 @@ describe('ABAC Migration - Coverage Tests', () => {
     name,
     description: `Policy for ${name}`,
     effect: options.effect ?? PolicyEffect.ALLOW,
-    subject,
+    subject: parseSubjectString(subject),
     resource,
     action,
     conditions: null,

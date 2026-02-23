@@ -1,10 +1,4 @@
-import {
-  IsOptional,
-  IsString,
-  IsBoolean,
-  IsNumber,
-  Min,
-} from 'class-validator';
+import { IsOptional, IsString, IsBoolean, IsNumber, IsEnum, Min } from 'class-validator';
 import { Transform } from 'class-transformer';
 
 export class QueryPolicyDto {
@@ -13,8 +7,10 @@ export class QueryPolicyDto {
   name?: string;
 
   @IsOptional()
-  @IsString()
-  subject?: string;
+  @IsEnum(['role', 'user', 'department', 'all'], {
+    message: 'Subject type must be one of: role, user, department, all',
+  })
+  subjectType?: 'role' | 'user' | 'department' | 'all';
 
   @IsOptional()
   @IsString()

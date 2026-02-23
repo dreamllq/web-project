@@ -63,6 +63,10 @@ describe('AuthController', () => {
     lastLoginIp: null,
     emailVerifiedAt: null,
     phoneVerifiedAt: null,
+    mfaEnabled: false,
+    mfaSecret: null,
+    recoveryCodes: null,
+    isSuperuser: false,
     createdAt: new Date(),
     updatedAt: new Date(),
     deletedAt: null,
@@ -71,6 +75,7 @@ describe('AuthController', () => {
     files: [],
     oauthTokens: [],
     verificationTokens: [],
+    roles: [],
   } as User;
 
   beforeEach(async () => {

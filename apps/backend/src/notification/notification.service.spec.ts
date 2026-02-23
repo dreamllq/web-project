@@ -20,6 +20,12 @@ describe('NotificationService', () => {
     locale: 'zh-CN',
     lastLoginAt: null,
     lastLoginIp: null,
+    emailVerifiedAt: null,
+    phoneVerifiedAt: null,
+    mfaEnabled: false,
+    mfaSecret: null,
+    recoveryCodes: null,
+    isSuperuser: false,
     createdAt: new Date(),
     updatedAt: new Date(),
     deletedAt: null,
@@ -27,6 +33,8 @@ describe('NotificationService', () => {
     notifications: [],
     files: [],
     oauthTokens: [],
+    verificationTokens: [],
+    roles: [],
   };
 
   const mockNotification: Notification = {

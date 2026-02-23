@@ -29,6 +29,7 @@ describe('UsersService', () => {
     mfaEnabled: false,
     mfaSecret: null,
     recoveryCodes: null,
+    isSuperuser: false,
     createdAt: new Date(),
     updatedAt: new Date(),
     deletedAt: null,

@@ -1,14 +1,15 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Like, FindOptionsWhere } from 'typeorm';
+import { Repository, Like } from 'typeorm';
 import { Policy } from '../entities/policy.entity';
 import { CreatePolicyDto, UpdatePolicyDto, QueryPolicyDto } from './dto';
+import type { PolicySubject } from './types/policy.types';
 
 @Injectable()
 export class PolicyService {
   constructor(
     @InjectRepository(Policy)
-    private readonly policyRepo: Repository<Policy>,
+    private readonly policyRepo: Repository<Policy>
   ) {}
 
   /**
@@ -19,7 +20,7 @@ export class PolicyService {
       name: dto.name,
       description: dto.description ?? null,
       effect: dto.effect,
-      subject: dto.subject,
+      subject: dto.subject as PolicySubject,
       resource: dto.resource,
       action: dto.action,
       conditions: dto.conditions ?? null,
@@ -38,30 +39,33 @@ export class PolicyService {
     const limit = query.limit ?? 20;
     const skip = (page - 1) * limit;
 
-    const where: FindOptionsWhere<Policy> = {};
+    const queryBuilder = this.policyRepo.createQueryBuilder('policy');
 
     if (query.name) {
-      where.name = Like(`%${query.name}%`);
+      queryBuilder.andWhere('policy.name LIKE :name', { name: `%${query.name}%` });
     }
-    if (query.subject) {
-      where.subject = Like(`%${query.subject}%`);
+    if (query.subjectType) {
+      queryBuilder.andWhere("policy.subject->>'type' = :subjectType", {
+        subjectType: query.subjectType,
+      });
     }
     if (query.resource) {
-      where.resource = Like(`%${query.resource}%`);
+      queryBuilder.andWhere('policy.resource LIKE :resource', { resource: `%${query.resource}%` });
     }
     if (query.action) {
-      where.action = Like(`%${query.action}%`);
+      queryBuilder.andWhere('policy.action LIKE :action', { action: `%${query.action}%` });
     }
     if (query.enabled !== undefined) {
-      where.enabled = query.enabled;
+      queryBuilder.andWhere('policy.enabled = :enabled', { enabled: query.enabled });
     }
 
-    const [data, total] = await this.policyRepo.findAndCount({
-      where,
-      order: { priority: 'DESC', createdAt: 'DESC' },
-      skip,
-      take: limit,
-    });
+    queryBuilder
+      .orderBy('policy.priority', 'DESC')
+      .addOrderBy('policy.createdAt', 'DESC')
+      .skip(skip)
+      .take(limit);
+
+    const [data, total] = await queryBuilder.getManyAndCount();
 
     return { data, total };
   }
@@ -83,8 +87,16 @@ export class PolicyService {
   async update(id: string, dto: UpdatePolicyDto): Promise<Policy> {
     const policy = await this.findOne(id);
 
-    // Update only provided fields using Object.assign
-    Object.assign(policy, dto);
+    // Update only provided fields
+    if (dto.name !== undefined) policy.name = dto.name;
+    if (dto.description !== undefined) policy.description = dto.description;
+    if (dto.effect !== undefined) policy.effect = dto.effect;
+    if (dto.subject !== undefined) policy.subject = dto.subject as PolicySubject;
+    if (dto.resource !== undefined) policy.resource = dto.resource;
+    if (dto.action !== undefined) policy.action = dto.action;
+    if (dto.conditions !== undefined) policy.conditions = dto.conditions ?? null;
+    if (dto.priority !== undefined) policy.priority = dto.priority;
+    if (dto.enabled !== undefined) policy.enabled = dto.enabled;
 
     return this.policyRepo.save(policy);
   }
@@ -108,13 +120,21 @@ export class PolicyService {
   }
 
   /**
-   * Find policies by subject pattern
+   * Find policies by subject type and value
    */
-  async findBySubject(subject: string): Promise<Policy[]> {
-    return this.policyRepo.find({
-      where: { subject: Like(`%${subject}%`), enabled: true },
-      order: { priority: 'DESC' },
-    });
+  async findBySubject(type: string, value?: string): Promise<Policy[]> {
+    const queryBuilder = this.policyRepo
+      .createQueryBuilder('policy')
+      .where('policy.enabled = :enabled', { enabled: true })
+      .andWhere("policy.subject->>'type' = :type", { type });
+
+    if (value) {
+      queryBuilder.andWhere('policy.subject @> :value', {
+        value: JSON.stringify({ value: [value] }),
+      });
+    }
+
+    return queryBuilder.orderBy('policy.priority', 'DESC').getMany();
   }
 
   /**

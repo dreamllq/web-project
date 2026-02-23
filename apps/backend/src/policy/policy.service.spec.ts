@@ -4,6 +4,7 @@ import { NotFoundException } from '@nestjs/common';
 import { PolicyService } from './policy.service';
 import { Policy, PolicyEffect } from '../entities/policy.entity';
 import { CreatePolicyDto, UpdatePolicyDto } from './dto';
+import { PolicySubject } from './types/policy.types';
 
 describe('PolicyService', () => {
   let service: PolicyService;
@@ -13,7 +14,7 @@ describe('PolicyService', () => {
     name: 'Test Policy',
     description: 'Test policy description',
     effect: PolicyEffect.ALLOW,
-    subject: 'role:admin',
+    subject: { type: 'role', value: ['admin'] } as PolicySubject,
     resource: 'user:*',
     action: '*',
     conditions: null,
@@ -56,7 +57,7 @@ describe('PolicyService', () => {
     const createDto: CreatePolicyDto = {
       name: 'New Policy',
       effect: PolicyEffect.ALLOW,
-      subject: 'role:user',
+      subject: { type: 'role', value: ['user'] },
       resource: 'file',
       action: 'read',
     };
@@ -87,10 +88,10 @@ describe('PolicyService', () => {
         name: 'Full Policy',
         description: 'Full description',
         effect: PolicyEffect.DENY,
-        subject: 'department:hr',
+        subject: { type: 'department', value: ['hr'] },
         resource: 'salary:*',
         action: 'read,write',
-        conditions: { time: { after: '09:00', before: '18:00' } },
+        conditions: { condition: { field: 'time', operator: 'gte', value: '09:00' } },
         priority: 50,
         enabled: false,
       };

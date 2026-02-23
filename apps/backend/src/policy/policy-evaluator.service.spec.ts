@@ -3,6 +3,7 @@ import { PolicyEvaluatorService, UserAttributes } from './policy-evaluator.servi
 import { PolicyService } from './policy.service';
 import { Policy, PolicyEffect } from '../entities/policy.entity';
 import { User, UserStatus } from '../entities/user.entity';
+import type { PolicySubject, ConditionExpression } from './types/policy.types';
 
 describe('PolicyEvaluatorService', () => {
   let service: PolicyEvaluatorService;
@@ -24,6 +25,7 @@ describe('PolicyEvaluatorService', () => {
     mfaEnabled: false,
     mfaSecret: null,
     recoveryCodes: null,
+    isSuperuser: false,
     createdAt: new Date(),
     updatedAt: new Date(),
     deletedAt: null,
@@ -41,7 +43,7 @@ describe('PolicyEvaluatorService', () => {
       name: 'Admin Full Access',
       description: 'Admins have full access',
       effect: PolicyEffect.ALLOW,
-      subject: 'role:admin',
+      subject: { type: 'role', value: 'admin' } as PolicySubject,
       resource: '*',
       action: '*',
       conditions: null,
@@ -56,7 +58,7 @@ describe('PolicyEvaluatorService', () => {
       name: 'User Read Access',
       description: 'Users can read resources',
       effect: PolicyEffect.ALLOW,
-      subject: 'role:user',
+      subject: { type: 'role', value: 'user' } as PolicySubject,
       resource: 'user:profile',
       action: 'read',
       conditions: null,
@@ -71,7 +73,7 @@ describe('PolicyEvaluatorService', () => {
       name: 'Default Allow - User Profile Read',
       description: 'Allows all authenticated users to read user profile (low priority fallback)',
       effect: PolicyEffect.ALLOW,
-      subject: '*',
+      subject: { type: 'all', value: '*' } as PolicySubject,
       resource: 'user:profile',
       action: 'read',
       conditions: null,
@@ -87,7 +89,7 @@ describe('PolicyEvaluatorService', () => {
       description:
         'Denies delete action for all users by default (allows role-based policies to override)',
       effect: PolicyEffect.DENY,
-      subject: '*',
+      subject: { type: 'all', value: '*' } as PolicySubject,
       resource: '*',
       action: 'delete',
       conditions: null,
@@ -192,8 +194,6 @@ describe('PolicyEvaluatorService', () => {
     });
 
     it('should evaluate User entity directly', async () => {
-      mockPolicyService.getEnabledPolicies.mockResolvedValue(mockPolicies);
-
       // Policy that matches user by username
       const policies: Policy[] = [
         {
@@ -201,7 +201,7 @@ describe('PolicyEvaluatorService', () => {
           name: 'User Specific Access',
           description: 'Specific user access',
           effect: PolicyEffect.ALLOW,
-          subject: `user:${mockUser.username}`,
+          subject: { type: 'user', value: mockUser.username } as PolicySubject,
           resource: 'profile',
           action: 'read',
           conditions: null,
@@ -271,7 +271,7 @@ describe('PolicyEvaluatorService', () => {
       mockPolicyService.getEnabledPolicies.mockResolvedValue(mockPolicies);
     });
 
-    it('should match wildcard subject', async () => {
+    it('should match wildcard subject (type: all)', async () => {
       const userWithUserRole: UserAttributes = {
         id: mockUser.id,
         username: mockUser.username,
@@ -303,7 +303,7 @@ describe('PolicyEvaluatorService', () => {
           name: 'User Access',
           description: '',
           effect: PolicyEffect.ALLOW,
-          subject: `user:${mockUser.id}`,
+          subject: { type: 'user', value: mockUser.id } as PolicySubject,
           resource: 'own-data',
           action: 'read',
           conditions: null,
@@ -320,6 +320,71 @@ describe('PolicyEvaluatorService', () => {
       const result = await service.evaluate(mockUser, 'own-data', 'read');
       expect(result).toBe(true);
     });
+
+    it('should match user with multiple roles when policy has array value', async () => {
+      const policies: Policy[] = [
+        {
+          id: 'policy-1',
+          name: 'Multi Role Access',
+          description: '',
+          effect: PolicyEffect.ALLOW,
+          subject: { type: 'role', value: ['admin', 'editor'] } as PolicySubject,
+          resource: 'content',
+          action: 'write',
+          conditions: null,
+          priority: 100,
+          enabled: true,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          policyAttributes: [],
+        },
+      ];
+
+      mockPolicyService.getEnabledPolicies.mockResolvedValue(policies);
+
+      const userWithEditorRole: UserAttributes = {
+        id: mockUser.id,
+        username: mockUser.username,
+        status: UserStatus.ACTIVE,
+        roles: ['editor'],
+      };
+
+      const result = await service.evaluate(userWithEditorRole, 'content', 'write');
+      expect(result).toBe(true);
+    });
+
+    it('should match department subject', async () => {
+      const policies: Policy[] = [
+        {
+          id: 'policy-1',
+          name: 'Department Access',
+          description: '',
+          effect: PolicyEffect.ALLOW,
+          subject: { type: 'department', value: 'engineering' } as PolicySubject,
+          resource: 'internal-docs',
+          action: 'read',
+          conditions: null,
+          priority: 100,
+          enabled: true,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          policyAttributes: [],
+        },
+      ];
+
+      mockPolicyService.getEnabledPolicies.mockResolvedValue(policies);
+
+      const userInEngineering: UserAttributes = {
+        id: mockUser.id,
+        username: mockUser.username,
+        status: UserStatus.ACTIVE,
+        roles: ['user'],
+        departments: ['engineering'],
+      };
+
+      const result = await service.evaluate(userInEngineering, 'internal-docs', 'read');
+      expect(result).toBe(true);
+    });
   });
 
   describe('resource matching', () => {
@@ -329,7 +394,7 @@ describe('PolicyEvaluatorService', () => {
         name: 'Test',
         description: '',
         effect: PolicyEffect.ALLOW,
-        subject: '*',
+        subject: { type: 'all', value: '*' } as PolicySubject,
         resource: 'user:*',
         action: 'read',
         conditions: null,
@@ -386,7 +451,7 @@ describe('PolicyEvaluatorService', () => {
         name: 'Test',
         description: '',
         effect: PolicyEffect.ALLOW,
-        subject: '*',
+        subject: { type: 'all', value: '*' } as PolicySubject,
         resource: '*',
         action: 'read,write',
         conditions: null,
@@ -432,6 +497,203 @@ describe('PolicyEvaluatorService', () => {
     it('should not match action not in list', async () => {
       const result = await service.evaluate(mockUser, 'resource', 'delete');
       expect(result).toBe(false);
+    });
+  });
+
+  describe('condition evaluation', () => {
+    it('should evaluate single condition (condition shorthand)', async () => {
+      const policies: Policy[] = [
+        {
+          id: 'policy-1',
+          name: 'Conditional Access',
+          description: '',
+          effect: PolicyEffect.ALLOW,
+          subject: { type: 'all', value: '*' } as PolicySubject,
+          resource: 'resource',
+          action: 'read',
+          conditions: {
+            condition: {
+              field: 'status',
+              operator: 'eq',
+              value: 'active',
+            },
+          } as ConditionExpression,
+          priority: 100,
+          enabled: true,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          policyAttributes: [],
+        },
+      ];
+
+      mockPolicyService.getEnabledPolicies.mockResolvedValue(policies);
+
+      const activeUser: UserAttributes = {
+        id: mockUser.id,
+        username: mockUser.username,
+        status: UserStatus.ACTIVE,
+        roles: [],
+      };
+
+      const result = await service.evaluate(activeUser, 'resource', 'read');
+      expect(result).toBe(true);
+    });
+
+    it('should evaluate AND conditions', async () => {
+      const policies: Policy[] = [
+        {
+          id: 'policy-1',
+          name: 'Conditional Access',
+          description: '',
+          effect: PolicyEffect.ALLOW,
+          subject: { type: 'all', value: '*' } as PolicySubject,
+          resource: 'resource',
+          action: 'read',
+          conditions: {
+            and: [
+              { field: 'status', operator: 'eq', value: 'active' },
+              { field: 'roles', operator: 'in', value: ['admin', 'user'] },
+            ],
+          } as ConditionExpression,
+          priority: 100,
+          enabled: true,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          policyAttributes: [],
+        },
+      ];
+
+      mockPolicyService.getEnabledPolicies.mockResolvedValue(policies);
+
+      const userWithRole: UserAttributes = {
+        id: mockUser.id,
+        username: mockUser.username,
+        status: UserStatus.ACTIVE,
+        roles: ['user'],
+      };
+
+      const result = await service.evaluate(userWithRole, 'resource', 'read');
+      expect(result).toBe(true);
+    });
+
+    it('should fail when condition not satisfied', async () => {
+      const policies: Policy[] = [
+        {
+          id: 'policy-1',
+          name: 'Conditional Access',
+          description: '',
+          effect: PolicyEffect.ALLOW,
+          subject: { type: 'all', value: '*' } as PolicySubject,
+          resource: 'resource',
+          action: 'read',
+          conditions: {
+            condition: {
+              field: 'roles',
+              operator: 'in',
+              value: ['admin'],
+            },
+          } as ConditionExpression,
+          priority: 100,
+          enabled: true,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          policyAttributes: [],
+        },
+      ];
+
+      mockPolicyService.getEnabledPolicies.mockResolvedValue(policies);
+
+      const userWithoutAdmin: UserAttributes = {
+        id: mockUser.id,
+        username: mockUser.username,
+        status: UserStatus.ACTIVE,
+        roles: ['user'],
+      };
+
+      const result = await service.evaluate(userWithoutAdmin, 'resource', 'read');
+      expect(result).toBe(false);
+    });
+
+    it('should evaluate userAttr valueType', async () => {
+      const policies: Policy[] = [
+        {
+          id: 'policy-1',
+          name: 'Own Resource Access',
+          description: '',
+          effect: PolicyEffect.ALLOW,
+          subject: { type: 'all', value: '*' } as PolicySubject,
+          resource: 'own-resource',
+          action: 'read',
+          conditions: {
+            condition: {
+              field: 'id',
+              operator: 'eq',
+              value: 'id', // Reference to user's id attribute
+              valueType: 'userAttr',
+            },
+          } as ConditionExpression,
+          priority: 100,
+          enabled: true,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          policyAttributes: [],
+        },
+      ];
+
+      mockPolicyService.getEnabledPolicies.mockResolvedValue(policies);
+
+      const user: UserAttributes = {
+        id: 'user-123',
+        username: mockUser.username,
+        status: UserStatus.ACTIVE,
+        roles: [],
+      };
+
+      // Condition checks if user.id === user.id (always true for same user)
+      const result = await service.evaluate(user, 'own-resource', 'read');
+      expect(result).toBe(true);
+    });
+
+    it('should evaluate env valueType with environment context', async () => {
+      const policies: Policy[] = [
+        {
+          id: 'policy-1',
+          name: 'Environment Based',
+          description: '',
+          effect: PolicyEffect.ALLOW,
+          subject: { type: 'all', value: '*' } as PolicySubject,
+          resource: 'resource',
+          action: 'read',
+          conditions: {
+            condition: {
+              field: 'env.ENVIRONMENT',
+              operator: 'eq',
+              value: 'production',
+              valueType: 'literal',
+            },
+          } as ConditionExpression,
+          priority: 100,
+          enabled: true,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          policyAttributes: [],
+        },
+      ];
+
+      mockPolicyService.getEnabledPolicies.mockResolvedValue(policies);
+
+      const user: UserAttributes = {
+        id: mockUser.id,
+        username: mockUser.username,
+        status: UserStatus.ACTIVE,
+        roles: [],
+      };
+
+      // Pass environment context
+      const result = await service.evaluateWithDetails(user, 'resource', 'read', {
+        ENVIRONMENT: 'production',
+      });
+      expect(result.allowed).toBe(true);
     });
   });
 
@@ -571,6 +833,122 @@ describe('PolicyEvaluatorService', () => {
       );
 
       expect(result.allowed).toBe(false);
+    });
+  });
+
+  describe('getDataFilterConditions', () => {
+    it('should return empty array for now (placeholder)', async () => {
+      mockPolicyService.getEnabledPolicies.mockResolvedValue(mockPolicies);
+
+      const userWithAdminRole: UserAttributes = {
+        id: mockUser.id,
+        username: mockUser.username,
+        status: UserStatus.ACTIVE,
+        roles: ['admin'],
+      };
+
+      const result = await service.getDataFilterConditions(userWithAdminRole, 'resource', 'read');
+
+      expect(Array.isArray(result)).toBe(true);
+      expect(result).toHaveLength(0);
+    });
+  });
+
+  describe('canAccessData', () => {
+    it('should return true when user has basic permission', async () => {
+      mockPolicyService.getEnabledPolicies.mockResolvedValue(mockPolicies);
+
+      const userWithAdminRole: UserAttributes = {
+        id: mockUser.id,
+        username: mockUser.username,
+        status: UserStatus.ACTIVE,
+        roles: ['admin'],
+      };
+
+      const result = await service.canAccessData(
+        userWithAdminRole,
+        'any-resource',
+        'read',
+        'data-id-123'
+      );
+
+      expect(result).toBe(true);
+    });
+
+    it('should return false when user does not have permission', async () => {
+      mockPolicyService.getEnabledPolicies.mockResolvedValue(mockPolicies);
+
+      const userWithUserRole: UserAttributes = {
+        id: mockUser.id,
+        username: mockUser.username,
+        status: UserStatus.ACTIVE,
+        roles: ['user'],
+      };
+
+      const result = await service.canAccessData(
+        userWithUserRole,
+        'any-resource',
+        'delete',
+        'data-id-123'
+      );
+
+      expect(result).toBe(false);
+    });
+  });
+
+  describe('validateInputData', () => {
+    it('should return valid when user has write permission', async () => {
+      mockPolicyService.getEnabledPolicies.mockResolvedValue(mockPolicies);
+
+      const userWithAdminRole: UserAttributes = {
+        id: mockUser.id,
+        username: mockUser.username,
+        status: UserStatus.ACTIVE,
+        roles: ['admin'],
+      };
+
+      const result = await service.validateInputData(userWithAdminRole, 'resource', {
+        name: 'test',
+      });
+
+      expect(result.valid).toBe(true);
+    });
+
+    it('should return invalid when user does not have write permission', async () => {
+      // Policy that only allows read, not write
+      const policies: Policy[] = [
+        {
+          id: 'policy-1',
+          name: 'Read Only',
+          description: '',
+          effect: PolicyEffect.ALLOW,
+          subject: { type: 'role', value: 'user' } as PolicySubject,
+          resource: 'resource',
+          action: 'read',
+          conditions: null,
+          priority: 100,
+          enabled: true,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          policyAttributes: [],
+        },
+      ];
+
+      mockPolicyService.getEnabledPolicies.mockResolvedValue(policies);
+
+      const userWithUserRole: UserAttributes = {
+        id: mockUser.id,
+        username: mockUser.username,
+        status: UserStatus.ACTIVE,
+        roles: ['user'],
+      };
+
+      const result = await service.validateInputData(userWithUserRole, 'resource', {
+        name: 'test',
+      });
+
+      expect(result.valid).toBe(false);
+      expect(result.reason).toContain('does not have write permission');
     });
   });
 });

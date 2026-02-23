@@ -5,11 +5,71 @@ import {
   IsEnum,
   IsBoolean,
   IsNumber,
-  IsObject,
   MaxLength,
   Min,
+  ValidateNested,
+  IsArray,
+  ValidateIf,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { PolicyEffect } from '../../entities/policy.entity';
+import type { SubjectDefinition, ConditionExpression } from '../types/policy.types';
+
+/**
+ * DTO for PolicySubject validation
+ */
+export class PolicySubjectDto implements SubjectDefinition {
+  @IsEnum(['role', 'user', 'department', 'all'], {
+    message: 'Subject type must be one of: role, user, department, all',
+  })
+  type: 'role' | 'user' | 'department' | 'all';
+
+  @ValidateIf((o: PolicySubjectDto) => o.type !== 'all')
+  @IsNotEmpty({ message: 'Subject value is required when type is not "all"' })
+  @IsArray({
+    message: 'Subject value must be an array of IDs when type is not "all"',
+  })
+  @IsString({ each: true, message: 'Each subject value must be a string' })
+  value: string | string[];
+}
+
+/**
+ * DTO for single condition validation
+ */
+export class ConditionDto {
+  @IsString()
+  @IsNotEmpty({ message: 'Condition field is required' })
+  field: string;
+
+  @IsEnum(['eq', 'ne', 'gt', 'gte', 'lt', 'lte', 'in', 'nin', 'like', 'isNull'], {
+    message: 'Invalid condition operator',
+  })
+  operator: 'eq' | 'ne' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'nin' | 'like' | 'isNull';
+
+  value: string | number | boolean | null | string[];
+
+  @IsOptional()
+  @IsEnum(['literal', 'userAttr', 'env'], {
+    message: 'Value type must be one of: literal, userAttr, env',
+  })
+  valueType?: 'literal' | 'userAttr' | 'env';
+}
+
+/**
+ * DTO for condition expression validation (AND only, max 3 conditions)
+ */
+export class ConditionExpressionDto implements ConditionExpression {
+  @ValidateIf((o: ConditionExpressionDto) => !o.condition)
+  @IsArray({ message: 'Conditions must be an array' })
+  @ValidateNested({ each: true })
+  @Type(() => ConditionDto)
+  and?: ConditionDto[];
+
+  @ValidateIf((o: ConditionExpressionDto) => !o.and)
+  @ValidateNested()
+  @Type(() => ConditionDto)
+  condition?: ConditionDto;
+}
 
 export class CreatePolicyDto {
   @IsString()
@@ -25,10 +85,9 @@ export class CreatePolicyDto {
   @IsEnum(PolicyEffect, { message: 'Effect must be either allow or deny' })
   effect: PolicyEffect;
 
-  @IsString()
-  @IsNotEmpty({ message: 'Subject is required' })
-  @MaxLength(255)
-  subject: string;
+  @ValidateNested()
+  @Type(() => PolicySubjectDto)
+  subject: PolicySubjectDto;
 
   @IsString()
   @IsNotEmpty({ message: 'Resource is required' })
@@ -41,8 +100,9 @@ export class CreatePolicyDto {
   action: string;
 
   @IsOptional()
-  @IsObject()
-  conditions?: Record<string, unknown>;
+  @ValidateNested()
+  @Type(() => ConditionExpressionDto)
+  conditions?: ConditionExpressionDto;
 
   @IsOptional()
   @IsNumber()

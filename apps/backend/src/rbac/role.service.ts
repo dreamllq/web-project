@@ -1,22 +1,19 @@
-import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  BadRequestException,
+  Inject,
+  forwardRef,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { Role } from '../entities/role.entity';
 import { Permission } from '../entities/permission.entity';
 import { UserRole } from '../entities/user-role.entity';
 import { User } from '../entities/user.entity';
-
-export interface CreateRoleDto {
-  name: string;
-  description?: string;
-  permissionIds?: string[];
-}
-
-export interface UpdateRoleDto {
-  name?: string;
-  description?: string;
-  permissionIds?: string[];
-}
+import { PermissionCacheService } from '../policy/services/permission-cache.service';
+import { CreateRoleDto, UpdateRoleDto } from './dto';
 
 @Injectable()
 export class RoleService {
@@ -30,7 +27,9 @@ export class RoleService {
     @InjectRepository(UserRole)
     private readonly userRoleRepo: Repository<UserRole>,
     @InjectRepository(User)
-    private readonly userRepo: Repository<User>
+    private readonly userRepo: Repository<User>,
+    @Inject(forwardRef(() => PermissionCacheService))
+    private readonly permissionCacheService: PermissionCacheService
   ) {}
 
   /**
@@ -90,6 +89,9 @@ export class RoleService {
         dto.permissionIds.length > 0
           ? await this.permissionRepo.findBy({ id: In(dto.permissionIds) })
           : [];
+
+      // Invalidate cache for all users with this role
+      await this.invalidateCacheForRole(id);
     }
 
     return this.roleRepo.save(role);
@@ -104,11 +106,21 @@ export class RoleService {
       throw new NotFoundException('Role not found');
     }
 
+    // Get all users with this role before deleting
+    const userRoles = await this.userRoleRepo.find({ where: { roleId: id } });
+    const userIds = userRoles.map((ur) => ur.userId);
+
     // Remove all user-role associations first
     await this.userRoleRepo.delete({ roleId: id });
 
     // Delete the role
     await this.roleRepo.remove(role);
+
+    // Invalidate cache for all users who had this role
+    for (const userId of userIds) {
+      await this.permissionCacheService.invalidateUser(userId);
+    }
+
     this.logger.log(`Role '${role.name}' deleted`);
   }
 
@@ -143,6 +155,99 @@ export class RoleService {
   }
 
   /**
+   * Get all permissions for a role
+   */
+  async getRolePermissions(roleId: string): Promise<Permission[]> {
+    const role = await this.roleRepo.findOne({
+      where: { id: roleId },
+      relations: ['permissions'],
+    });
+
+    if (!role) {
+      throw new NotFoundException('Role not found');
+    }
+
+    return role.permissions;
+  }
+
+  /**
+   * Add permissions to a role
+   */
+  async addPermissionsToRole(roleId: string, permissionIds: string[]): Promise<Permission[]> {
+    const role = await this.roleRepo.findOne({
+      where: { id: roleId },
+      relations: ['permissions'],
+    });
+
+    if (!role) {
+      throw new NotFoundException('Role not found');
+    }
+
+    // Get existing permission IDs
+    const existingIds = new Set(role.permissions.map((p) => p.id));
+
+    // Filter out already assigned permissions
+    const newIds = permissionIds.filter((id) => !existingIds.has(id));
+
+    if (newIds.length === 0) {
+      throw new BadRequestException('All permissions are already assigned to this role');
+    }
+
+    // Fetch new permissions
+    const newPermissions = await this.permissionRepo.findBy({
+      id: In(newIds),
+    });
+
+    if (newPermissions.length !== newIds.length) {
+      const foundIds = newPermissions.map((p) => p.id);
+      const missingIds = newIds.filter((id) => !foundIds.includes(id));
+      throw new NotFoundException(`Permissions not found: ${missingIds.join(', ')}`);
+    }
+
+    // Add new permissions to role
+    role.permissions = [...role.permissions, ...newPermissions];
+    await this.roleRepo.save(role);
+
+    // Invalidate cache for all users with this role
+    await this.invalidateCacheForRole(roleId);
+
+    this.logger.log(`Added ${newPermissions.length} permissions to role ${roleId}`);
+
+    return role.permissions;
+  }
+
+  /**
+   * Remove a permission from a role
+   */
+  async removePermissionFromRole(roleId: string, permissionId: string): Promise<Permission[]> {
+    const role = await this.roleRepo.findOne({
+      where: { id: roleId },
+      relations: ['permissions'],
+    });
+
+    if (!role) {
+      throw new NotFoundException('Role not found');
+    }
+
+    const permissionIndex = role.permissions.findIndex((p) => p.id === permissionId);
+
+    if (permissionIndex === -1) {
+      throw new NotFoundException('Permission not found in this role');
+    }
+
+    // Remove the permission
+    role.permissions.splice(permissionIndex, 1);
+    await this.roleRepo.save(role);
+
+    // Invalidate cache for all users with this role
+    await this.invalidateCacheForRole(roleId);
+
+    this.logger.log(`Removed permission ${permissionId} from role ${roleId}`);
+
+    return role.permissions;
+  }
+
+  /**
    * Assign role to user
    */
   async assignRole(userId: string, roleId: string): Promise<void> {
@@ -168,6 +273,9 @@ export class RoleService {
     const userRole = this.userRoleRepo.create({ userId, roleId });
     await this.userRoleRepo.save(userRole);
 
+    // Invalidate user's permission cache
+    await this.permissionCacheService.invalidateUser(userId);
+
     this.logger.log(`Role '${role.name}' assigned to user ${userId}`);
   }
 
@@ -180,6 +288,9 @@ export class RoleService {
     if (result.affected === 0) {
       throw new NotFoundException('Role assignment not found');
     }
+
+    // Invalidate user's permission cache
+    await this.permissionCacheService.invalidateUser(userId);
 
     this.logger.log(`Role ${roleId} removed from user ${userId}`);
   }
@@ -235,5 +346,15 @@ export class RoleService {
   async hasRole(userId: string, roleName: string): Promise<boolean> {
     const roles = await this.getUserRoles(userId);
     return roles.some((r) => r.name === roleName);
+  }
+
+  /**
+   * Invalidate permission cache for all users with a specific role
+   */
+  private async invalidateCacheForRole(roleId: string): Promise<void> {
+    const userRoles = await this.userRoleRepo.find({ where: { roleId } });
+    for (const userRole of userRoles) {
+      await this.permissionCacheService.invalidateUser(userRole.userId);
+    }
   }
 }

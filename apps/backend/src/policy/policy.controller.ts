@@ -1,4 +1,15 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+  Version,
+} from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { PolicyService } from './policy.service';
 import { PolicyEvaluatorService } from './policy-evaluator.service';
@@ -29,9 +40,10 @@ export class PolicyController {
 
   /**
    * Create a new policy
-   * POST /api/policies
+   * POST /api/v1/policies
    */
   @Post()
+  @Version('1')
   @RequirePermission('policy', 'create')
   @ApiOperation({ summary: 'Create a new ABAC policy' })
   @ApiResponse({ status: 201, description: 'Policy created successfully' })
@@ -44,9 +56,10 @@ export class PolicyController {
 
   /**
    * List all policies with optional filtering and pagination
-   * GET /api/policies
+   * GET /api/v1/policies
    */
   @Get()
+  @Version('1')
   @RequirePermission('policy', 'read')
   @ApiOperation({ summary: 'List all ABAC policies' })
   @ApiResponse({ status: 200, description: 'List of policies with pagination' })
@@ -64,9 +77,10 @@ export class PolicyController {
 
   /**
    * Get a specific policy by ID
-   * GET /api/policies/:id
+   * GET /api/v1/policies/:id
    */
   @Get(':id')
+  @Version('1')
   @RequirePermission('policy', 'read')
   @ApiOperation({ summary: 'Get ABAC policy by ID' })
   @ApiResponse({ status: 200, description: 'Policy details' })
@@ -76,9 +90,10 @@ export class PolicyController {
 
   /**
    * Update a policy
-   * PUT /api/policies/:id
+   * PUT /api/v1/policies/:id
    */
   @Put(':id')
+  @Version('1')
   @RequirePermission('policy', 'update')
   @ApiOperation({ summary: 'Update an ABAC policy' })
   @ApiResponse({ status: 200, description: 'Policy updated successfully' })
@@ -91,9 +106,10 @@ export class PolicyController {
 
   /**
    * Delete a policy
-   * DELETE /api/policies/:id
+   * DELETE /api/v1/policies/:id
    */
   @Delete(':id')
+  @Version('1')
   @RequirePermission('policy', 'delete')
   @ApiOperation({ summary: 'Delete an ABAC policy' })
   @ApiResponse({ status: 200, description: 'Policy deleted successfully' })
@@ -106,9 +122,10 @@ export class PolicyController {
 
   /**
    * Check current user's permission for a specific resource/action
-   * GET /api/policies/check?resource=policy&action=read
+   * GET /api/v1/policies/check/permission?resource=policy&action=read
    */
   @Get('check/permission')
+  @Version('1')
   @RequirePermission('policy', 'read')
   @ApiOperation({ summary: 'Check if current user has permission for a resource/action' })
   @ApiQuery({ name: 'resource', description: 'Resource name (e.g., user, policy)' })
@@ -125,9 +142,10 @@ export class PolicyController {
 
   /**
    * Bulk check permissions for multiple resources/actions
-   * POST /api/policies/check/bulk
+   * POST /api/v1/policies/check/bulk
    */
   @Post('check/bulk')
+  @Version('1')
   @RequirePermission('policy', 'read')
   @ApiOperation({ summary: 'Bulk check multiple permissions for current user' })
   @ApiResponse({ status: 200, description: 'Permission check results for all requests' })

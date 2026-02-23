@@ -1,4 +1,5 @@
 import { Entity, PrimaryColumn, Column, CreateDateColumn, ManyToOne, Index } from 'typeorm';
+import { User } from './user.entity';
 
 export enum VerificationTokenType {
   EMAIL_VERIFICATION = 'email_verification',
@@ -34,8 +35,7 @@ export class VerificationToken {
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 
-  // Relation to User - use lazy import to avoid circular dependency
-  // The () => User pattern tells TypeORM to resolve the relation lazily
-  @ManyToOne(() => require('./user.entity').User, (user: any) => user.verificationTokens)
-  user: any;
+  // Relation to User
+  @ManyToOne(() => User, (user) => user.verificationTokens)
+  user: User;
 }

@@ -14,8 +14,9 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionGuard } from '../policy/guards/permission.guard';
 import { RequirePermission } from '../policy/decorators/require-permission.decorator';
 import { RoleService } from './role.service';
-import { CreateRoleDto, UpdateRoleDto, AssignRoleDto } from './dto';
+import { CreateRoleDto, UpdateRoleDto, AssignRoleDto, AssignPermissionsDto } from './dto';
 import { Role } from '../entities/role.entity';
+import { Permission } from '../entities/permission.entity';
 
 @ApiTags('rbac')
 @Controller({ path: 'roles', version: '1' })
@@ -50,6 +51,19 @@ export class RbacController {
     return { data: roles };
   }
 
+  @Get(':id')
+  @RequirePermission('role', 'read')
+  @ApiOperation({ summary: 'Get a role by ID' })
+  @ApiParam({ name: 'id', description: 'Role ID' })
+  @ApiResponse({ status: 200, description: 'Role details' })
+  async getRoleById(@Param('id', ParseUUIDPipe) id: string): Promise<Role> {
+    const role = await this.roleService.getRoleById(id);
+    if (!role) {
+      throw new Error('Role not found');
+    }
+    return role;
+  }
+
   @Patch(':id')
   @RequirePermission('role', 'update')
   @ApiOperation({ summary: 'Update a role' })
@@ -70,6 +84,47 @@ export class RbacController {
   async deleteRole(@Param('id', ParseUUIDPipe) id: string): Promise<{ success: boolean }> {
     await this.roleService.deleteRole(id);
     return { success: true };
+  }
+
+  // ========== Role-Permission Assignment ==========
+
+  @Get(':id/permissions')
+  @RequirePermission('role', 'read')
+  @ApiOperation({ summary: 'Get all permissions for a role' })
+  @ApiParam({ name: 'id', description: 'Role ID' })
+  @ApiResponse({ status: 200, description: 'List of permissions for the role' })
+  async getRolePermissions(
+    @Param('id', ParseUUIDPipe) id: string
+  ): Promise<{ roleId: string; permissions: Permission[] }> {
+    const permissions = await this.roleService.getRolePermissions(id);
+    return { roleId: id, permissions };
+  }
+
+  @Post(':id/permissions')
+  @RequirePermission('role', 'update')
+  @ApiOperation({ summary: 'Add permissions to a role' })
+  @ApiParam({ name: 'id', description: 'Role ID' })
+  @ApiResponse({ status: 201, description: 'Permissions added successfully' })
+  async addPermissionsToRole(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: AssignPermissionsDto
+  ): Promise<{ roleId: string; permissions: Permission[] }> {
+    const permissions = await this.roleService.addPermissionsToRole(id, dto.permissionIds);
+    return { roleId: id, permissions };
+  }
+
+  @Delete(':id/permissions/:permissionId')
+  @RequirePermission('role', 'update')
+  @ApiOperation({ summary: 'Remove a permission from a role' })
+  @ApiParam({ name: 'id', description: 'Role ID' })
+  @ApiParam({ name: 'permissionId', description: 'Permission ID' })
+  @ApiResponse({ status: 200, description: 'Permission removed successfully' })
+  async removePermissionFromRole(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('permissionId', ParseUUIDPipe) permissionId: string
+  ): Promise<{ roleId: string; permissions: Permission[] }> {
+    const permissions = await this.roleService.removePermissionFromRole(id, permissionId);
+    return { roleId: id, permissions };
   }
 
   // ========== User Role Assignment ==========

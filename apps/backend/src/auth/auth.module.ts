@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
@@ -7,6 +7,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { CustomCacheModule } from '../custom-cache/custom-cache.module';
 import { MailModule } from '../mail/mail.module';
 import { SmsModule } from '../sms/sms.module';
+import { PolicyModule } from '../policy/policy.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { UsersModule } from '../users/users.module';
@@ -61,6 +62,7 @@ import { RecoveryCodeService } from './services/recovery-code.service';
     HttpModule,
     MailModule,
     SmsModule,
+    forwardRef(() => PolicyModule),
   ],
   controllers: [AuthController],
   providers: [

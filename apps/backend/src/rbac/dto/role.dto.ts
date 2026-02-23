@@ -2,38 +2,47 @@ import { IsString, IsOptional, IsArray, IsNotEmpty, MaxLength } from 'class-vali
 
 export class CreateRoleDto {
   @IsString()
-  @IsNotEmpty()
-  @MaxLength(50)
+  @IsNotEmpty({ message: 'Role name is required' })
+  @MaxLength(50, { message: 'Role name must not exceed 50 characters' })
   name: string;
 
-  @IsString()
   @IsOptional()
+  @IsString()
+  @MaxLength(500, { message: 'Description must not exceed 500 characters' })
   description?: string;
 
-  @IsArray()
-  @IsString({ each: true })
   @IsOptional()
-  permissions?: string[];
+  @IsArray({ message: 'Permission IDs must be an array' })
+  @IsString({ each: true, message: 'Each permission ID must be a string' })
+  permissionIds?: string[];
 }
 
 export class UpdateRoleDto {
-  @IsString()
   @IsOptional()
-  @MaxLength(50)
+  @IsString()
+  @MaxLength(50, { message: 'Role name must not exceed 50 characters' })
   name?: string;
 
-  @IsString()
   @IsOptional()
+  @IsString()
+  @MaxLength(500, { message: 'Description must not exceed 500 characters' })
   description?: string;
 
-  @IsArray()
-  @IsString({ each: true })
   @IsOptional()
-  permissions?: string[];
+  @IsArray({ message: 'Permission IDs must be an array' })
+  @IsString({ each: true, message: 'Each permission ID must be a string' })
+  permissionIds?: string[];
 }
 
 export class AssignRoleDto {
   @IsString()
-  @IsNotEmpty()
+  @IsNotEmpty({ message: 'Role ID is required' })
   roleId: string;
+}
+
+export class AssignPermissionsDto {
+  @IsArray({ message: 'Permission IDs must be an array' })
+  @IsString({ each: true, message: 'Each permission ID must be a string' })
+  @IsNotEmpty({ message: 'At least one permission ID is required' })
+  permissionIds: string[];
 }

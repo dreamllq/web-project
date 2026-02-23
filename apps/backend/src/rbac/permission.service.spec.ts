@@ -4,8 +4,7 @@ import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { PermissionService } from './permission.service';
 import { Permission } from '../entities/permission.entity';
-import { PolicyPermission } from '../entities/policy-permission.entity';
-import { CreatePermissionDto, UpdatePermissionDto } from './dto/permission.dto';
+import { CreatePermissionDto } from './dto/permission.dto';
 
 describe('PermissionService', () => {
   let service: PermissionService;
@@ -18,17 +17,6 @@ describe('PermissionService', () => {
     description: 'Create new users',
   };
 
-  const mockPolicyPermission = {
-    id: 'uuid-pp-1',
-    permissionId: 'uuid-permission-123',
-    policyId: 'uuid-policy-1',
-    createdAt: new Date(),
-    policy: {
-      id: 'uuid-policy-1',
-      name: 'Admin Policy',
-    },
-  };
-
   // Mock repositories
   const mockPermissionRepo = {
     create: jest.fn(),
@@ -36,23 +24,6 @@ describe('PermissionService', () => {
     find: jest.fn(),
     findOne: jest.fn(),
     remove: jest.fn(),
-  };
-
-  const mockPolicyPermissionRepo = {
-    create: jest.fn(),
-    save: jest.fn(),
-    find: jest.fn(),
-    findOne: jest.fn(),
-    remove: jest.fn(),
-    delete: jest.fn(),
-    createQueryBuilder: jest.fn(),
-  };
-
-  // Mock query builder for policy permissions
-  const mockQueryBuilder = {
-    leftJoinAndSelect: jest.fn().mockReturnThis(),
-    where: jest.fn().mockReturnThis(),
-    getMany: jest.fn(),
   };
 
   // Mock DataSource and QueryRunner
@@ -77,19 +48,12 @@ describe('PermissionService', () => {
     // Reset all mocks
     jest.clearAllMocks();
 
-    // Setup mock query builder
-    mockPolicyPermissionRepo.createQueryBuilder.mockReturnValue(mockQueryBuilder);
-
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         PermissionService,
         {
           provide: getRepositoryToken(Permission),
           useValue: mockPermissionRepo,
-        },
-        {
-          provide: getRepositoryToken(PolicyPermission),
-          useValue: mockPolicyPermissionRepo,
         },
         {
           provide: DataSource,
@@ -111,30 +75,17 @@ describe('PermissionService', () => {
       resource: 'custom',
       action: 'view',
       description: 'View custom resource',
-      policyIds: ['uuid-policy-1', 'uuid-policy-2'],
     };
 
     it('should create a new permission successfully', async () => {
-      // Setup mocks
       mockPermissionRepo.findOne.mockResolvedValueOnce(null); // No existing permission
-      mockQueryRunner.manager.create.mockReturnValue(mockPermission);
-      mockQueryRunner.manager.save.mockResolvedValue(mockPermission);
-      mockQueryRunner.manager.getRepository.mockReturnValue({
-        create: jest.fn().mockReturnValue(mockPolicyPermission),
-        save: jest.fn().mockResolvedValue(mockPolicyPermission),
-      });
-
-      // Mock getPermissionById call after creation
-      mockPermissionRepo.findOne.mockResolvedValueOnce(mockPermission);
-      mockPolicyPermissionRepo.createQueryBuilder.mockReturnValue(mockQueryBuilder);
-      mockQueryBuilder.getMany.mockResolvedValue([mockPolicyPermission]);
+      mockPermissionRepo.create.mockReturnValue(mockPermission);
+      mockPermissionRepo.save.mockResolvedValue(mockPermission);
 
       const result = await service.createPermission(createDto);
 
       expect(result).toBeDefined();
-      expect(mockQueryRunner.startTransaction).toHaveBeenCalled();
-      expect(mockQueryRunner.commitTransaction).toHaveBeenCalled();
-      expect(mockQueryRunner.manager.create).toHaveBeenCalledWith(Permission, {
+      expect(mockPermissionRepo.create).toHaveBeenCalledWith({
         name: createDto.name,
         resource: createDto.resource,
         action: createDto.action,
@@ -150,104 +101,41 @@ describe('PermissionService', () => {
         "Permission 'custom:view' already exists"
       );
     });
-
-    it('should create permission without policy associations', async () => {
-      const dtoWithoutPolicies: CreatePermissionDto = {
-        name: 'custom:delete',
-        resource: 'custom',
-        action: 'delete',
-      };
-
-      mockPermissionRepo.findOne.mockResolvedValueOnce(null);
-      mockQueryRunner.manager.create.mockReturnValue({
-        ...mockPermission,
-        name: 'custom:delete',
-      });
-      mockQueryRunner.manager.save.mockResolvedValue({
-        ...mockPermission,
-        name: 'custom:delete',
-      });
-
-      // Mock getPermissionById
-      mockPermissionRepo.findOne.mockResolvedValueOnce({
-        ...mockPermission,
-        name: 'custom:delete',
-      });
-      mockQueryBuilder.getMany.mockResolvedValue([]);
-
-      const result = await service.createPermission(dtoWithoutPolicies);
-
-      expect(result).toBeDefined();
-      expect(mockQueryRunner.commitTransaction).toHaveBeenCalled();
-    });
-
-    it('should rollback transaction on error', async () => {
-      mockPermissionRepo.findOne.mockResolvedValueOnce(null);
-      mockQueryRunner.manager.create.mockReturnValue(mockPermission);
-      mockQueryRunner.manager.save.mockRejectedValue(new Error('Database error'));
-
-      await expect(service.createPermission(createDto)).rejects.toThrow('Database error');
-      expect(mockQueryRunner.rollbackTransaction).toHaveBeenCalled();
-      expect(mockQueryRunner.release).toHaveBeenCalled();
-    });
   });
 
   describe('getPermissions', () => {
-    it('should return all permissions with their associated policies', async () => {
+    it('should return all permissions', async () => {
       const permissions = [
         mockPermission,
         { ...mockPermission, id: 'uuid-456', name: 'user:read' },
       ];
       mockPermissionRepo.find.mockResolvedValue(permissions);
 
-      const policyPermissions = [
-        { ...mockPolicyPermission, permissionId: 'uuid-permission-123' },
-        {
-          ...mockPolicyPermission,
-          id: 'uuid-pp-2',
-          permissionId: 'uuid-permission-123',
-          policyId: 'uuid-policy-2',
-          policy: { id: 'uuid-policy-2', name: 'User Policy' },
-        },
-      ];
-      mockPolicyPermissionRepo.createQueryBuilder.mockReturnValue(mockQueryBuilder);
-      mockQueryBuilder.getMany.mockResolvedValue(policyPermissions);
-
       const result = await service.getPermissions();
 
       expect(result).toHaveLength(2);
-      expect(result[0].policies).toBeDefined();
       expect(mockPermissionRepo.find).toHaveBeenCalledWith({
         order: { resource: 'ASC', action: 'ASC' },
       });
     });
 
-    it('should return empty policies array for permissions without associations', async () => {
-      mockPermissionRepo.find.mockResolvedValue([mockPermission]);
-      mockQueryBuilder.getMany.mockResolvedValue([]);
+    it('should return empty array if no permissions', async () => {
+      mockPermissionRepo.find.mockResolvedValue([]);
 
       const result = await service.getPermissions();
 
-      expect(result).toHaveLength(1);
-      expect(result[0].policies).toEqual([]);
+      expect(result).toEqual([]);
     });
   });
 
   describe('getPermissionById', () => {
-    it('should return permission with policies by ID', async () => {
+    it('should return permission by ID', async () => {
       mockPermissionRepo.findOne.mockResolvedValue(mockPermission);
-      mockPolicyPermissionRepo.createQueryBuilder.mockReturnValue(mockQueryBuilder);
-      mockQueryBuilder.getMany.mockResolvedValue([mockPolicyPermission]);
 
       const result = await service.getPermissionById('uuid-permission-123');
 
       expect(result).toBeDefined();
       expect(result?.id).toBe('uuid-permission-123');
-      expect(result?.policies).toHaveLength(1);
-      expect(result?.policies?.[0]).toEqual({
-        id: 'uuid-policy-1',
-        name: 'Admin Policy',
-      });
     });
 
     it('should return null if permission not found', async () => {
@@ -256,16 +144,6 @@ describe('PermissionService', () => {
       const result = await service.getPermissionById('non-existent');
 
       expect(result).toBeNull();
-    });
-
-    it('should return permission with empty policies array when no associations', async () => {
-      mockPermissionRepo.findOne.mockResolvedValue(mockPermission);
-      mockQueryBuilder.getMany.mockResolvedValue([]);
-
-      const result = await service.getPermissionById('uuid-permission-123');
-
-      expect(result).toBeDefined();
-      expect(result?.policies).toEqual([]);
     });
   });
 
@@ -292,118 +170,6 @@ describe('PermissionService', () => {
       const result = await service.getPermissionsByResource('nonexistent');
 
       expect(result).toEqual([]);
-    });
-  });
-
-  describe('updatePermission', () => {
-    const updateDto: UpdatePermissionDto = {
-      name: 'user:create:all',
-      description: 'Updated description',
-    };
-
-    it('should update permission fields successfully', async () => {
-      // First findOne: get the permission
-      mockPermissionRepo.findOne.mockResolvedValueOnce(mockPermission);
-      // Second findOne: check for duplicate name (should return null since name is different)
-      mockPermissionRepo.findOne.mockResolvedValueOnce(null);
-      mockQueryRunner.manager.save.mockResolvedValue({
-        ...mockPermission,
-        ...updateDto,
-      });
-
-      // Mock getPermissionById
-      mockPermissionRepo.findOne.mockResolvedValueOnce({
-        ...mockPermission,
-        ...updateDto,
-      });
-      mockQueryBuilder.getMany.mockResolvedValue([]);
-
-      const result = await service.updatePermission('uuid-permission-123', updateDto);
-
-      expect(result).toBeDefined();
-      expect(mockQueryRunner.startTransaction).toHaveBeenCalled();
-      expect(mockQueryRunner.commitTransaction).toHaveBeenCalled();
-    });
-
-    it('should throw NotFoundException if permission not found', async () => {
-      mockPermissionRepo.findOne.mockResolvedValue(null);
-
-      await expect(service.updatePermission('non-existent', updateDto)).rejects.toThrow(
-        NotFoundException
-      );
-    });
-
-    it('should throw BadRequestException for duplicate name on update', async () => {
-      // First findOne: get the permission
-      mockPermissionRepo.findOne.mockResolvedValueOnce(mockPermission);
-      // Second findOne: check for duplicate name - should find an existing permission
-      mockPermissionRepo.findOne.mockResolvedValueOnce({
-        ...mockPermission,
-        id: 'different-uuid',
-        name: 'duplicate-name',
-      });
-
-      // Using a different name than the current permission name to trigger duplicate check
-      const dtoWithDuplicateName: UpdatePermissionDto = { name: 'duplicate-name' };
-
-      await expect(
-        service.updatePermission('uuid-permission-123', dtoWithDuplicateName)
-      ).rejects.toThrow(BadRequestException);
-    });
-
-    it('should update policy associations when policyIds provided', async () => {
-      const updateWithPolicies: UpdatePermissionDto = {
-        policyIds: ['uuid-policy-1', 'uuid-policy-2'],
-      };
-
-      mockPermissionRepo.findOne.mockResolvedValueOnce(mockPermission);
-      mockQueryRunner.manager.save.mockResolvedValue(mockPermission);
-
-      const mockPolicyPermRepo = {
-        delete: jest.fn().mockResolvedValue({ affected: 1 }),
-        create: jest.fn().mockReturnValue(mockPolicyPermission),
-        save: jest.fn().mockResolvedValue(mockPolicyPermission),
-      };
-      mockQueryRunner.manager.getRepository.mockReturnValue(mockPolicyPermRepo);
-
-      // Mock getPermissionById
-      mockPermissionRepo.findOne.mockResolvedValueOnce(mockPermission);
-      mockQueryBuilder.getMany.mockResolvedValue([]);
-
-      await service.updatePermission('uuid-permission-123', updateWithPolicies);
-
-      expect(mockPolicyPermRepo.delete).toHaveBeenCalledWith({
-        permissionId: 'uuid-permission-123',
-      });
-    });
-
-    it('should not update policy associations when policyIds not provided', async () => {
-      // First findOne: get the permission
-      mockPermissionRepo.findOne.mockResolvedValueOnce(mockPermission);
-      // Second findOne: check for duplicate name (should return null)
-      mockPermissionRepo.findOne.mockResolvedValueOnce(null);
-      mockQueryRunner.manager.save.mockResolvedValue(mockPermission);
-
-      // Mock getPermissionById
-      mockPermissionRepo.findOne.mockResolvedValueOnce(mockPermission);
-      mockQueryBuilder.getMany.mockResolvedValue([]);
-
-      await service.updatePermission('uuid-permission-123', updateDto);
-
-      expect(mockQueryRunner.manager.getRepository).not.toHaveBeenCalled();
-    });
-
-    it('should rollback transaction on error during update', async () => {
-      // First findOne: get the permission
-      mockPermissionRepo.findOne.mockResolvedValueOnce(mockPermission);
-      // Second findOne: check for duplicate name (should return null)
-      mockPermissionRepo.findOne.mockResolvedValueOnce(null);
-      mockQueryRunner.manager.save.mockRejectedValue(new Error('Update failed'));
-
-      await expect(service.updatePermission('uuid-permission-123', updateDto)).rejects.toThrow(
-        'Update failed'
-      );
-      expect(mockQueryRunner.rollbackTransaction).toHaveBeenCalled();
     });
   });
 

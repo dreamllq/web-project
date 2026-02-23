@@ -7,7 +7,8 @@ import {
   Index,
   OneToMany,
 } from 'typeorm';
-import type { PolicyAttribute } from './policy-attribute.entity';
+import { PolicyAttribute } from './policy-attribute.entity';
+import type { PolicySubject, ConditionExpression } from '../policy/types/policy.types';
 
 export enum PolicyEffect {
   ALLOW = 'allow',
@@ -34,8 +35,8 @@ export class Policy {
   effect: PolicyEffect;
 
   @Index()
-  @Column({ type: 'varchar', length: 255 })
-  subject: string;
+  @Column({ type: 'jsonb' })
+  subject: PolicySubject;
 
   @Index()
   @Column({ type: 'varchar', length: 255 })
@@ -46,7 +47,7 @@ export class Policy {
   action: string;
 
   @Column({ type: 'jsonb', nullable: true })
-  conditions: Record<string, unknown> | null;
+  conditions: ConditionExpression | null;
 
   @Column({ type: 'int', default: 0 })
   priority: number;
@@ -61,10 +62,6 @@ export class Policy {
   updatedAt: Date;
 
   // Relations
-  // Use lazy import to avoid circular dependency
-  @OneToMany(
-    () => require('./policy-attribute.entity').PolicyAttribute,
-    (policyAttribute: PolicyAttribute) => policyAttribute.policy
-  )
+  @OneToMany(() => PolicyAttribute, (policyAttribute) => policyAttribute.policy)
   policyAttributes: PolicyAttribute[];
 }

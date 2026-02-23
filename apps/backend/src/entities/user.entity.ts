@@ -15,7 +15,7 @@ import { Notification } from './notification.entity';
 import { File } from './file.entity';
 import { OAuthToken } from './oauth-token.entity';
 import { VerificationToken } from './verification-token.entity';
-import type { Role } from './role.entity';
+import { Role } from './role.entity';
 
 export enum UserStatus {
   ACTIVE = 'active',
@@ -81,6 +81,9 @@ export class User {
   @Column({ name: 'recovery_codes', type: 'simple-array', nullable: true })
   recoveryCodes: string[] | null;
 
+  @Column({ name: 'is_superuser', type: 'boolean', default: false })
+  isSuperuser: boolean;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 
@@ -106,8 +109,8 @@ export class User {
   @OneToMany(() => VerificationToken, (verificationToken) => verificationToken.user)
   verificationTokens: VerificationToken[];
 
-  // RBAC relation - use lazy import to avoid circular dependency
-  @ManyToMany(() => require('./role.entity').Role, { cascade: true })
+  // RBAC relation
+  @ManyToMany(() => Role, { cascade: true })
   @JoinTable({
     name: 'user_roles',
     joinColumn: { name: 'user_id', referencedColumnName: 'id' },

@@ -1,4 +1,11 @@
-import { Injectable, UnauthorizedException, BadRequestException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  BadRequestException,
+  Logger,
+  Inject,
+  forwardRef,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { CustomCacheService } from '../custom-cache/custom-cache.service';
@@ -15,6 +22,8 @@ import { MailService } from '../mail/mail.service';
 import { LoginHistoryService, LoginInfo } from '../users/services/login-history.service';
 import { UserDeviceService, RegisterDeviceInput } from '../users/services/user-device.service';
 import { LoginMethod } from '../entities/login-history.entity';
+import { PermissionCacheService } from '../policy/services/permission-cache.service';
+import { RoleService } from '../rbac/role.service';
 
 export interface RegisterResponse {
   id: string;
@@ -71,7 +80,11 @@ export class AuthService {
     private readonly verificationTokenService: VerificationTokenService,
     private readonly mailService: MailService,
     private readonly loginHistoryService: LoginHistoryService,
-    private readonly userDeviceService: UserDeviceService
+    private readonly userDeviceService: UserDeviceService,
+    @Inject(forwardRef(() => PermissionCacheService))
+    private readonly permissionCacheService: PermissionCacheService,
+    @Inject(forwardRef(() => RoleService))
+    private readonly roleService: RoleService
   ) {}
 
   async hashPassword(password: string): Promise<string> {
@@ -651,5 +664,38 @@ export class AuthService {
       success: true,
       message: 'Password reset successfully',
     };
+  }
+
+  /**
+   * Get user permissions with caching
+   * Returns the user's permissions and superuser status
+   * @param userId The user ID
+   */
+  async getUserPermissions(
+    userId: string
+  ): Promise<{ permissions: string[]; isSuperuser: boolean }> {
+    // Try to get from cache first
+    let permissions = await this.permissionCacheService.getUserPermissions(userId);
+
+    if (!permissions) {
+      // Cache miss - fetch from database and cache
+      const user = await this.usersService.findById(userId);
+      if (!user) {
+        throw new UnauthorizedException('User not found');
+      }
+
+      permissions = await this.roleService.getUserPermissions(userId);
+      await this.permissionCacheService.setUserPermissions(userId, permissions);
+
+      return { permissions, isSuperuser: user.isSuperuser };
+    }
+
+    // Cache hit - still need to get superuser status from user
+    const user = await this.usersService.findById(userId);
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    return { permissions, isSuperuser: user.isSuperuser };
   }
 }

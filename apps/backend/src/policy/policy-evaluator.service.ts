@@ -1,7 +1,14 @@
 import { Injectable, Logger } from '@nestjs/common';
+import type { WhereExpression } from 'typeorm';
 import { Policy, PolicyEffect } from '../entities/policy.entity';
 import { User, UserStatus } from '../entities/user.entity';
 import { PolicyService } from './policy.service';
+import type {
+  PolicySubject,
+  ConditionExpression,
+  Condition,
+  ConditionOperator,
+} from './types/policy.types';
 
 /**
  * User attributes interface for ABAC evaluation
@@ -35,6 +42,14 @@ export interface EvaluationResult {
   allowed: boolean;
   matchedPolicy?: Policy;
   reason: string;
+}
+
+/**
+ * Data access validation result
+ */
+export interface DataAccessValidationResult {
+  valid: boolean;
+  reason?: string;
 }
 
 /**
@@ -74,7 +89,8 @@ export class PolicyEvaluatorService {
   async evaluateWithDetails(
     user: User | UserAttributes,
     resource: string,
-    action: string
+    action: string,
+    environment?: Record<string, unknown>
   ): Promise<EvaluationResult> {
     const startTime = Date.now();
 
@@ -110,7 +126,10 @@ export class PolicyEvaluatorService {
 
       if (subjectMatch && resourceMatch && actionMatch) {
         // Check conditions if present
-        if (policy.conditions && !this.evaluateConditions(policy.conditions, userAttrs)) {
+        if (
+          policy.conditions &&
+          !this.evaluateConditions(policy.conditions, userAttrs, environment)
+        ) {
           this.logger.debug({
             message: 'Policy matched but conditions not satisfied',
             policyName: policy.name,
@@ -171,10 +190,127 @@ export class PolicyEvaluatorService {
   }
 
   /**
+   * Generate TypeORM WHERE conditions for data filtering
+   * Used for read operations to filter data based on ABAC policies
+   *
+   * @param user - The user requesting access
+   * @param resource - The resource type being accessed
+   * @param action - The action being performed
+   * @returns Array of TypeORM WhereExpression for data filtering
+   */
+  async getDataFilterConditions(
+    user: User | UserAttributes,
+    resource: string,
+    action: string
+  ): Promise<WhereExpression[]> {
+    const userAttrs = this.extractUserAttributes(user);
+
+    // Get policies that match this user, resource, and action
+    const policies = await this.getPolicies();
+    const matchingPolicies = policies.filter((policy) => {
+      const subjectMatch = this.matchSubject(policy.subject, userAttrs);
+      const resourceMatch = this.matchResource(policy.resource, resource);
+      const actionMatch = this.matchAction(policy.action, action);
+      return subjectMatch && resourceMatch && actionMatch && policy.effect === PolicyEffect.ALLOW;
+    });
+
+    // For now, return empty array - full implementation would convert
+    // policy conditions to TypeORM where expressions
+    // This will be enhanced in future iterations to support data-level ABAC
+    this.logger.debug({
+      message: 'Data filter conditions generated',
+      userId: userAttrs.id,
+      resource,
+      action,
+      matchingPoliciesCount: matchingPolicies.length,
+    });
+
+    return [];
+  }
+
+  /**
+   * Check if user can access a specific data record
+   * Used for write operations to verify data-level permissions
+   *
+   * @param user - The user requesting access
+   * @param resource - The resource type being accessed
+   * @param action - The action being performed
+   * @param dataId - The ID of the specific data record
+   * @returns true if the user can access the data, false otherwise
+   */
+  async canAccessData(
+    user: User | UserAttributes,
+    resource: string,
+    action: string,
+    dataId: string
+  ): Promise<boolean> {
+    const userAttrs = this.extractUserAttributes(user);
+
+    // First check basic permission
+    const hasPermission = await this.evaluate(user, resource, action);
+    if (!hasPermission) {
+      return false;
+    }
+
+    // For now, if basic permission passes, allow access
+    // Full implementation would check data-level conditions
+    // This will be enhanced in future iterations
+    this.logger.debug({
+      message: 'Data access check completed',
+      userId: userAttrs.id,
+      resource,
+      action,
+      dataId,
+      result: true,
+    });
+
+    return true;
+  }
+
+  /**
+   * Validate input data against ABAC policies
+   * Used to ensure input data complies with policies
+   *
+   * @param user - The user submitting the data
+   * @param resource - The resource type being modified
+   * @param inputData - The input data to validate
+   * @returns Validation result with valid flag and optional reason
+   */
+  async validateInputData(
+    user: User | UserAttributes,
+    resource: string,
+    inputData: Record<string, unknown>
+  ): Promise<DataAccessValidationResult> {
+    const userAttrs = this.extractUserAttributes(user);
+
+    // Basic validation - check if user has write permission on resource
+    const hasWritePermission = await this.evaluate(user, resource, 'write');
+    if (!hasWritePermission) {
+      return {
+        valid: false,
+        reason: `User ${userAttrs.username} does not have write permission on ${resource}`,
+      };
+    }
+
+    // For now, return valid if basic permission passes
+    // Full implementation would validate against field-level policies
+    // This will be enhanced in future iterations
+    this.logger.debug({
+      message: 'Input data validation completed',
+      userId: userAttrs.id,
+      resource,
+      inputKeys: Object.keys(inputData),
+      result: true,
+    });
+
+    return { valid: true };
+  }
+
+  /**
    * Build a human-readable match reason string
    */
   private buildMatchReason(
-    subjectPattern: string,
+    subject: PolicySubject,
     resourcePattern: string,
     actionPattern: string,
     _userAttrs: UserAttributes
@@ -182,12 +318,9 @@ export class PolicyEvaluatorService {
     const parts: string[] = [];
 
     // Subject match reason
-    if (subjectPattern === '*') {
-      parts.push('subject:*');
-    } else {
-      const [type, value] = subjectPattern.split(':');
-      parts.push(`subject:${type}:${value}`);
-    }
+    parts.push(
+      `subject:${subject.type}:${Array.isArray(subject.value) ? subject.value.join(',') : subject.value}`
+    );
 
     // Resource match reason
     parts.push(`resource:${resourcePattern}`);
@@ -225,44 +358,36 @@ export class PolicyEvaluatorService {
   }
 
   /**
-   * Match subject pattern against user attributes
+   * Match subject definition against user attributes
    *
-   * Supported patterns:
-   * - "user:{userId}" - Match specific user ID
-   * - "role:{roleName}" - Match user with specific role
-   * - "department:{deptName}" - Match user in specific department
-   * - "status:{status}" - Match user with specific status
-   * - "*" - Match all users
+   * Supports:
+   * - type: 'all' - Match all users
+   * - type: 'user' - Match specific user ID(s) or username(s)
+   * - type: 'role' - Match user with specific role(s)
+   * - type: 'department' - Match user in specific department(s)
    */
-  private matchSubject(subject: string, userAttrs: UserAttributes): boolean {
-    // Wildcard matches all
-    if (subject === '*') {
-      return true;
-    }
+  private matchSubject(subject: PolicySubject, userAttrs: UserAttributes): boolean {
+    switch (subject.type) {
+      case 'all':
+        return true;
 
-    const [type, value] = subject.split(':');
+      case 'user': {
+        const values = Array.isArray(subject.value) ? subject.value : [subject.value];
+        return values.some((v) => userAttrs.id === v || userAttrs.username === v);
+      }
 
-    switch (type) {
-      case 'user':
-        return userAttrs.id === value || userAttrs.username === value;
+      case 'role': {
+        const roleValues = Array.isArray(subject.value) ? subject.value : [subject.value];
+        return roleValues.some((v) => userAttrs.roles?.includes(v) ?? false);
+      }
 
-      case 'role':
-        return userAttrs.roles?.includes(value) ?? false;
-
-      case 'department':
-        return userAttrs.departments?.includes(value) ?? false;
-
-      case 'status':
-        return userAttrs.status === value;
-
-      case 'email':
-        return (
-          userAttrs.email === value || (userAttrs.email?.endsWith(value.replace('*', '')) ?? false)
-        );
+      case 'department': {
+        const deptValues = Array.isArray(subject.value) ? subject.value : [subject.value];
+        return deptValues.some((v) => userAttrs.departments?.includes(v) ?? false);
+      }
 
       default:
-        // Try exact match
-        return subject === userAttrs.id || subject === userAttrs.username;
+        return false;
     }
   }
 
@@ -335,35 +460,157 @@ export class PolicyEvaluatorService {
   }
 
   /**
-   * Evaluate policy conditions against user attributes
+   * Evaluate policy conditions against user attributes and environment
    *
-   * Supported conditions:
-   * - { "time": { "after": "09:00", "before": "18:00" } } - Time-based conditions
-   * - { "ip": { "in": ["192.168.1.0/24"] } } - IP-based conditions
-   * - { "custom": { "key": "value" } } - Custom attribute matching
+   * ConditionExpression supports:
+   * - and: Array of conditions (max 3, all must be true)
+   * - condition: Single condition shorthand
    */
-
   private evaluateConditions(
-    conditions: Record<string, unknown>,
-    _userAttrs: UserAttributes
+    conditions: ConditionExpression,
+    userAttrs: UserAttributes,
+    environment?: Record<string, unknown>
   ): boolean {
-    // Time-based conditions
-    if (conditions.time) {
-      const timeConditions = conditions.time as Record<string, string>;
-      const now = new Date();
-      const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+    // Handle single condition shorthand
+    const conditionList = conditions.and ?? (conditions.condition ? [conditions.condition] : []);
 
-      if (timeConditions.after && currentTime < timeConditions.after) {
-        return false;
-      }
-      if (timeConditions.before && currentTime > timeConditions.before) {
+    // Max 3 conditions (AND logic)
+    for (const condition of conditionList.slice(0, 3)) {
+      if (!this.evaluateCondition(condition, userAttrs, environment)) {
         return false;
       }
     }
-
-    // Add more condition types as needed
-
     return true;
+  }
+
+  /**
+   * Evaluate a single condition
+   */
+  private evaluateCondition(
+    condition: Condition,
+    userAttrs: UserAttributes,
+    environment?: Record<string, unknown>
+  ): boolean {
+    const resolvedValue = this.resolveValue(
+      condition.value,
+      condition.valueType ?? 'literal',
+      userAttrs,
+      environment
+    );
+    const fieldValue = this.getFieldValue(condition.field, userAttrs, environment);
+
+    return this.applyOperator(fieldValue, condition.operator, resolvedValue);
+  }
+
+  /**
+   * Apply comparison operator
+   */
+  private applyOperator(
+    fieldValue: unknown,
+    operator: ConditionOperator,
+    resolvedValue: unknown
+  ): boolean {
+    switch (operator) {
+      case 'eq':
+        return fieldValue === resolvedValue;
+
+      case 'ne':
+        return fieldValue !== resolvedValue;
+
+      case 'gt':
+        return typeof fieldValue === 'number' && typeof resolvedValue === 'number'
+          ? fieldValue > resolvedValue
+          : false;
+
+      case 'gte':
+        return typeof fieldValue === 'number' && typeof resolvedValue === 'number'
+          ? fieldValue >= resolvedValue
+          : false;
+
+      case 'lt':
+        return typeof fieldValue === 'number' && typeof resolvedValue === 'number'
+          ? fieldValue < resolvedValue
+          : false;
+
+      case 'lte':
+        return typeof fieldValue === 'number' && typeof resolvedValue === 'number'
+          ? fieldValue <= resolvedValue
+          : false;
+
+      case 'in':
+        return Array.isArray(resolvedValue) && resolvedValue.includes(fieldValue as string);
+
+      case 'nin':
+        return Array.isArray(resolvedValue) && !resolvedValue.includes(fieldValue as string);
+
+      case 'like':
+        return (
+          typeof fieldValue === 'string' &&
+          typeof resolvedValue === 'string' &&
+          fieldValue.includes(resolvedValue)
+        );
+
+      case 'isNull':
+        return fieldValue === null || fieldValue === undefined;
+
+      default:
+        return false;
+    }
+  }
+
+  /**
+   * Resolve a condition value based on its valueType
+   *
+   * - literal: Use the value directly
+   * - userAttr: Look up user attribute
+   * - env: Look up environment variable
+   */
+  private resolveValue(
+    value: string | number | boolean | null | string[],
+    valueType: 'literal' | 'userAttr' | 'env',
+    userAttrs: UserAttributes,
+    environment?: Record<string, unknown>
+  ): unknown {
+    switch (valueType) {
+      case 'userAttr':
+        return this.getFieldValue(String(value), userAttrs);
+
+      case 'env':
+        return environment?.[String(value)];
+
+      default:
+        return value;
+    }
+  }
+
+  /**
+   * Get a field value from user attributes or environment
+   * Supports nested field access like 'department.id'
+   */
+  private getFieldValue(
+    field: string,
+    userAttrs: UserAttributes,
+    environment?: Record<string, unknown>
+  ): unknown {
+    // Check if field references an environment variable
+    if (field.startsWith('env.')) {
+      const envField = field.slice(4);
+      return environment?.[envField];
+    }
+
+    // Support nested field access like 'customAttributes.departmentId'
+    const parts = field.split('.');
+    let value: unknown = userAttrs;
+
+    for (const part of parts) {
+      if (value && typeof value === 'object') {
+        value = (value as Record<string, unknown>)[part];
+      } else {
+        return undefined;
+      }
+    }
+
+    return value;
   }
 
   /**

@@ -7,7 +7,7 @@ import {
   ManyToOne,
   JoinColumn,
 } from 'typeorm';
-import type { User } from './user.entity';
+import { User } from './user.entity';
 
 export enum StorageProvider {
   LOCAL = 'local',
@@ -54,8 +54,8 @@ export class File {
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 
-  // Relations - use lazy import to avoid circular dependency
-  @ManyToOne(() => require('./user.entity').User, (user: User) => user.files)
+  // Relations
+  @ManyToOne(() => User, (user) => user.files)
   @JoinColumn({ name: 'user_id' })
   user: User;
 }

@@ -18,26 +18,36 @@ interface MockUser {
   username: string;
   email: string;
   status: UserStatusType;
+  isSuperuser: boolean;
 }
 
 describe('PermissionGuard', () => {
   let guard: PermissionGuard;
   let mockReflector: { getAllAndOverride: jest.Mock };
-  let mockPolicyEvaluator: { evaluateWithDetails: jest.Mock };
-  let mockRoleService: { getUserPermissions: jest.Mock };
-  let mockConfigService: { get: jest.Mock };
+  let mockPolicyEvaluator: { canAccessData: jest.Mock };
+  let mockPermissionCache: { getUserPermissions: jest.Mock };
 
   const mockUser: MockUser = {
     id: 'uuid-123',
     username: 'testuser',
     email: 'test@example.com',
     status: UserStatus.ACTIVE,
+    isSuperuser: false,
   };
 
-  const mockExecutionContext = (user?: MockUser, _permission?: PermissionMetadata) => ({
+  const mockSuperuser: MockUser = {
+    id: 'uuid-super',
+    username: 'superuser',
+    email: 'super@example.com',
+    status: UserStatus.ACTIVE,
+    isSuperuser: true,
+  };
+
+  const mockExecutionContext = (user?: MockUser, params?: Record<string, string>) => ({
     switchToHttp: () => ({
       getRequest: () => ({
         user,
+        params: params || {},
       }),
     }),
     getHandler: () => ({}),
@@ -50,44 +60,39 @@ describe('PermissionGuard', () => {
     };
 
     mockPolicyEvaluator = {
-      evaluateWithDetails: jest.fn(),
+      canAccessData: jest.fn(),
     };
 
-    mockRoleService = {
+    mockPermissionCache = {
       getUserPermissions: jest.fn(),
-    };
-
-    mockConfigService = {
-      get: jest.fn(),
     };
 
     // Manually construct the guard with mock dependencies
     guard = new PermissionGuard(
       mockReflector as any,
       mockPolicyEvaluator as any,
-      mockRoleService as any,
-      mockConfigService as any
+      mockPermissionCache as any
     );
   });
 
   afterEach(() => {
     mockReflector.getAllAndOverride.mockClear();
-    mockPolicyEvaluator.evaluateWithDetails.mockClear();
-    mockRoleService.getUserPermissions.mockClear();
-    mockConfigService.get.mockClear();
+    mockPolicyEvaluator.canAccessData.mockClear();
+    mockPermissionCache.getUserPermissions.mockClear();
   });
 
   describe('canActivate', () => {
-    const permission: PermissionMetadata = {
+    const readPermission: PermissionMetadata = {
       resource: 'policy',
       action: 'read',
     };
 
-    describe('when useAbacOnly is false (default mode - backward compatible)', () => {
-      beforeEach(() => {
-        mockConfigService.get.mockReturnValue({ useAbacOnly: false });
-      });
+    const writePermission: PermissionMetadata = {
+      resource: 'policy',
+      action: 'update',
+    };
 
+    describe('basic scenarios', () => {
       it('should allow access when no permission metadata is required', async () => {
         mockReflector.getAllAndOverride.mockReturnValue(null);
 
@@ -98,188 +103,223 @@ describe('PermissionGuard', () => {
       });
 
       it('should deny access when no user is authenticated', async () => {
-        mockReflector.getAllAndOverride.mockReturnValue(permission);
+        mockReflector.getAllAndOverride.mockReturnValue(readPermission);
 
         const context = mockExecutionContext(undefined);
         await expect(guard.canActivate(context as any)).rejects.toThrow(ForbiddenException);
       });
+    });
 
-      it('should allow access when ABAC grants permission', async () => {
-        mockReflector.getAllAndOverride.mockReturnValue(permission);
-        mockPolicyEvaluator.evaluateWithDetails.mockResolvedValue({
-          allowed: true,
-          reason: 'Policy matched',
-        });
+    describe('superuser bypass', () => {
+      it('should allow access for superuser without checking permissions', async () => {
+        mockReflector.getAllAndOverride.mockReturnValue(readPermission);
+
+        const context = mockExecutionContext(mockSuperuser);
+        const result = await guard.canActivate(context as any);
+
+        expect(result).toBe(true);
+        expect(mockPermissionCache.getUserPermissions).not.toHaveBeenCalled();
+      });
+
+      it('should allow superuser for write operations without ABAC check', async () => {
+        mockReflector.getAllAndOverride.mockReturnValue(writePermission);
+
+        const context = mockExecutionContext(mockSuperuser, { id: 'policy-123' });
+        const result = await guard.canActivate(context as any);
+
+        expect(result).toBe(true);
+        expect(mockPolicyEvaluator.canAccessData).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('RBAC check', () => {
+      it('should deny access when permission cache is empty (cache miss)', async () => {
+        mockReflector.getAllAndOverride.mockReturnValue(readPermission);
+        mockPermissionCache.getUserPermissions.mockResolvedValue(null);
+
+        const context = mockExecutionContext(mockUser);
+        await expect(guard.canActivate(context as any)).rejects.toThrow(ForbiddenException);
+
+        expect(mockPermissionCache.getUserPermissions).toHaveBeenCalledWith('uuid-123');
+      });
+
+      it('should allow access when user has exact RBAC permission', async () => {
+        mockReflector.getAllAndOverride.mockReturnValue(readPermission);
+        mockPermissionCache.getUserPermissions.mockResolvedValue(['policy:read']);
 
         const context = mockExecutionContext(mockUser);
         const result = await guard.canActivate(context as any);
 
         expect(result).toBe(true);
-        expect(mockPolicyEvaluator.evaluateWithDetails).toHaveBeenCalledWith(
-          mockUser,
-          'policy',
-          'read'
-        );
       });
 
-      it('should allow access when RBAC grants permission (ABAC denied)', async () => {
-        mockReflector.getAllAndOverride.mockReturnValue(permission);
-        mockPolicyEvaluator.evaluateWithDetails.mockResolvedValue({
-          allowed: false,
-          reason: 'No matching policy found',
-        });
-        mockRoleService.getUserPermissions.mockResolvedValue(['policy:read']);
+      it('should allow access when user has resource wildcard permission', async () => {
+        mockReflector.getAllAndOverride.mockReturnValue(readPermission);
+        mockPermissionCache.getUserPermissions.mockResolvedValue(['policy:*']);
 
         const context = mockExecutionContext(mockUser);
         const result = await guard.canActivate(context as any);
 
         expect(result).toBe(true);
-        expect(mockRoleService.getUserPermissions).toHaveBeenCalledWith('uuid-123');
       });
 
-      it('should deny access when both ABAC and RBAC deny', async () => {
-        mockReflector.getAllAndOverride.mockReturnValue(permission);
-        mockPolicyEvaluator.evaluateWithDetails.mockResolvedValue({
-          allowed: false,
-          reason: 'No matching policy found',
-        });
-        mockRoleService.getUserPermissions.mockResolvedValue(['other:action']);
+      it('should allow access when user has action wildcard permission', async () => {
+        mockReflector.getAllAndOverride.mockReturnValue(readPermission);
+        mockPermissionCache.getUserPermissions.mockResolvedValue(['*:read']);
+
+        const context = mockExecutionContext(mockUser);
+        const result = await guard.canActivate(context as any);
+
+        expect(result).toBe(true);
+      });
+
+      it('should allow access when user has full wildcard permission', async () => {
+        mockReflector.getAllAndOverride.mockReturnValue(readPermission);
+        mockPermissionCache.getUserPermissions.mockResolvedValue(['*:*']);
+
+        const context = mockExecutionContext(mockUser);
+        const result = await guard.canActivate(context as any);
+
+        expect(result).toBe(true);
+      });
+
+      it('should deny access when RBAC permission is missing', async () => {
+        mockReflector.getAllAndOverride.mockReturnValue(readPermission);
+        mockPermissionCache.getUserPermissions.mockResolvedValue(['other:action']);
 
         const context = mockExecutionContext(mockUser);
         await expect(guard.canActivate(context as any)).rejects.toThrow(ForbiddenException);
       });
 
-      it('should check wildcard permissions in RBAC', async () => {
-        mockReflector.getAllAndOverride.mockReturnValue(permission);
-        mockPolicyEvaluator.evaluateWithDetails.mockResolvedValue({
-          allowed: false,
-          reason: 'No matching policy found',
-        });
-        mockRoleService.getUserPermissions.mockResolvedValue(['policy:*']);
+      it('should deny access (403) when RBAC fails without checking ABAC', async () => {
+        mockReflector.getAllAndOverride.mockReturnValue(writePermission);
+        mockPermissionCache.getUserPermissions.mockResolvedValue(['other:action']);
 
-        const context = mockExecutionContext(mockUser);
-        const result = await guard.canActivate(context as any);
+        const context = mockExecutionContext(mockUser, { id: 'policy-123' });
+        await expect(guard.canActivate(context as any)).rejects.toThrow(ForbiddenException);
 
-        expect(result).toBe(true);
-      });
-
-      it('should check full wildcard permissions in RBAC', async () => {
-        mockReflector.getAllAndOverride.mockReturnValue(permission);
-        mockPolicyEvaluator.evaluateWithDetails.mockResolvedValue({
-          allowed: false,
-          reason: 'No matching policy found',
-        });
-        mockRoleService.getUserPermissions.mockResolvedValue(['*:*']);
-
-        const context = mockExecutionContext(mockUser);
-        const result = await guard.canActivate(context as any);
-
-        expect(result).toBe(true);
+        // ABAC should NOT be called when RBAC fails
+        expect(mockPolicyEvaluator.canAccessData).not.toHaveBeenCalled();
       });
     });
 
-    describe('when useAbacOnly is true (ABAC-only mode)', () => {
+    describe('ABAC check for write operations', () => {
       beforeEach(() => {
-        mockConfigService.get.mockReturnValue({ useAbacOnly: true });
+        mockPermissionCache.getUserPermissions.mockResolvedValue(['policy:update']);
       });
 
-      it('should allow access when ABAC grants permission', async () => {
-        mockReflector.getAllAndOverride.mockReturnValue(permission);
-        mockPolicyEvaluator.evaluateWithDetails.mockResolvedValue({
-          allowed: true,
-          reason: 'Policy matched',
+      it('should check ABAC for create operation with dataId', async () => {
+        mockReflector.getAllAndOverride.mockReturnValue({
+          resource: 'policy',
+          action: 'create',
         });
+        mockPolicyEvaluator.canAccessData.mockResolvedValue(true);
 
-        const context = mockExecutionContext(mockUser);
+        const context = mockExecutionContext(mockUser, { id: 'policy-123' });
         const result = await guard.canActivate(context as any);
 
         expect(result).toBe(true);
-        expect(mockPolicyEvaluator.evaluateWithDetails).toHaveBeenCalledWith(
+        expect(mockPolicyEvaluator.canAccessData).toHaveBeenCalledWith(
           mockUser,
           'policy',
-          'read'
+          'create',
+          'policy-123'
         );
       });
 
-      it('should skip RBAC check when ABAC denies (ABAC-only mode)', async () => {
-        mockReflector.getAllAndOverride.mockReturnValue(permission);
-        mockPolicyEvaluator.evaluateWithDetails.mockResolvedValue({
-          allowed: false,
-          reason: 'No matching policy found',
-        });
-        mockRoleService.getUserPermissions.mockResolvedValue(['policy:read']);
+      it('should check ABAC for update operation with dataId', async () => {
+        mockReflector.getAllAndOverride.mockReturnValue(writePermission);
+        mockPolicyEvaluator.canAccessData.mockResolvedValue(true);
 
-        const context = mockExecutionContext(mockUser);
-        await expect(guard.canActivate(context as any)).rejects.toThrow(ForbiddenException);
+        const context = mockExecutionContext(mockUser, { id: 'policy-456' });
+        const result = await guard.canActivate(context as any);
 
-        // RBAC should NOT be called in ABAC-only mode
-        expect(mockRoleService.getUserPermissions).not.toHaveBeenCalled();
+        expect(result).toBe(true);
+        expect(mockPolicyEvaluator.canAccessData).toHaveBeenCalledWith(
+          mockUser,
+          'policy',
+          'update',
+          'policy-456'
+        );
       });
 
-      it('should deny access when ABAC denies, even if RBAC would allow', async () => {
-        mockReflector.getAllAndOverride.mockReturnValue(permission);
-        mockPolicyEvaluator.evaluateWithDetails.mockResolvedValue({
-          allowed: false,
-          reason: 'No matching policy found',
+      it('should check ABAC for delete operation with dataId', async () => {
+        mockReflector.getAllAndOverride.mockReturnValue({
+          resource: 'policy',
+          action: 'delete',
         });
-        // User has RBAC permission but it should be ignored
-        mockRoleService.getUserPermissions.mockResolvedValue(['policy:*', '*:*']);
+        mockPolicyEvaluator.canAccessData.mockResolvedValue(true);
+
+        const context = mockExecutionContext(mockUser, { id: 'policy-789' });
+        const result = await guard.canActivate(context as any);
+
+        expect(result).toBe(true);
+        expect(mockPolicyEvaluator.canAccessData).toHaveBeenCalledWith(
+          mockUser,
+          'policy',
+          'delete',
+          'policy-789'
+        );
+      });
+
+      it('should check ABAC for write action with dataId', async () => {
+        mockReflector.getAllAndOverride.mockReturnValue({
+          resource: 'policy',
+          action: 'write',
+        });
+        mockPolicyEvaluator.canAccessData.mockResolvedValue(true);
+
+        const context = mockExecutionContext(mockUser, { id: 'policy-abc' });
+        const result = await guard.canActivate(context as any);
+
+        expect(result).toBe(true);
+        expect(mockPolicyEvaluator.canAccessData).toHaveBeenCalledWith(
+          mockUser,
+          'policy',
+          'write',
+          'policy-abc'
+        );
+      });
+
+      it('should skip ABAC check when no dataId in params', async () => {
+        mockReflector.getAllAndOverride.mockReturnValue(writePermission);
 
         const context = mockExecutionContext(mockUser);
+        const result = await guard.canActivate(context as any);
+
+        expect(result).toBe(true);
+        expect(mockPolicyEvaluator.canAccessData).not.toHaveBeenCalled();
+      });
+
+      it('should deny access when ABAC denies for write operation', async () => {
+        mockReflector.getAllAndOverride.mockReturnValue(writePermission);
+        mockPolicyEvaluator.canAccessData.mockResolvedValue(false);
+
+        const context = mockExecutionContext(mockUser, { id: 'policy-123' });
         await expect(guard.canActivate(context as any)).rejects.toThrow(ForbiddenException);
+      });
+
+      it('should allow access when ABAC allows for write operation', async () => {
+        mockReflector.getAllAndOverride.mockReturnValue(writePermission);
+        mockPolicyEvaluator.canAccessData.mockResolvedValue(true);
+
+        const context = mockExecutionContext(mockUser, { id: 'policy-123' });
+        const result = await guard.canActivate(context as any);
+
+        expect(result).toBe(true);
       });
     });
 
-    describe('config defaults', () => {
-      it('should default to useAbacOnly=false when config is undefined', async () => {
-        mockConfigService.get.mockReturnValue(undefined);
-        mockReflector.getAllAndOverride.mockReturnValue(permission);
-        mockPolicyEvaluator.evaluateWithDetails.mockResolvedValue({
-          allowed: false,
-          reason: 'No matching policy found',
-        });
-        mockRoleService.getUserPermissions.mockResolvedValue(['policy:read']);
+    describe('read operations (no ABAC check)', () => {
+      it('should skip ABAC check for read operation', async () => {
+        mockReflector.getAllAndOverride.mockReturnValue(readPermission);
+        mockPermissionCache.getUserPermissions.mockResolvedValue(['policy:read']);
 
-        const context = mockExecutionContext(mockUser);
+        const context = mockExecutionContext(mockUser, { id: 'policy-123' });
         const result = await guard.canActivate(context as any);
 
-        // Should fallback to RBAC (default mode)
         expect(result).toBe(true);
-        expect(mockRoleService.getUserPermissions).toHaveBeenCalled();
-      });
-
-      it('should default to useAbacOnly=false when permission config is null', async () => {
-        mockConfigService.get.mockReturnValue(null);
-        mockReflector.getAllAndOverride.mockReturnValue(permission);
-        mockPolicyEvaluator.evaluateWithDetails.mockResolvedValue({
-          allowed: false,
-          reason: 'No matching policy found',
-        });
-        mockRoleService.getUserPermissions.mockResolvedValue(['policy:read']);
-
-        const context = mockExecutionContext(mockUser);
-        const result = await guard.canActivate(context as any);
-
-        // Should fallback to RBAC (default mode)
-        expect(result).toBe(true);
-        expect(mockRoleService.getUserPermissions).toHaveBeenCalled();
-      });
-
-      it('should default to useAbacOnly=false when useAbacOnly is not set', async () => {
-        mockConfigService.get.mockReturnValue({});
-        mockReflector.getAllAndOverride.mockReturnValue(permission);
-        mockPolicyEvaluator.evaluateWithDetails.mockResolvedValue({
-          allowed: false,
-          reason: 'No matching policy found',
-        });
-        mockRoleService.getUserPermissions.mockResolvedValue(['policy:read']);
-
-        const context = mockExecutionContext(mockUser);
-        const result = await guard.canActivate(context as any);
-
-        // Should fallback to RBAC (default mode)
-        expect(result).toBe(true);
-        expect(mockRoleService.getUserPermissions).toHaveBeenCalled();
+        expect(mockPolicyEvaluator.canAccessData).not.toHaveBeenCalled();
       });
     });
   });

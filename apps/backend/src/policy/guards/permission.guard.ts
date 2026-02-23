@@ -6,29 +6,23 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { ConfigService } from '@nestjs/config';
 import { PolicyEvaluatorService } from '../policy-evaluator.service';
-import { RoleService } from '../../rbac/role.service';
+import { PermissionCacheService } from '../services/permission-cache.service';
 import { PERMISSION_KEY, PermissionMetadata } from '../decorators/require-permission.decorator';
 import { User } from '../../entities/user.entity';
-import { PermissionConfig } from '../../config/permission.config';
 
 /**
- * Permission Guard
+ * Permission Guard - RBAC + ABAC AND Logic
  *
  * Guards routes that require specific permissions.
- * Works with @RequirePermission decorator to check if the user
- * has the required permission based on ABAC policies first, then RBAC.
+ * Works with @RequirePermission decorator to check permissions.
  *
- * Permission check flow:
- * - When useAbacOnly=true: ABAC only (no RBAC fallback)
- * - When useAbacOnly=false: ABAC → RBAC → either passes = allowed
- *
- * @example
- * @UseGuards(JwtAuthGuard, PermissionGuard)
- * @Get('policies')
- * @RequirePermission('policy', 'read')
- * findAll() { ... }
+ * Permission check flow (AND logic):
+ * 1. Check user.isSuperuser → true = bypass all checks
+ * 2. RBAC check: user has resource:action permission?
+ * 3. RBAC fail → 403 Forbidden (stop here, no ABAC)
+ * 4. Write operation: ABAC data-level check
+ * 5. ABAC fail → 403 Forbidden
  */
 @Injectable()
 export class PermissionGuard implements CanActivate {
@@ -37,8 +31,7 @@ export class PermissionGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     private readonly policyEvaluator: PolicyEvaluatorService,
-    private readonly roleService: RoleService,
-    private readonly configService: ConfigService
+    private readonly permissionCache: PermissionCacheService
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -64,112 +57,111 @@ export class PermissionGuard implements CanActivate {
       throw new ForbiddenException('Authentication required');
     }
 
-    // Get ABAC-only mode from config (defaults to false for backward compatibility)
-    const useAbacOnly =
-      this.configService.get<PermissionConfig>('permission')?.useAbacOnly ?? false;
+    // Step 1: Superuser bypass
+    if (user.isSuperuser) {
+      this.logger.debug(
+        `Superuser bypass: User ${user.username} can ${permission.action} on ${permission.resource}`
+      );
+      return true;
+    }
 
-    // Step 1: Try ABAC policy evaluation with details
-    const abacResult = await this.policyEvaluator.evaluateWithDetails(
-      user,
+    // Step 2: RBAC check - get cached permissions
+    const userPermissions = await this.permissionCache.getUserPermissions(user.id);
+
+    if (!userPermissions) {
+      // Cache miss - this shouldn't happen normally as permissions should be cached on login
+      // But we can still check by returning false (permissions will be cached on next login)
+      this.logger.warn(`Permission cache miss for user ${user.username}. Denying access.`);
+      throw new ForbiddenException({
+        message: `You do not have permission to ${permission.action} on ${permission.resource}`,
+        details: {
+          resource: permission.resource,
+          action: permission.action,
+          reason: 'cache_miss',
+          suggestion: 'Please log out and log in again to refresh permissions',
+        },
+      });
+    }
+
+    // Check for RBAC permission
+    const hasRbacPermission = this.checkRbacPermission(
+      userPermissions,
       permission.resource,
       permission.action
     );
 
-    if (abacResult.allowed) {
-      if (useAbacOnly) {
-        this.logger.debug(
-          `Permission granted via ABAC only: User ${user.username} can ${permission.action} on ${permission.resource}`
-        );
-      } else {
-        this.logger.debug(
-          `Permission granted via ABAC: User ${user.username} can ${permission.action} on ${permission.resource}`
-        );
-      }
-      return true;
-    }
-
-    // Step 2: RBAC fallback (only when not in ABAC-only mode)
-    if (useAbacOnly) {
-      // ABAC-only mode: no RBAC fallback
+    if (!hasRbacPermission) {
+      // RBAC fail → 403 (no ABAC check)
       this.logger.warn(
-        `Permission denied (ABAC only mode): User ${user.username} cannot ${permission.action} on ${permission.resource}`
+        `RBAC denied: User ${user.username} cannot ${permission.action} on ${permission.resource}`
       );
       throw new ForbiddenException({
         message: `You do not have permission to ${permission.action} on ${permission.resource}`,
         details: {
           resource: permission.resource,
           action: permission.action,
-          reason: abacResult.reason?.includes('conditions')
-            ? 'condition_failed'
-            : 'no_matching_policy',
-          matchedPolicies: abacResult.matchedPolicy ? [abacResult.matchedPolicy.name] : [],
+          reason: 'rbac_denied',
           suggestion: `Contact administrator to get '${permission.resource}:${permission.action}' permission`,
         },
       });
     }
 
-    // Try RBAC permission check
-    const rbacResult = await this.checkRbacPermission(
-      user.id,
-      permission.resource,
-      permission.action
-    );
+    // Step 3: RBAC passed - for write operations, check ABAC
+    const isWriteOperation = ['create', 'update', 'delete', 'write'].includes(permission.action);
 
-    if (rbacResult) {
-      this.logger.debug(
-        `Permission granted via RBAC: User ${user.username} can ${permission.action} on ${permission.resource}`
-      );
-      return true;
+    if (isWriteOperation) {
+      // Get dataId from params if available
+      const dataId = request.params?.id;
+
+      if (dataId) {
+        const canAccess = await this.policyEvaluator.canAccessData(
+          user,
+          permission.resource,
+          permission.action,
+          dataId
+        );
+
+        if (!canAccess) {
+          this.logger.warn(
+            `ABAC denied: User ${user.username} cannot ${permission.action} on ${permission.resource}:${dataId}`
+          );
+          throw new ForbiddenException({
+            message: `You do not have permission to ${permission.action} on this ${permission.resource}`,
+            details: {
+              resource: permission.resource,
+              action: permission.action,
+              dataId,
+              reason: 'abac_denied',
+            },
+          });
+        }
+      }
     }
 
-    // Both ABAC and RBAC denied
-    this.logger.warn(
-      `Permission denied: User ${user.username} cannot ${permission.action} on ${permission.resource}`
+    // All checks passed
+    this.logger.debug(
+      `Permission granted: User ${user.username} can ${permission.action} on ${permission.resource}`
     );
-    throw new ForbiddenException({
-      message: `You do not have permission to ${permission.action} on ${permission.resource}`,
-      details: {
-        resource: permission.resource,
-        action: permission.action,
-        reason: abacResult.reason?.includes('conditions')
-          ? 'condition_failed'
-          : 'no_matching_policy',
-        matchedPolicies: abacResult.matchedPolicy ? [abacResult.matchedPolicy.name] : [],
-        suggestion: `Contact administrator to get '${permission.resource}:${permission.action}' permission`,
-      },
-    });
+    return true;
   }
 
   /**
-   * Check RBAC permissions
-   * @deprecated Use ABAC policies instead. See docs/abac-migration-guide.md for migration instructions.
-   * This method will be removed in a future version.
+   * Check RBAC permissions against cached permission list
    */
-  private async checkRbacPermission(
-    userId: string,
-    resource: string,
-    action: string
-  ): Promise<boolean> {
-    try {
-      const permissions = await this.roleService.getUserPermissions(userId);
-
-      // Check for exact permission: "resource:action"
-      const exactPermission = `${resource}:${action}`;
-      if (permissions.includes(exactPermission)) {
-        return true;
-      }
-
-      // Check for wildcard permissions
-      const resourceWildcard = `${resource}:*`;
-      const actionWildcard = `*:${action}`;
-      const fullWildcard = '*:*';
-
-      return permissions.some(
-        (p) => p === resourceWildcard || p === actionWildcard || p === fullWildcard
-      );
-    } catch (error) {
-      this.logger.error('Error checking RBAC permissions', error);
-      return false;
+  private checkRbacPermission(permissions: string[], resource: string, action: string): boolean {
+    // Check for exact permission: "resource:action"
+    const exactPermission = `${resource}:${action}`;
+    if (permissions.includes(exactPermission)) {
+      return true;
     }
+
+    // Check for wildcard permissions
+    const resourceWildcard = `${resource}:*`;
+    const actionWildcard = `*:${action}`;
+    const fullWildcard = '*:*';
+
+    return permissions.some(
+      (p) => p === resourceWildcard || p === actionWildcard || p === fullWildcard
+    );
   }
 }

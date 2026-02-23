@@ -72,7 +72,7 @@ export class InitService {
     await this.policyService.create({
       name: 'Super Admin Policy',
       description: 'Full access policy for super administrator',
-      subject: `user:${user.id}`,
+      subject: { type: 'user', value: [user.id] },
       resource: '*',
       action: '*',
       effect: PolicyEffect.ALLOW,

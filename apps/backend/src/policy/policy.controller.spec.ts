@@ -4,6 +4,7 @@ import { PolicyController } from './policy.controller';
 import { PolicyService } from './policy.service';
 import { PolicyEvaluatorService } from './policy-evaluator.service';
 import { Policy, PolicyEffect } from '../entities/policy.entity';
+import { PolicySubject } from './types/policy.types';
 import { User, UserStatus } from '../entities/user.entity';
 import { RoleService } from '../rbac/role.service';
 
@@ -27,6 +28,7 @@ describe('PolicyController', () => {
     mfaEnabled: false,
     mfaSecret: null,
     recoveryCodes: null,
+    isSuperuser: false,
     createdAt: new Date(),
     updatedAt: new Date(),
     deletedAt: null,
@@ -43,7 +45,7 @@ describe('PolicyController', () => {
     name: 'Test Policy',
     description: 'Test description',
     effect: PolicyEffect.ALLOW,
-    subject: 'role:admin',
+    subject: { type: 'role', value: ['admin'] } as PolicySubject,
     resource: '*',
     action: '*',
     conditions: null,
@@ -116,7 +118,7 @@ describe('PolicyController', () => {
     const createDto = {
       name: 'New Policy',
       effect: PolicyEffect.ALLOW,
-      subject: 'role:user',
+      subject: { type: 'role' as const, value: ['user'] },
       resource: 'file',
       action: 'read',
     };
