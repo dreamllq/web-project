@@ -82,50 +82,7 @@ export class PolicyController {
     };
   }
 
-  /**
-   * Get a specific policy by ID
-   * GET /api/v1/policies/:id
-   */
-  @Get(':id')
-  @Version('1')
-  @RequirePermission('policy', 'read')
-  @ApiOperation({ summary: 'Get ABAC policy by ID' })
-  @ApiResponse({ status: 200, description: 'Policy details' })
-  async findOne(@Param('id') id: string): Promise<Policy> {
-    return this.policyService.findOne(id);
-  }
-
-  /**
-   * Update a policy
-   * PUT /api/v1/policies/:id
-   */
-  @Put(':id')
-  @Version('1')
-  @RequirePermission('policy', 'update')
-  @ApiOperation({ summary: 'Update an ABAC policy' })
-  @ApiResponse({ status: 200, description: 'Policy updated successfully' })
-  async update(@Param('id') id: string, @Body() dto: UpdatePolicyDto): Promise<Policy> {
-    const policy = await this.policyService.update(id, dto);
-    // Invalidate cache when policy is updated
-    this.policyEvaluator.invalidateCache();
-    return policy;
-  }
-
-  /**
-   * Delete a policy
-   * DELETE /api/v1/policies/:id
-   */
-  @Delete(':id')
-  @Version('1')
-  @RequirePermission('policy', 'delete')
-  @ApiOperation({ summary: 'Delete an ABAC policy' })
-  @ApiResponse({ status: 200, description: 'Policy deleted successfully' })
-  async remove(@Param('id') id: string): Promise<{ message: string }> {
-    await this.policyService.remove(id);
-    // Invalidate cache when policy is deleted
-    this.policyEvaluator.invalidateCache();
-    return { message: 'Policy deleted successfully' };
-  }
+  // ==================== Static Routes (MUST be before :id) ====================
 
   /**
    * Check current user's permission for a specific resource/action
@@ -146,24 +103,6 @@ export class PolicyController {
     const allowed = await this.policyEvaluator.evaluate(user, resource, action);
     return { allowed, resource, action };
   }
-
-  /**
-   * Bulk check permissions for multiple resources/actions
-   * POST /api/v1/policies/check/bulk
-   */
-  @Post('check/bulk')
-  @Version('1')
-  @RequirePermission('policy', 'read')
-  @ApiOperation({ summary: 'Bulk check multiple permissions for current user' })
-  @ApiResponse({ status: 200, description: 'Permission check results for all requests' })
-  async checkBulkPermissions(
-    @CurrentUser() user: User,
-    @Body() requests: Array<{ resource: string; action: string }>
-  ): Promise<Record<string, boolean>> {
-    return this.policyEvaluator.evaluateBulk(user, requests);
-  }
-
-  // ==================== Policy Metadata Endpoints ====================
 
   /**
    * Get all registered subject types
@@ -295,5 +234,68 @@ export class PolicyController {
     const actions = result.map((r) => r.action).sort();
     // Add wildcard '*' option at the beginning
     return { actions: ['*', ...actions] };
+  }
+
+  /**
+   * Bulk check permissions for multiple resources/actions
+   * POST /api/v1/policies/check/bulk
+   */
+  @Post('check/bulk')
+  @Version('1')
+  @RequirePermission('policy', 'read')
+  @ApiOperation({ summary: 'Bulk check multiple permissions for current user' })
+  @ApiResponse({ status: 200, description: 'Permission check results for all requests' })
+  async checkBulkPermissions(
+    @CurrentUser() user: User,
+    @Body() requests: Array<{ resource: string; action: string }>
+  ): Promise<Record<string, boolean>> {
+    return this.policyEvaluator.evaluateBulk(user, requests);
+  }
+
+  // ==================== Dynamic Routes (:id) ====================
+
+  /**
+   * Get a specific policy by ID
+   * GET /api/v1/policies/:id
+   */
+  @Get(':id')
+  @Version('1')
+  @RequirePermission('policy', 'read')
+  @ApiOperation({ summary: 'Get ABAC policy by ID' })
+  @ApiResponse({ status: 200, description: 'Policy details' })
+  async findOne(@Param('id') id: string): Promise<Policy> {
+    return this.policyService.findOne(id);
+  }
+
+  /**
+   * Update a policy
+   * PUT /api/v1/policies/:id
+   */
+  @Put(':id')
+  @Version('1')
+  @RequirePermission('policy', 'update')
+  @ApiOperation({ summary: 'Update an ABAC policy' })
+  @ApiResponse({ status: 200, description: 'Policy updated successfully' })
+  async update(@Param('id') id: string, @Body() dto: UpdatePolicyDto): Promise<Policy> {
+    const policy = await this.policyService.update(id, dto);
+    // Invalidate cache when policy is updated
+    this.policyEvaluator.invalidateCache();
+    return policy;
+  }
+
+  /**
+   * Delete a policy
+   * DELETE /api/v1/policies/:id
+   */
+  @Delete(':id')
+  @Version('1')
+  @RequirePermission('policy', 'delete')
+  @ApiOperation({ summary: 'Delete an ABAC policy' })
+  @ApiResponse({ status: 200, description: 'Policy deleted successfully' })
+  async remove(@Param('id') id: string): Promise<{ message: string }> {
+    await this.policyService.remove(id);
+    // Invalidate cache when policy is deleted
+    this.policyEvaluator.invalidateCache();
+    return { message: 'Policy deleted successfully' };
   }
 }
