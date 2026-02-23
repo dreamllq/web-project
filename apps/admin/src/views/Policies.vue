@@ -1068,19 +1068,23 @@ onMounted(() => {
 /* 弹窗双栏布局 */
 .policy-dialog-content {
   display: flex;
-  gap: 20px;
+  gap: 16px;
+  overflow: hidden;
 }
 
 .policy-form-container {
-  flex: 0 0 60%;
+  flex: 1;
   min-width: 0;
+  overflow: hidden;
 }
 
 .policy-help-container {
-  flex: 0 0 40%;
+  flex: 0 0 320px;
   min-width: 0;
   padding-left: 16px;
   border-left: 1px solid #ebeef5;
+  overflow-y: auto;
+  max-height: 60vh;
 }
 
 .help-placeholder {
