@@ -166,7 +166,10 @@ async function loadActions() {
 watch(
   () => policyForm.subject.type,
   (newType) => {
-    policyForm.subject.value = [];
+    // 编辑模式下不清空值（openEditDialog 会先设置 dialogMode 再修改 type）
+    if (dialogMode.value !== 'edit') {
+      policyForm.subject.value = [];
+    }
     loadSubjectValues(newType);
   }
 );
