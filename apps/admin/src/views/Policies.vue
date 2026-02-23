@@ -726,7 +726,7 @@ onMounted(() => {
           <el-input
             v-model="conditionsText"
             type="textarea"
-            :rows="4"
+            :rows="10"
             :placeholder="t('policies.conditionsPlaceholder')"
             :class="{ 'is-error': conditionsError }"
           />
