@@ -1,7 +1,8 @@
 import { Module, Global } from '@nestjs/common';
 import { CacheModule } from '@nestjs/cache-manager';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { redisStore } from 'cache-manager-redis-yet';
+import { Keyv } from 'keyv';
+import KeyvRedis from '@keyv/redis';
 import { CustomCacheService } from './custom-cache.service';
 import { getRedisUrl } from '../config/redis.config';
 
@@ -18,14 +19,12 @@ import { getRedisUrl } from '../config/redis.config';
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => {
         const redisUrl = getRedisUrl();
-        console.log(111);
-        
-        const store = await redisStore({
-          url: redisUrl,
-        });
-        console.log(222);
+
+        const keyvRedis = new KeyvRedis(redisUrl);
+        const keyv = new Keyv({ store: keyvRedis });
+
         return {
-          store,
+          stores: [keyv],
           ttl: configService.get<number>('CACHE_TTL', 300000), // Default: 5 minutes
         };
       },

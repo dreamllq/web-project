@@ -47,6 +47,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.992.0",
     "@aws-sdk/s3-request-presigner": "^3.992.0",
+    "@keyv/redis": "^4.0.0",
     "@nestjs-modules/mailer": "^2.0.2",
     "@nestjs/axios": "^4.0.1",
     "@nestjs/cache-manager": "^3.1.0",
@@ -65,7 +66,6 @@
     "axios": "^1.13.5",
     "bcrypt": "^6.0.0",
     "cache-manager": "^7.2.8",
-    "cache-manager-redis-yet": "^5.1.5",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.3",
     "dotenv": "^17.3.1",
@@ -73,6 +73,7 @@
     "handlebars": "^4.7.8",
     "inquirer": "^8",
     "ioredis": "^5.9.3",
+    "keyv": "^5.6.0",
     "nestjs-i18n": "^10.6.0",
     "nodemailer": "^8.0.1",
     "otplib": "^13.3.0",
