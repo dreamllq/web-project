@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import type { WhereExpression } from 'typeorm';
+import { Brackets } from 'typeorm';
 import { Policy, PolicyEffect } from '../entities/policy.entity';
 import { User, UserStatus } from '../entities/user.entity';
 import { PolicyService } from './policy.service';
@@ -196,16 +196,16 @@ export class PolicyEvaluatorService {
    * @param user - The user requesting access
    * @param resource - The resource type being accessed
    * @param action - The action being performed
-   * @returns Array of TypeORM WhereExpression for data filtering
+   * @returns Array of TypeORM Brackets for data filtering (AND logic between policies)
    */
   async getDataFilterConditions(
     user: User | UserAttributes,
     resource: string,
-    action: string
-  ): Promise<WhereExpression[]> {
+    action: string,
+  ): Promise<Brackets[]> {
     const userAttrs = this.extractUserAttributes(user);
 
-    // Get policies that match this user, resource, and action
+    // Get policies that match this user, resource, and action with effect=allow
     const policies = await this.getPolicies();
     const matchingPolicies = policies.filter((policy) => {
       const subjectMatch = this.matchSubject(policy.subject, userAttrs);
@@ -214,18 +214,184 @@ export class PolicyEvaluatorService {
       return subjectMatch && resourceMatch && actionMatch && policy.effect === PolicyEffect.ALLOW;
     });
 
-    // For now, return empty array - full implementation would convert
-    // policy conditions to TypeORM where expressions
-    // This will be enhanced in future iterations to support data-level ABAC
+    // No matching policies - return empty array (permissive mode)
+    if (matchingPolicies.length === 0) {
+      this.logger.debug({
+        message: 'Data filter conditions: no matching policies found',
+        userId: userAttrs.id,
+        resource,
+        action,
+      });
+      return [];
+    }
+
+    // Convert each policy's conditions to Brackets (AND logic within each policy)
+    const brackets: Brackets[] = [];
+
+    for (const policy of matchingPolicies) {
+      if (!policy.conditions) {
+        continue;
+      }
+
+      // Extract condition list (supports 'and' array or single 'condition')
+      const conditionList =
+        policy.conditions.and ??
+        (policy.conditions.condition ? [policy.conditions.condition] : []);
+
+      if (conditionList.length === 0) {
+        continue;
+      }
+
+      // Build WHERE clauses for all conditions
+      const whereClauses: { query: string; params: Record<string, unknown> }[] = [];
+      let paramIndex = 0;
+
+      for (const condition of conditionList) {
+        const whereClause = this.conditionToWhereClause(condition, paramIndex, userAttrs);
+        whereClauses.push(whereClause);
+        paramIndex++;
+      }
+
+      // Create Brackets with AND logic for this policy's conditions
+      const bracket = new Brackets((qb) => {
+        whereClauses.forEach((clause, index) => {
+          if (index === 0) {
+            qb.where(clause.query, clause.params);
+          } else {
+            qb.andWhere(clause.query, clause.params);
+          }
+        });
+      });
+
+      brackets.push(bracket);
+    }
+
     this.logger.debug({
       message: 'Data filter conditions generated',
       userId: userAttrs.id,
       resource,
       action,
       matchingPoliciesCount: matchingPolicies.length,
+      bracketsCount: brackets.length,
     });
 
-    return [];
+    return brackets;
+  }
+
+  /**
+   * Convert a single Condition to a TypeORM WHERE clause fragment
+   *
+   * Supports all 10 operators:
+   * - eq: field = :paramN
+   * - ne: field != :paramN
+   * - gt: field > :paramN
+   * - gte: field >= :paramN
+   * - lt: field < :paramN
+   * - lte: field <= :paramN
+   * - in: field IN (:...paramN)
+   * - nin: field NOT IN (:...paramN)
+   * - like: field LIKE :paramN (with %value% wrapper)
+   * - isNull: field IS NULL (value ignored)
+   *
+   * @param condition - The condition to convert
+   * @param paramIndex - Index for generating unique parameter names (param0, param1, etc.)
+   * @param userAttrs - User attributes for resolving userAttr valueType
+   * @param environment - Environment variables for resolving env valueType
+   * @returns Parameterized query fragment with params object
+   */
+  private conditionToWhereClause(
+    condition: Condition,
+    paramIndex: number,
+    userAttrs: UserAttributes,
+    environment?: Record<string, unknown>
+  ): { query: string; params: Record<string, unknown> } {
+    const paramName = `param${paramIndex}`;
+    const field = condition.field;
+
+    // Resolve value based on valueType (literal, userAttr, env)
+    const resolvedValue = this.resolveValue(
+      condition.value,
+      condition.valueType ?? 'literal',
+      userAttrs,
+      environment
+    );
+
+    switch (condition.operator) {
+      case 'eq':
+        return {
+          query: `${field} = :${paramName}`,
+          params: { [paramName]: resolvedValue },
+        };
+
+      case 'ne':
+        return {
+          query: `${field} != :${paramName}`,
+          params: { [paramName]: resolvedValue },
+        };
+
+      case 'gt':
+        return {
+          query: `${field} > :${paramName}`,
+          params: { [paramName]: resolvedValue },
+        };
+
+      case 'gte':
+        return {
+          query: `${field} >= :${paramName}`,
+          params: { [paramName]: resolvedValue },
+        };
+
+      case 'lt':
+        return {
+          query: `${field} < :${paramName}`,
+          params: { [paramName]: resolvedValue },
+        };
+
+      case 'lte':
+        return {
+          query: `${field} <= :${paramName}`,
+          params: { [paramName]: resolvedValue },
+        };
+
+      case 'in': {
+        // Value must be an array for IN operator
+        const arrayValue = Array.isArray(resolvedValue) ? resolvedValue : [resolvedValue];
+        return {
+          query: `${field} IN (:...${paramName})`,
+          params: { [paramName]: arrayValue },
+        };
+      }
+
+      case 'nin': {
+        // Value must be an array for NOT IN operator
+        const arrayValue = Array.isArray(resolvedValue) ? resolvedValue : [resolvedValue];
+        return {
+          query: `${field} NOT IN (:...${paramName})`,
+          params: { [paramName]: arrayValue },
+        };
+      }
+
+      case 'like': {
+        // Wrap value with % for LIKE pattern matching
+        const likeValue = `%${resolvedValue}%`;
+        return {
+          query: `${field} LIKE :${paramName}`,
+          params: { [paramName]: likeValue },
+        };
+      }
+
+      case 'isNull':
+        // isNull operator ignores the value parameter
+        return {
+          query: `${field} IS NULL`,
+          params: {},
+        };
+
+      default: {
+        // Exhaustive check - TypeScript will error if any operator is missing
+        const _exhaustiveCheck: never = condition.operator;
+      }
+    }
   }
 
   /**
