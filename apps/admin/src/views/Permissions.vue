@@ -1,17 +1,13 @@
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
-import { Plus, Delete, Search, Refresh, FolderOpened, Folder } from '@element-plus/icons-vue';
-import { getPermissions, createPermission, deletePermission } from '@/api/permission';
+import { Search, Refresh, FolderOpened, Folder } from '@element-plus/icons-vue';
+import { getPermissions } from '@/api/permission';
 import { extractApiError } from '@/api';
-import type { Permission, CreatePermissionDto } from '@/types/permission';
+import type { Permission } from '@/types/permission';
 
-// ============================================
-// i18n
-// ============================================
 const { t } = useI18n();
-
 // ============================================
 // State
 // ============================================
@@ -22,18 +18,6 @@ const expandedGroups = ref<string[]>([]);
 // Search
 const searchKeyword = ref('');
 
-// Create permission dialog
-const dialogVisible = ref(false);
-const formRef = ref();
-const form = reactive<CreatePermissionDto>({
-  name: '',
-  resource: '',
-  action: '',
-  description: '',
-});
-const formLoading = ref(false);
-
-// ============================================
 // Computed
 // ============================================
 // Group permissions by resource
@@ -74,16 +58,6 @@ const isAllExpanded = computed(() => {
   return resources.length > 0 && expandedGroups.value.length === resources.length;
 });
 
-// Auto-generate permission name
-const autoPermissionName = computed(() => {
-  if (form.resource && form.action) {
-    return `${form.resource}:${form.action}`;
-  }
-  return '';
-});
-
-// ============================================
-// Functions
 // ============================================
 async function fetchPermissions() {
   loading.value = true;
@@ -120,69 +94,6 @@ function toggleAllGroups() {
   }
 }
 
-function openCreateDialog() {
-  form.name = '';
-  form.resource = '';
-  form.action = '';
-  form.description = '';
-  dialogVisible.value = true;
-}
-
-async function handleSubmit() {
-  if (!formRef.value) return;
-
-  try {
-    await formRef.value.validate();
-  } catch {
-    return;
-  }
-
-  formLoading.value = true;
-  try {
-    // Auto-generate name if not provided
-    const dto: CreatePermissionDto = {
-      name: form.name || autoPermissionName.value,
-      resource: form.resource,
-      action: form.action,
-      description: form.description || undefined,
-    };
-
-    await createPermission(dto);
-    ElMessage.success(t('permissions.createSuccess'));
-    dialogVisible.value = false;
-    fetchPermissions();
-  } catch (error: unknown) {
-    const apiError = extractApiError(error);
-    ElMessage.error(apiError.displayMessage);
-  } finally {
-    formLoading.value = false;
-  }
-}
-
-async function handleDelete(permissionId: string) {
-  try {
-    await deletePermission(permissionId);
-    ElMessage.success(t('permissions.deleteSuccess'));
-    fetchPermissions();
-  } catch (error: unknown) {
-    const apiError = extractApiError(error);
-    ElMessage.error(apiError.displayMessage);
-  }
-}
-
-function formRules() {
-  return {
-    resource: [
-      { required: true, message: t('permissions.resourceRequired'), trigger: 'blur' },
-      { min: 1, max: 100, message: '资源长度为 1-100 个字符', trigger: 'blur' },
-    ],
-    action: [
-      { required: true, message: t('permissions.actionRequired'), trigger: 'blur' },
-      { min: 1, max: 50, message: '操作长度为 1-50 个字符', trigger: 'blur' },
-    ],
-  };
-}
-
 // ============================================
 // Lifecycle
 // ============================================
@@ -197,9 +108,6 @@ onMounted(() => {
       <template #header>
         <div class="card-header">
           <h2>{{ t('permissions.title') }}</h2>
-          <el-button type="primary" :icon="Plus" @click="openCreateDialog">
-            {{ t('permissions.create') }}
-          </el-button>
         </div>
       </template>
 
@@ -276,96 +184,15 @@ onMounted(() => {
                 </template>
               </el-table-column>
 
-              <el-table-column :label="t('common.delete')" width="100" align="center">
-                <template #default="{ row }">
-                  <el-popconfirm
-                    :title="t('permissions.deleteConfirm')"
-                    :confirm-button-text="t('common.confirm')"
-                    :cancel-button-text="t('common.cancel')"
-                    @confirm="handleDelete(row.id)"
-                  >
-                    <template #reference>
-                      <el-button type="danger" size="small" :icon="Delete" circle />
-                    </template>
-                  </el-popconfirm>
-                </template>
-              </el-table-column>
             </el-table>
           </el-collapse-item>
         </el-collapse>
       </div>
 
       <!-- Empty State -->
-      <el-empty v-else :description="t('permissions.emptyGroup')">
-        <el-button type="primary" :icon="Plus" @click="openCreateDialog">
-          {{ t('permissions.create') }}
-        </el-button>
-      </el-empty>
+      <el-empty v-else :description="t('permissions.emptyGroup')" />
     </el-card>
 
-    <!-- Create Permission Dialog -->
-    <el-dialog
-      v-model="dialogVisible"
-      :title="t('permissions.create')"
-      width="500px"
-      :close-on-click-modal="false"
-    >
-      <el-form
-        ref="formRef"
-        :model="form"
-        :rules="formRules()"
-        label-width="100px"
-        label-position="top"
-      >
-        <el-form-item :label="t('permissions.resource')" prop="resource">
-          <el-input
-            v-model="form.resource"
-            placeholder="例如: user, role, permission"
-            maxlength="100"
-            show-word-limit
-            @input="form.name = autoPermissionName"
-          />
-        </el-form-item>
-
-        <el-form-item :label="t('permissions.action')" prop="action">
-          <el-input
-            v-model="form.action"
-            placeholder="例如: read, write, delete"
-            maxlength="50"
-            show-word-limit
-            @input="form.name = autoPermissionName"
-          />
-        </el-form-item>
-
-        <el-form-item :label="t('permissions.name')">
-          <el-input
-            v-model="form.name"
-            :placeholder="autoPermissionName || '自动生成: resource:action'"
-            maxlength="150"
-            show-word-limit
-          />
-          <div class="form-tip">权限名称默认为 <code>资源:操作</code> 格式，可自定义修改</div>
-        </el-form-item>
-
-        <el-form-item :label="t('permissions.description')">
-          <el-input
-            v-model="form.description"
-            type="textarea"
-            :rows="3"
-            placeholder="请输入权限描述（可选）"
-            maxlength="255"
-            show-word-limit
-          />
-        </el-form-item>
-      </el-form>
-
-      <template #footer>
-        <el-button @click="dialogVisible = false">{{ t('common.cancel') }}</el-button>
-        <el-button type="primary" :loading="formLoading" @click="handleSubmit">
-          {{ t('common.save') }}
-        </el-button>
-      </template>
-    </el-dialog>
   </div>
 </template>
 
@@ -531,54 +358,9 @@ onMounted(() => {
 .no-data {
   color: #c0c4cc;
 }
-
-/* Dialog Styles */
-:deep(.el-dialog) {
-  border-radius: 12px;
-}
-
-:deep(.el-dialog__header) {
-  border-bottom: 1px solid #ebeef5;
-  padding-bottom: 16px;
-}
-
-:deep(.el-dialog__title) {
-  font-weight: 600;
-  color: #1a1a2e;
-}
-
-:deep(.el-dialog__footer) {
-  border-top: 1px solid #ebeef5;
-  padding-top: 16px;
-}
-
-.form-tip {
-  margin-top: 6px;
-  font-size: 12px;
-  color: #909399;
-  line-height: 1.5;
-}
-
-.form-tip code {
-  background: #f5f7fa;
-  padding: 1px 6px;
-  border-radius: 3px;
-  font-family: 'JetBrains Mono', 'Fira Code', monospace;
-  color: #667eea;
-}
-
 /* Empty State */
 :deep(.el-empty) {
   padding: 48px 0;
 }
 
-/* Button hover effects */
-:deep(.el-button--danger.is-circle) {
-  transition: all 0.2s ease;
-}
-
-:deep(.el-button--danger.is-circle:hover) {
-  transform: scale(1.1);
-  box-shadow: 0 2px 8px rgba(245, 108, 108, 0.4);
-}
 </style>

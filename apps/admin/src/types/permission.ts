@@ -138,20 +138,6 @@ export interface UpdateRoleDto {
 }
 
 // ============================================
-// DTO Types - Permission
-// ============================================
-
-/**
- * DTO for creating a new permission
- */
-export interface CreatePermissionDto {
-  name: string;
-  resource: string;
-  action: string;
-  description?: string;
-}
-
-// ============================================
 // DTO Types - User Role Assignment
 // ============================================
 

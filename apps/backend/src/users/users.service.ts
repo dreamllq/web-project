@@ -12,6 +12,7 @@ import { User, UserStatus } from '../entities/user.entity';
 import { SocialAccount, SocialProvider } from '../entities/social-account.entity';
 import { RegisterSubjectType } from '../policy/decorators/register-subject-type.decorator';
 import { SubjectValue } from '../policy/services/subject-type-registry.service';
+import type { RequestWithDataFilter } from '../policy/interceptors/data-filter.interceptor';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 
 export interface CreateUserData {
@@ -311,8 +312,12 @@ export class UsersService {
 
   /**
    * Paginated user list with filtering
+   * Supports ABAC data-level filtering via RequestWithDataFilter
    */
-  async findAll(query: AdminUserQueryDto): Promise<{ data: User[]; total: number }> {
+  async findAll(
+    query: AdminUserQueryDto,
+    request?: RequestWithDataFilter
+  ): Promise<{ data: User[]; total: number }> {
     const { keyword, status, limit = 10, offset = 0 } = query;
 
     const qb = this.usersRepository.createQueryBuilder('user');
@@ -328,6 +333,13 @@ export class UsersService {
         '(user.username ILIKE :keyword OR user.email ILIKE :keyword OR user.phone ILIKE :keyword)',
         { keyword: `%${keyword}%` }
       );
+    }
+
+    // Apply ABAC data filter conditions if present
+    if (request?.dataFilterConditions && request.dataFilterConditions.length > 0) {
+      for (const bracket of request.dataFilterConditions) {
+        qb.andWhere(bracket);
+      }
     }
 
     // Order by createdAt DESC

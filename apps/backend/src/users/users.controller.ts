@@ -1,16 +1,18 @@
 import {
-  Controller,
-  Get,
-  Post,
-  Patch,
-  Delete,
-  Body,
-  Param,
-  Query,
-  UseGuards,
-  ParseUUIDPipe,
-  Version,
+Controller,
+Get,
+Post,
+Patch,
+Delete,
+Body,
+Param,
+Query,
+UseGuards,
+ParseUUIDPipe,
+Version,
   NotFoundException,
+  Req,
+  UseInterceptors,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -26,6 +28,8 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionGuard } from '../policy/guards/permission.guard';
 import { RequirePermission } from '../policy/decorators/require-permission.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { ApplyDataFilter } from '../policy/decorators/apply-data-filter.decorator';
+import { DataFilterInterceptor, RequestWithDataFilter } from '../policy/interceptors/data-filter.interceptor';
 import { User, UserStatus } from '../entities/user.entity';
 import {
   UpdateProfileDto,
@@ -125,9 +129,15 @@ export class UsersController {
    * Admin: List users with pagination and search
    * GET /api/v1/users
    */
+  /**
+   * Admin: List users with pagination and search
+   * GET /api/v1/users
+   */
   @Get()
   @Version('1')
   @RequirePermission('user', 'read')
+  @ApplyDataFilter(User)
+  @UseInterceptors(DataFilterInterceptor)
   @ApiOperation({ summary: 'Admin: Get list of users with pagination and search' })
   @ApiResponse({ status: 200, description: 'List of users with pagination info' })
   @ApiQuery({
@@ -143,14 +153,20 @@ export class UsersController {
     example: 20,
   })
   @ApiQuery({ name: 'offset', required: false, description: 'Offset for pagination', example: 0 })
-  async adminListUsers(@Query() query: AdminUserQueryDto): Promise<AdminUserListResponse> {
+  async adminListUsers(
+    @Query() query: AdminUserQueryDto,
+    @Req() req: RequestWithDataFilter
+  ): Promise<AdminUserListResponse> {
     const { keyword, status, limit = 20, offset = 0 } = query;
-    const { data, total } = await this.usersService.findAll({
-      keyword,
-      status,
-      limit,
-      offset,
-    });
+    const { data, total } = await this.usersService.findAll(
+      {
+        keyword,
+        status,
+        limit,
+        offset,
+      },
+      req
+    );
     return {
       data: data.map((user: User) => this.toAdminUserResponse(user)),
       pagination: { total, limit, offset },

@@ -1,18 +1,22 @@
 import {
-  Controller,
-  Get,
-  Post,
-  Patch,
-  Delete,
-  Body,
-  Param,
-  UseGuards,
+Controller,
+Get,
+Post,
+Patch,
+Delete,
+Body,
+Param,
+UseGuards,
   ParseUUIDPipe,
+  Req,
+  UseInterceptors,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionGuard } from '../policy/guards/permission.guard';
 import { RequirePermission } from '../policy/decorators/require-permission.decorator';
+import { ApplyDataFilter } from '../policy/decorators/apply-data-filter.decorator';
+import { DataFilterInterceptor, RequestWithDataFilter } from '../policy/interceptors/data-filter.interceptor';
 import { RoleService } from './role.service';
 import { CreateRoleDto, UpdateRoleDto, AssignRoleDto, AssignPermissionsDto } from './dto';
 import { Role } from '../entities/role.entity';
@@ -44,10 +48,12 @@ export class RbacController {
 
   @Get()
   @RequirePermission('role', 'read')
+  @ApplyDataFilter(Role)
+  @UseInterceptors(DataFilterInterceptor)
   @ApiOperation({ summary: 'Get all roles' })
   @ApiResponse({ status: 200, description: 'List of roles' })
-  async getRoles(): Promise<{ data: Role[] }> {
-    const roles = await this.roleService.getRoles();
+  async getRoles(@Req() req: RequestWithDataFilter): Promise<{ data: Role[] }> {
+    const roles = await this.roleService.getRoles(req);
     return { data: roles };
   }
 

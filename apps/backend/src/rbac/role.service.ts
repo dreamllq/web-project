@@ -15,6 +15,7 @@ import { User } from '../entities/user.entity';
 import { PermissionCacheService } from '../policy/services/permission-cache.service';
 import { RegisterSubjectType } from '../policy/decorators/register-subject-type.decorator';
 import { SubjectValue } from '../policy/services/subject-type-registry.service';
+import type { RequestWithDataFilter } from '../policy/interceptors/data-filter.interceptor';
 import { CreateRoleDto, UpdateRoleDto } from './dto';
 
 @RegisterSubjectType({ type: 'role', label: '角色' })
@@ -129,12 +130,25 @@ export class RoleService {
 
   /**
    * Get all roles
+   * Supports ABAC data-level filtering via RequestWithDataFilter
    */
-  async getRoles(): Promise<Role[]> {
-    return this.roleRepo.find({
-      relations: ['permissions'],
-      order: { name: 'ASC' },
-    });
+  async getRoles(request?: RequestWithDataFilter): Promise<Role[]> {
+    const qb = this.roleRepo.createQueryBuilder('role');
+
+    // Load permissions relation
+    qb.leftJoinAndSelect('role.permissions', 'permission');
+
+    // Apply ABAC data filter conditions if present
+    if (request?.dataFilterConditions && request.dataFilterConditions.length > 0) {
+      for (const bracket of request.dataFilterConditions) {
+        qb.andWhere(bracket);
+      }
+    }
+
+    // Order by name ASC
+    qb.orderBy('role.name', 'ASC');
+
+    return qb.getMany();
   }
 
   /**
