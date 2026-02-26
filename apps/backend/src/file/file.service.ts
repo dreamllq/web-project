@@ -7,40 +7,30 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, FindOptionsWhere, Like } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
-import * as fs from 'fs/promises';
+
 import * as path from 'path';
 import { randomUUID } from 'crypto';
 import { File, StorageProvider } from '../entities/file.entity';
 import { QueryFileDto } from './dto';
 import { FileConfig } from './config/file.config';
+import { StorageService } from '../storage/storage.service';
 
 @Injectable()
 export class FileService {
-  private readonly uploadDir: string;
   private readonly allowedMimeTypes: string[];
   private readonly maxFileSize: number;
 
   constructor(
     @InjectRepository(File)
     private readonly fileRepo: Repository<File>,
-    private readonly configService: ConfigService
+    private readonly configService: ConfigService,
+    private readonly storageService: StorageService,
   ) {
     const fileConfig = this.configService.get<FileConfig>('file')!;
-    this.uploadDir = fileConfig.uploadDir;
     this.allowedMimeTypes = fileConfig.allowedMimeTypes;
     this.maxFileSize = fileConfig.maxFileSize;
   }
 
-  /**
-   * Ensure the upload directory exists
-   */
-  private async ensureUploadDir(): Promise<void> {
-    try {
-      await fs.mkdir(this.uploadDir, { recursive: true });
-    } catch {
-      // Directory already exists
-    }
-  }
 
   /**
    * Upload a file
@@ -59,17 +49,15 @@ export class FileService {
         `File type ${file.mimetype} is not allowed. Allowed types: ${this.allowedMimeTypes.join(', ')}`
       );
     }
-
-    // Ensure upload directory exists
-    await this.ensureUploadDir();
-
-    // Generate unique filename
+    // Generate storage key and upload via storage service
     const ext = path.extname(file.originalname);
     const storedName = `${randomUUID()}${ext}`;
-    const storagePath = path.join(this.uploadDir, storedName);
+    const storageKey = `files/${storedName}`;
 
-    // Write file to disk
-    await fs.writeFile(storagePath, file.buffer);
+    // Upload via storage service
+    const result = await this.storageService.upload(storageKey, file.buffer, {
+      contentType: file.mimetype,
+    });
 
     // Create file record
     const fileRecord = this.fileRepo.create({
@@ -79,8 +67,8 @@ export class FileService {
       mimeType: file.mimetype,
       size: file.size,
       storageProvider: StorageProvider.LOCAL,
-      storagePath,
-      url: `/api/files/${storedName}/download`,
+      storagePath: result.key,
+      url: result.url,
     });
 
     return this.fileRepo.save(fileRecord);
@@ -151,11 +139,11 @@ export class FileService {
       throw new ForbiddenException('You do not have access to this file');
     }
 
-    // Delete file from disk
+    // Delete file from storage
     try {
-      await fs.unlink(file.storagePath);
+      await this.storageService.delete(file.storagePath);
     } catch {
-      // File might not exist on disk, continue with database deletion
+      // File might not exist in storage, continue with database deletion
     }
 
     // Delete from database
@@ -163,26 +151,10 @@ export class FileService {
   }
 
   /**
-   * Get file path for download
+   * Get a signed download URL for a file
    */
-  async getFilePath(file: File): Promise<string> {
-    try {
-      await fs.access(file.storagePath);
-      return file.storagePath;
-    } catch {
-      throw new NotFoundException('File not found on disk');
-    }
+  async getDownloadUrl(file: File): Promise<string> {
+    return this.storageService.getSignedUrl(file.storagePath);
   }
 
-  /**
-   * Get file stats (size, etc.)
-   */
-  async getFileStats(file: File): Promise<{ size: number; createdAt: Date }> {
-    const filePath = await this.getFilePath(file);
-    const stats = await fs.stat(filePath);
-    return {
-      size: stats.size,
-      createdAt: stats.birthtime,
-    };
-  }
 }

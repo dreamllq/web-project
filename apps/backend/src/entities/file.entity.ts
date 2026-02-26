@@ -11,8 +11,8 @@ import { User } from './user.entity';
 
 export enum StorageProvider {
   LOCAL = 'local',
-  SUPABASE = 'supabase',
-  R2 = 'r2',
+  S3 = 's3',
+  MINIO = 'minio',
 }
 
 @Entity('files')
