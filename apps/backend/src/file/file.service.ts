@@ -17,7 +17,6 @@ import { StorageService } from '../storage/storage.service';
 
 @Injectable()
 export class FileService {
-  private readonly uploadDir: string;
   private readonly allowedMimeTypes: string[];
   private readonly maxFileSize: number;
 
@@ -28,7 +27,6 @@ export class FileService {
     private readonly storageService: StorageService,
   ) {
     const fileConfig = this.configService.get<FileConfig>('file')!;
-    this.uploadDir = fileConfig.uploadDir;
     this.allowedMimeTypes = fileConfig.allowedMimeTypes;
     this.maxFileSize = fileConfig.maxFileSize;
   }
@@ -150,6 +148,13 @@ export class FileService {
 
     // Delete from database
     await this.fileRepo.remove(file);
+  }
+
+  /**
+   * Get a signed download URL for a file
+   */
+  async getDownloadUrl(file: File): Promise<string> {
+    return this.storageService.getSignedUrl(file.storagePath);
   }
 
 }

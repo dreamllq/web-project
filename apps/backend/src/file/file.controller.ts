@@ -8,12 +8,10 @@ import {
   UseGuards,
   UseInterceptors,
   UploadedFile,
-  Res,
   BadRequestException,
+  Redirect,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { Response } from 'express';
-import { createReadStream } from 'fs';
 import { FileService } from './file.service';
 import { QueryFileDto } from './dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -99,19 +97,14 @@ export class FileController {
    * GET /api/files/:id/download
    */
   @Get(':id/download')
+  @Redirect()
   async download(
     @CurrentUser() user: User,
     @Param('id') id: string,
-    @Res() res: Response,
-  ): Promise<void> {
+  ): Promise<{ url: string }> {
     const file = await this.fileService.findOne(user.id, id);
-    const filePath = await this.fileService.getFilePath(file);
-
-    res.setHeader('Content-Type', file.mimeType);
-    res.setHeader('Content-Disposition', `attachment; filename="${file.filename}"`);
-
-    const fileStream = createReadStream(filePath);
-    fileStream.pipe(res);
+    const url = await this.fileService.getDownloadUrl(file);
+    return { url };
   }
 
   /**
