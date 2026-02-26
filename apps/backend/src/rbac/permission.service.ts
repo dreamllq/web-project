@@ -2,6 +2,7 @@ import { Injectable, Logger, NotFoundException, BadRequestException } from '@nes
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Permission } from '../entities/permission.entity';
+import type { RequestWithDataFilter } from '../policy/interceptors/data-filter.interceptor';
 
 export interface CreatePermissionDto {
   name: string;
@@ -43,11 +44,21 @@ export class PermissionService {
 
   /**
    * Get all permissions
+   * Supports ABAC data-level filtering via RequestWithDataFilter
    */
-  async getPermissions(): Promise<Permission[]> {
-    return this.permissionRepo.find({
-      order: { resource: 'ASC', action: 'ASC' },
-    });
+  async getPermissions(request?: RequestWithDataFilter): Promise<Permission[]> {
+    const queryBuilder = this.permissionRepo.createQueryBuilder('permission');
+
+    // Apply ABAC data filter conditions if present
+    if (request?.dataFilterConditions && request.dataFilterConditions.length > 0) {
+      for (const bracket of request.dataFilterConditions) {
+        queryBuilder.andWhere(bracket);
+      }
+    }
+
+    queryBuilder.orderBy('permission.resource', 'ASC').addOrderBy('permission.action', 'ASC');
+
+    return queryBuilder.getMany();
   }
 
   /**

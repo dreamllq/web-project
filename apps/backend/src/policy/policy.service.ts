@@ -4,6 +4,7 @@ import { Repository, Like } from 'typeorm';
 import { Policy } from '../entities/policy.entity';
 import { CreatePolicyDto, UpdatePolicyDto, QueryPolicyDto } from './dto';
 import type { PolicySubject } from './types/policy.types';
+import type { RequestWithDataFilter } from './interceptors/data-filter.interceptor';
 
 @Injectable()
 export class PolicyService {
@@ -33,14 +34,19 @@ export class PolicyService {
 
   /**
    * Find all policies with optional filtering and pagination
+   * Supports ABAC data-level filtering via RequestWithDataFilter
    */
-  async findAll(query: QueryPolicyDto): Promise<{ data: Policy[]; total: number }> {
+  async findAll(
+    query: QueryPolicyDto,
+    request?: RequestWithDataFilter
+  ): Promise<{ data: Policy[]; total: number }> {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
     const skip = (page - 1) * limit;
 
     const queryBuilder = this.policyRepo.createQueryBuilder('policy');
 
+    // Apply query filters
     if (query.name) {
       queryBuilder.andWhere('policy.name LIKE :name', { name: `%${query.name}%` });
     }
@@ -57,6 +63,13 @@ export class PolicyService {
     }
     if (query.enabled !== undefined) {
       queryBuilder.andWhere('policy.enabled = :enabled', { enabled: query.enabled });
+    }
+
+    // Apply ABAC data filter conditions if present
+    if (request?.dataFilterConditions && request.dataFilterConditions.length > 0) {
+      for (const bracket of request.dataFilterConditions) {
+        queryBuilder.andWhere(bracket);
+      }
     }
 
     queryBuilder

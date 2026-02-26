@@ -203,7 +203,16 @@ export class PolicyEvaluatorService {
     resource: string,
     action: string,
   ): Promise<Brackets[]> {
+    const startTime = Date.now();
     const userAttrs = this.extractUserAttributes(user);
+
+    this.logger.debug({
+      message: 'getDataFilterConditions: Starting evaluation',
+      userId: userAttrs.id,
+      username: userAttrs.username,
+      resource,
+      action,
+    });
 
     // Get policies that match this user, resource, and action with effect=allow
     const policies = await this.getPolicies();
@@ -214,13 +223,24 @@ export class PolicyEvaluatorService {
       return subjectMatch && resourceMatch && actionMatch && policy.effect === PolicyEffect.ALLOW;
     });
 
+    this.logger.debug({
+      message: 'getDataFilterConditions: Policy matching complete',
+      userId: userAttrs.id,
+      resource,
+      action,
+      totalPolicies: policies.length,
+      matchingPoliciesCount: matchingPolicies.length,
+      matchingPolicyNames: matchingPolicies.map((p) => p.name),
+    });
+
     // No matching policies - return empty array (permissive mode)
     if (matchingPolicies.length === 0) {
       this.logger.debug({
-        message: 'Data filter conditions: no matching policies found',
+        message: 'getDataFilterConditions: No matching policies found',
         userId: userAttrs.id,
         resource,
         action,
+        evaluationTimeMs: Date.now() - startTime,
       });
       return [];
     }
@@ -230,6 +250,12 @@ export class PolicyEvaluatorService {
 
     for (const policy of matchingPolicies) {
       if (!policy.conditions) {
+        this.logger.debug({
+          message: 'getDataFilterConditions: Policy has no conditions, allowing all',
+          policyName: policy.name,
+          policyId: policy.id,
+          userId: userAttrs.id,
+        });
         continue;
       }
 
@@ -239,8 +265,21 @@ export class PolicyEvaluatorService {
         (policy.conditions.condition ? [policy.conditions.condition] : []);
 
       if (conditionList.length === 0) {
+        this.logger.debug({
+          message: 'getDataFilterConditions: Policy has empty conditions',
+          policyName: policy.name,
+          policyId: policy.id,
+        });
         continue;
       }
+
+      this.logger.debug({
+        message: 'getDataFilterConditions: Processing policy conditions',
+        policyName: policy.name,
+        policyId: policy.id,
+        conditionCount: conditionList.length,
+        conditions: conditionList.map((c) => ({ field: c.field, operator: c.operator })),
+      });
 
       // Build WHERE clauses for all conditions
       const whereClauses: { query: string; params: Record<string, unknown> }[] = [];
@@ -264,15 +303,22 @@ export class PolicyEvaluatorService {
       });
 
       brackets.push(bracket);
+
+      this.logger.debug({
+        message: 'getDataFilterConditions: Bracket created for policy',
+        policyName: policy.name,
+        whereClauses: whereClauses.map((c) => c.query),
+      });
     }
 
     this.logger.debug({
-      message: 'Data filter conditions generated',
+      message: 'getDataFilterConditions: Evaluation complete',
       userId: userAttrs.id,
       resource,
       action,
       matchingPoliciesCount: matchingPolicies.length,
       bracketsCount: brackets.length,
+      evaluationTimeMs: Date.now() - startTime,
     });
 
     return brackets;
@@ -390,6 +436,7 @@ export class PolicyEvaluatorService {
       default: {
         // Exhaustive check - TypeScript will error if any operator is missing
         const _exhaustiveCheck: never = condition.operator;
+        throw new Error(`Unknown operator: ${_exhaustiveCheck}`);
       }
     }
   }
@@ -802,6 +849,15 @@ export class PolicyEvaluatorService {
     this.policyCache = null;
     this.cacheExpiry = 0;
     this.logger.debug('Policy cache invalidated');
+  }
+
+  /**
+   * Invalidate the data filter cache (alias for invalidateCache)
+   * Used to manually refresh cached data filter conditions
+   */
+  invalidateDataFilterCache(): void {
+    this.invalidateCache();
+    this.logger.debug('Data filter cache invalidated via invalidateDataFilterCache()');
   }
 
   /**

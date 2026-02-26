@@ -8,7 +8,9 @@ import {
   Param,
   Query,
   UseGuards,
+  UseInterceptors,
   Version,
+  Req,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -24,6 +26,8 @@ import { Policy } from '../entities/policy.entity';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User } from '../entities/user.entity';
 import { Permission } from '../entities/permission.entity';
+import { ApplyDataFilter } from './decorators/apply-data-filter.decorator';
+import { DataFilterInterceptor, RequestWithDataFilter } from './interceptors/data-filter.interceptor';
 
 @ApiTags('policies')
 @Controller('policies')
@@ -68,12 +72,15 @@ export class PolicyController {
   @Get()
   @Version('1')
   @RequirePermission('policy', 'read')
+  @ApplyDataFilter(Policy)
+  @UseInterceptors(DataFilterInterceptor)
   @ApiOperation({ summary: 'List all ABAC policies' })
   @ApiResponse({ status: 200, description: 'List of policies with pagination' })
   async findAll(
-    @Query() query: QueryPolicyDto
+    @Query() query: QueryPolicyDto,
+    @Req() req: RequestWithDataFilter
   ): Promise<{ data: Policy[]; total: number; page: number; limit: number }> {
-    const { data, total } = await this.policyService.findAll(query);
+    const { data, total } = await this.policyService.findAll(query, req);
     return {
       data,
       total,

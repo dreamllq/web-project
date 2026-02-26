@@ -1,17 +1,21 @@
 import {
-  Controller,
-  Get,
-  Post,
-  Delete,
-  Body,
-  Param,
-  UseGuards,
+Controller,
+Get,
+Post,
+Delete,
+Body,
+Param,
+UseGuards,
   ParseUUIDPipe,
+  UseInterceptors,
+  Req,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionGuard } from '../policy/guards/permission.guard';
 import { RequirePermission } from '../policy/decorators/require-permission.decorator';
+import { ApplyDataFilter } from '../policy/decorators/apply-data-filter.decorator';
+import { DataFilterInterceptor, RequestWithDataFilter } from '../policy/interceptors/data-filter.interceptor';
 import { PermissionService, CreatePermissionDto } from './permission.service';
 import { Permission } from '../entities/permission.entity';
 
@@ -31,10 +35,12 @@ export class PermissionController {
 
   @Get()
   @RequirePermission('permission', 'read')
+  @ApplyDataFilter(Permission)
+  @UseInterceptors(DataFilterInterceptor)
   @ApiOperation({ summary: 'Get all permissions' })
   @ApiResponse({ status: 200, description: 'List of permissions' })
-  async getPermissions(): Promise<{ data: Permission[] }> {
-    const permissions = await this.permissionService.getPermissions();
+  async getPermissions(@Req() req: RequestWithDataFilter): Promise<{ data: Permission[] }> {
+    const permissions = await this.permissionService.getPermissions(req);
     return { data: permissions };
   }
 
