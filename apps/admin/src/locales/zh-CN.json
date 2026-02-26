@@ -28,16 +28,19 @@
     "loginFailed": "Login failed, please check your credentials"
   },
   "menu": {
-    "dashboard": "Dashboard",
-    "users": "Users",
-    "auditLogs": "Audit Logs",
+    "dashboard": "首页",
+    "users": "用户管理",
+    "auditLogs": "审计日志",
     "devices": "设备管理",
     "loginHistory": "登录历史",
     "twoFactorSettings": "两步验证",
     "phoneVerification": "手机验证",
     "policies": "策略管理",
     "roles": "角色管理",
-    "permissions": "权限管理"
+    "permissions": "权限管理",
+    "userCenter": "用户中心",
+    "profile": "个人资料",
+    "changePassword": "修改密码"
   },
   "dashboard": {
     "title": "Dashboard",

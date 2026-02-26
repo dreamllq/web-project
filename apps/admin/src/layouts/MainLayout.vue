@@ -36,34 +36,32 @@ function logout() {
           <el-icon><HomeFilled /></el-icon>
           <span>{{ t('menu.dashboard') }}</span>
         </el-menu-item>
-        <el-menu-item index="/admin/users">
-          <el-icon><User /></el-icon>
-          <span>{{ t('menu.users') }}</span>
-        </el-menu-item>
-        <el-menu-item index="/admin/audit-logs">
-          <el-icon><Document /></el-icon>
-          <span>{{ t('menu.auditLogs') }}</span>
-        </el-menu-item>
-        <el-menu-item index="/admin/devices">
-          <el-icon><Monitor /></el-icon>
-          <span>{{ t('menu.devices') }}</span>
-        </el-menu-item>
-        <el-menu-item index="/admin/login-history">
-          <el-icon><Clock /></el-icon>
-          <span>{{ t('menu.loginHistory') }}</span>
-        </el-menu-item>
-        <el-menu-item index="/admin/policies">
-          <el-icon><Setting /></el-icon>
-          <span>{{ t('menu.policies') }}</span>
-        </el-menu-item>
-        <el-menu-item index="/admin/roles">
-          <el-icon><Avatar /></el-icon>
-          <span>{{ t('menu.roles') }}</span>
-        </el-menu-item>
-        <el-menu-item index="/admin/permissions">
-          <el-icon><Lock /></el-icon>
-          <span>{{ t('menu.permissions') }}</span>
-        </el-menu-item>
+        <el-sub-menu index="user-center">
+          <template #title>
+            <el-icon><UserFilled /></el-icon>
+            <span>{{ t('menu.userCenter') }}</span>
+          </template>
+          <el-menu-item index="/admin/users">
+            <el-icon><User /></el-icon>
+            <span>{{ t('menu.users') }}</span>
+          </el-menu-item>
+          <el-menu-item index="/admin/roles">
+            <el-icon><Avatar /></el-icon>
+            <span>{{ t('menu.roles') }}</span>
+          </el-menu-item>
+          <el-menu-item index="/admin/permissions">
+            <el-icon><Lock /></el-icon>
+            <span>{{ t('menu.permissions') }}</span>
+          </el-menu-item>
+          <el-menu-item index="/admin/policies">
+            <el-icon><Setting /></el-icon>
+            <span>{{ t('menu.policies') }}</span>
+          </el-menu-item>
+          <el-menu-item index="/admin/audit-logs">
+            <el-icon><Document /></el-icon>
+            <span>{{ t('menu.auditLogs') }}</span>
+          </el-menu-item>
+        </el-sub-menu>
       </el-menu>
     </el-aside>
 
@@ -223,5 +221,31 @@ function logout() {
 .content {
   padding: 24px;
   min-height: calc(100vh - 60px);
+}
+
+/* Sub-menu styles */
+.sidebar-menu .el-sub-menu__title {
+  height: 50px;
+  line-height: 50px;
+}
+
+.sidebar-menu .el-sub-menu__title:hover {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+.sidebar-menu .el-sub-menu .el-menu-item {
+  height: 46px;
+  line-height: 46px;
+  padding-left: 50px !important;
+  min-width: auto;
+}
+
+.sidebar-menu .el-sub-menu .el-menu-item:hover {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+.sidebar-menu .el-sub-menu .el-menu-item.is-active {
+  background: linear-gradient(90deg, #667eea 0%, #764ba4 100%) !important;
+  color: #fff !important;
 }
 </style>
