@@ -14,7 +14,6 @@ import { MailConfig } from '../config/mail.config';
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => {
         const mailConfigValue = configService.get<MailConfig>('mail');
-        console.log('mailConfigValue', mailConfigValue);
 
         return {
           transport: {
