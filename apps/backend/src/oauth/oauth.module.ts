@@ -1,13 +1,22 @@
 import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { CustomCacheModule } from '../custom-cache/custom-cache.module';
+import { OAuthClient } from '../entities/oauth-client.entity';
+import { OAuthToken } from '../entities/oauth-token.entity';
+import { OAuthProviderConfig } from '../entities/oauth-provider-config.entity';
 import { OAuthController } from './oauth.controller';
 import { OAuthService } from './oauth.service';
+import { OAuthProviderService } from './oauth-provider.service';
 import { UsersModule } from '../users/users.module';
 
 @Module({
-  imports: [UsersModule, CustomCacheModule],
+  imports: [
+    TypeOrmModule.forFeature([OAuthClient, OAuthToken, OAuthProviderConfig]),
+    UsersModule,
+    CustomCacheModule,
+  ],
   controllers: [OAuthController],
-  providers: [OAuthService],
-  exports: [OAuthService],
+  providers: [OAuthService, OAuthProviderService],
+  exports: [OAuthService, OAuthProviderService],
 })
 export class OAuthModule {}

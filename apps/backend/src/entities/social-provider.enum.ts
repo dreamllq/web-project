@@ -7,8 +7,8 @@ export enum SocialProvider {
   DINGTALK_MINIPROGRAM = 'dingtalk_miniprogram',
   DINGTALK = 'dingtalk',
   FEISHU = 'feishu',
-  DOUYIN = 'douyin',
   QQ = 'qq',
+  DOUYIN = 'douyin',
   BAIDU = 'baidu',
 }
 

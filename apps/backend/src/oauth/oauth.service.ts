@@ -1,7 +1,11 @@
 import { Injectable, Logger, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { CustomCacheService } from '../custom-cache/custom-cache.service';
 import { CacheKeyPrefix, CacheTTL } from '../custom-cache/custom-cache.constants';
 import { UsersService } from '../users/users.service';
+import { OAuthClient as OAuthClientEntity } from '../entities/oauth-client.entity';
+import { OAuthToken as OAuthTokenEntity } from '../entities/oauth-token.entity';
 import {
   RegisterClientDto,
   RegisterClientResponse,
@@ -20,6 +24,10 @@ export class OAuthService {
   private readonly logger = new Logger(OAuthService.name);
 
   constructor(
+    @InjectRepository(OAuthClientEntity)
+    private readonly clientRepository: Repository<OAuthClientEntity>,
+    @InjectRepository(OAuthTokenEntity)
+    private readonly tokenRepository: Repository<OAuthTokenEntity>,
     private readonly cacheService: CustomCacheService,
     private readonly usersService: UsersService
   ) {}
@@ -30,37 +38,49 @@ export class OAuthService {
   async registerClient(userId: string, dto: RegisterClientDto): Promise<RegisterClientResponse> {
     const clientId = this.generateClientId();
     const clientSecret = this.generateClientSecret();
-    const id = this.generateId();
 
-    const client: OAuthClient = {
-      id,
+    // Create client entity
+    const clientEntity = this.clientRepository.create({
       clientId,
       clientSecret,
       name: dto.name,
       redirectUris: dto.redirectUris,
-      scopes: dto.scopes || ['openid', 'profile', 'email'],
+      allowedScopes: dto.scopes || ['openid', 'profile', 'email'],
+      isConfidential: true,
+    });
+
+    // Save to database
+    const savedClient = await this.clientRepository.save(clientEntity);
+
+    // Also store in cache for backward compatibility (short TTL for cache)
+    const clientDto: OAuthClient = {
+      id: savedClient.id,
+      clientId: savedClient.clientId,
+      clientSecret: savedClient.clientSecret,
+      name: savedClient.name,
+      redirectUris: savedClient.redirectUris,
+      scopes: savedClient.allowedScopes,
       userId,
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      createdAt: savedClient.createdAt,
+      updatedAt: savedClient.updatedAt,
     };
 
-    // Store client in cache (in production, use database)
     await this.cacheService.set(
       `${CacheKeyPrefix.OAUTH_CLIENT}:${clientId}`,
-      client,
-      365 * 24 * 60 * 60 * 1000 // 1 year TTL for client
+      clientDto,
+      365 * 24 * 60 * 60 * 1000 // 1 year TTL for cache
     );
 
     this.logger.log(`Registered new OAuth client: ${clientId} for user: ${userId}`);
 
     return {
-      id: client.id,
-      client_id: client.clientId,
-      client_secret: client.clientSecret,
-      name: client.name,
-      redirect_uris: client.redirectUris,
-      scopes: client.scopes,
-      created_at: client.createdAt,
+      id: savedClient.id,
+      client_id: savedClient.clientId,
+      client_secret: savedClient.clientSecret,
+      name: savedClient.name,
+      redirect_uris: savedClient.redirectUris,
+      scopes: savedClient.allowedScopes,
+      created_at: savedClient.createdAt,
     };
   }
 
@@ -212,12 +232,28 @@ export class OAuthService {
 
     // Generate access token
     const accessToken = this.generateAccessToken();
+    const expiresAt = new Date(Date.now() + CacheTTL.OAUTH_ACCESS_TOKEN * 1000);
+
+    // Save to database
+    const tokenEntity = this.tokenRepository.create({
+      clientId: client.id,
+      userId: authCode.userId,
+      accessToken,
+      refreshToken: null,
+      scopes: authCode.scopes,
+      expiresAt,
+      revokedAt: null,
+    });
+
+    await this.tokenRepository.save(tokenEntity);
+
+    // Also save to cache for backward compatibility
     const tokenData: OAuthAccessToken = {
       accessToken,
       clientId: client.clientId,
       userId: authCode.userId,
       scopes: authCode.scopes,
-      expiresAt: Date.now() + CacheTTL.OAUTH_ACCESS_TOKEN * 1000,
+      expiresAt: expiresAt.getTime(),
     };
 
     await this.cacheService.set(
@@ -249,12 +285,28 @@ export class OAuthService {
 
     // Generate access token
     const accessToken = this.generateAccessToken();
+    const expiresAt = new Date(Date.now() + CacheTTL.OAUTH_ACCESS_TOKEN * 1000);
+
+    // Save to database
+    const tokenEntity = this.tokenRepository.create({
+      clientId: client.id,
+      userId: null, // No user for client_credentials
+      accessToken,
+      refreshToken: null,
+      scopes,
+      expiresAt,
+      revokedAt: null,
+    });
+
+    await this.tokenRepository.save(tokenEntity);
+
+    // Also save to cache for backward compatibility
     const tokenData: OAuthAccessToken = {
       accessToken,
       clientId: client.clientId,
       userId: undefined, // No user for client_credentials
       scopes,
-      expiresAt: Date.now() + CacheTTL.OAUTH_ACCESS_TOKEN * 1000,
+      expiresAt: expiresAt.getTime(),
     };
 
     await this.cacheService.set(
@@ -277,10 +329,44 @@ export class OAuthService {
    * Get client by client_id
    */
   private async getClient(clientId: string): Promise<OAuthClient | null> {
-    const client = await this.cacheService.get<OAuthClient>(
+    // Try cache first for backward compatibility
+    const cachedClient = await this.cacheService.get<OAuthClient>(
       `${CacheKeyPrefix.OAUTH_CLIENT}:${clientId}`
     );
-    return client || null;
+    if (cachedClient) {
+      return cachedClient;
+    }
+
+    // Fall back to database
+    const dbClient = await this.clientRepository.findOne({
+      where: { clientId },
+    });
+
+    if (!dbClient) {
+      return null;
+    }
+
+    // Map database entity to DTO
+    const clientDto: OAuthClient = {
+      id: dbClient.id,
+      clientId: dbClient.clientId,
+      clientSecret: dbClient.clientSecret,
+      name: dbClient.name,
+      redirectUris: dbClient.redirectUris,
+      scopes: dbClient.allowedScopes,
+      userId: '', // Not tracked in database entity
+      createdAt: dbClient.createdAt,
+      updatedAt: dbClient.updatedAt,
+    };
+
+    // Cache the result for future requests
+    await this.cacheService.set(
+      `${CacheKeyPrefix.OAUTH_CLIENT}:${clientId}`,
+      clientDto,
+      365 * 24 * 60 * 60 * 1000
+    );
+
+    return clientDto;
   }
 
   /**
@@ -308,13 +394,44 @@ export class OAuthService {
   }
 
   /**
-   * Get access token data from cache
+   * Get access token data from cache or database
    */
   private async getAccessToken(token: string): Promise<OAuthAccessToken | null> {
-    const tokenData = await this.cacheService.get<OAuthAccessToken>(
+    // Try cache first for backward compatibility
+    const cachedTokenData = await this.cacheService.get<OAuthAccessToken>(
       `${CacheKeyPrefix.OAUTH_TOKEN}:${token}`
     );
-    return tokenData || null;
+    if (cachedTokenData) {
+      return cachedTokenData;
+    }
+
+    // Fall back to database
+    const dbToken = await this.tokenRepository.findOne({
+      where: { accessToken: token },
+      relations: ['client'],
+    });
+
+    if (!dbToken || dbToken.revokedAt || dbToken.expiresAt < new Date()) {
+      return null;
+    }
+
+    // Map database entity to DTO
+    const tokenData: OAuthAccessToken = {
+      accessToken: dbToken.accessToken,
+      clientId: dbToken.client.clientId,
+      userId: dbToken.userId || undefined,
+      scopes: dbToken.scopes,
+      expiresAt: dbToken.expiresAt.getTime(),
+    };
+
+    // Cache the result for future requests
+    await this.cacheService.set(
+      `${CacheKeyPrefix.OAUTH_TOKEN}:${token}`,
+      tokenData,
+      CacheTTL.OAUTH_ACCESS_TOKEN * 1000
+    );
+
+    return tokenData;
   }
 
   /**
@@ -343,13 +460,6 @@ export class OAuthService {
    */
   private generateClientSecret(): string {
     return this.randomString(32);
-  }
-
-  /**
-   * Generate random ID
-   */
-  private generateId(): string {
-    return this.randomString(16);
   }
 
   /**
