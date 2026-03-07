@@ -16,16 +16,22 @@ import { JwtConfig } from '../config/jwt.config';
 import { WechatOAuthService } from './oauth/wechat.service';
 import { WechatMiniprogramService } from './oauth/wechat-miniprogram.service';
 import { DingtalkMiniprogramService } from './oauth/dingtalk-miniprogram.service';
+import { FeishuOAuthService } from './oauth/feishu.service';
+import { DouyinOAuthService } from './oauth/douyin.service';
+import { QQOAuthService } from './oauth/qq.service';
+import { BaiduOAuthService } from './oauth/baidu.service';
 import { VerificationTokenService } from './services/verification-token.service';
 import { VerificationToken } from '../entities/verification-token.entity';
 import { TwoFactorService } from './services/two-factor.service';
 import { TotpService } from './services/totp.service';
 import { RecoveryCodeService } from './services/recovery-code.service';
+import { SocialAccountService } from './social-account.service';
+import { SocialAccount } from '../entities/social-account.entity';
 
 @Module({
   imports: [
     UsersModule,
-    TypeOrmModule.forFeature([VerificationToken]),
+    TypeOrmModule.forFeature([VerificationToken, SocialAccount]),
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
       imports: [ConfigModule],
@@ -71,10 +77,15 @@ import { RecoveryCodeService } from './services/recovery-code.service';
     WechatOAuthService,
     WechatMiniprogramService,
     DingtalkMiniprogramService,
+    FeishuOAuthService,
+    DouyinOAuthService,
+    QQOAuthService,
+    BaiduOAuthService,
     VerificationTokenService,
     TotpService,
     RecoveryCodeService,
     TwoFactorService,
+    SocialAccountService,
   ],
   exports: [
     AuthService,
@@ -82,10 +93,15 @@ import { RecoveryCodeService } from './services/recovery-code.service';
     WechatOAuthService,
     WechatMiniprogramService,
     DingtalkMiniprogramService,
+    FeishuOAuthService,
+    DouyinOAuthService,
+    QQOAuthService,
+    BaiduOAuthService,
     VerificationTokenService,
     TotpService,
     RecoveryCodeService,
     TwoFactorService,
+    SocialAccountService,
   ],
 })
 export class AuthModule {}

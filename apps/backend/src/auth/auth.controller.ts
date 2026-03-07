@@ -46,6 +46,10 @@ import {
   DingtalkMiniprogramService,
   DingtalkMiniprogramLoginDto,
 } from './oauth/dingtalk-miniprogram.service';
+import { FeishuOAuthService } from './oauth/feishu.service';
+import { DouyinOAuthService } from './oauth/douyin.service';
+import { QQOAuthService } from './oauth/qq.service';
+import { BaiduOAuthService } from './oauth/baidu.service';
 import { TwoFactorService, TwoFactorSetupResult } from './services/two-factor.service';
 import { SmsServiceInterface } from '../sms/sms.service.interface';
 import { SmsConfig } from '../config/sms.config';
@@ -60,6 +64,10 @@ export class AuthController {
     private readonly wechatOAuthService: WechatOAuthService,
     private readonly wechatMiniprogramService: WechatMiniprogramService,
     private readonly dingtalkMiniprogramService: DingtalkMiniprogramService,
+    private readonly feishuOAuthService: FeishuOAuthService,
+    private readonly douyinOAuthService: DouyinOAuthService,
+    private readonly qqOAuthService: QQOAuthService,
+    private readonly baiduOAuthService: BaiduOAuthService,
     private readonly configService: ConfigService,
     @Inject('SmsServiceInterface')
     private readonly smsService: SmsServiceInterface,
@@ -123,6 +131,114 @@ export class AuthController {
       'http://localhost:5173';
 
     // Redirect to frontend with tokens in query params
+    return res.redirect(
+      `${frontendUrl}/auth/callback?access_token=${tokens.access_token}&refresh_token=${tokens.refresh_token}&expires_in=${tokens.expires_in}`
+    );
+  }
+
+  @Public()
+  @Get('oauth/feishu/url')
+  async getFeishuOAuthUrl(@Query('state') state?: string) {
+    return this.feishuOAuthService.getAuthorizationUrl(state);
+  }
+
+  @Public()
+  @Get('oauth/feishu/callback')
+  async feishuOAuthCallback(
+    @Query('code') code: string,
+    @Query('state') _state: string,
+    @Req() req: Request,
+    @Res() res: Response
+  ) {
+    const ip = req.ip || req.socket.remoteAddress;
+    const tokens = await this.feishuOAuthService.handleCallback(code, ip);
+
+    const frontendUrl =
+      this.configService.get<string>('frontendUrl') ||
+      process.env.FRONTEND_URL ||
+      'http://localhost:5173';
+
+    return res.redirect(
+      `${frontendUrl}/auth/callback?access_token=${tokens.access_token}&refresh_token=${tokens.refresh_token}&expires_in=${tokens.expires_in}`
+    );
+  }
+
+  @Public()
+  @Get('oauth/douyin/url')
+  async getDouyinOAuthUrl(@Query('state') state?: string) {
+    return this.douyinOAuthService.getAuthorizationUrl(state);
+  }
+
+  @Public()
+  @Get('oauth/douyin/callback')
+  async douyinOAuthCallback(
+    @Query('code') code: string,
+    @Query('state') _state: string,
+    @Req() req: Request,
+    @Res() res: Response
+  ) {
+    const ip = req.ip || req.socket.remoteAddress;
+    const tokens = await this.douyinOAuthService.handleCallback(code, ip);
+
+    const frontendUrl =
+      this.configService.get<string>('frontendUrl') ||
+      process.env.FRONTEND_URL ||
+      'http://localhost:5173';
+
+    return res.redirect(
+      `${frontendUrl}/auth/callback?access_token=${tokens.access_token}&refresh_token=${tokens.refresh_token}&expires_in=${tokens.expires_in}`
+    );
+  }
+
+  @Public()
+  @Get('oauth/qq/url')
+  async getQQOAuthUrl(@Query('state') state?: string) {
+    return this.qqOAuthService.getAuthorizationUrl(state);
+  }
+
+  @Public()
+  @Get('oauth/qq/callback')
+  async qqOAuthCallback(
+    @Query('code') code: string,
+    @Query('state') _state: string,
+    @Req() req: Request,
+    @Res() res: Response
+  ) {
+    const ip = req.ip || req.socket.remoteAddress;
+    const tokens = await this.qqOAuthService.handleCallback(code, ip);
+
+    const frontendUrl =
+      this.configService.get<string>('frontendUrl') ||
+      process.env.FRONTEND_URL ||
+      'http://localhost:5173';
+
+    return res.redirect(
+      `${frontendUrl}/auth/callback?access_token=${tokens.access_token}&refresh_token=${tokens.refresh_token}&expires_in=${tokens.expires_in}`
+    );
+  }
+
+  @Public()
+  @Get('oauth/baidu/url')
+  async getBaiduOAuthUrl(@Query('state') state?: string) {
+    return this.baiduOAuthService.getAuthorizationUrl(state);
+  }
+
+  @Public()
+  @Get('oauth/baidu/callback')
+  async baiduOAuthCallback(
+    @Query('code') code: string,
+    @Query('state') _state: string,
+    @Req() req: Request,
+    @Res() res: Response
+  ) {
+    const ip = req.ip || req.socket.remoteAddress;
+    const tokens = await this.baiduOAuthService.handleCallback(code, ip);
+
+    const frontendUrl =
+      this.configService.get<string>('frontendUrl') ||
+      process.env.FRONTEND_URL ||
+      'http://localhost:5173';
+
     return res.redirect(
       `${frontendUrl}/auth/callback?access_token=${tokens.access_token}&refresh_token=${tokens.refresh_token}&expires_in=${tokens.expires_in}`
     );

@@ -7,6 +7,8 @@ import { OAuthProviderConfig } from '../entities/oauth-provider-config.entity';
 import { OAuthController } from './oauth.controller';
 import { OAuthService } from './oauth.service';
 import { OAuthProviderService } from './oauth-provider.service';
+import { OAuthClientService } from './oauth-client.service';
+import { OAuthTokenService } from './oauth-token.service';
 import { UsersModule } from '../users/users.module';
 
 @Module({
@@ -16,7 +18,7 @@ import { UsersModule } from '../users/users.module';
     CustomCacheModule,
   ],
   controllers: [OAuthController],
-  providers: [OAuthService, OAuthProviderService],
-  exports: [OAuthService, OAuthProviderService],
+  providers: [OAuthService, OAuthProviderService, OAuthClientService, OAuthTokenService],
+  exports: [OAuthService, OAuthProviderService, OAuthClientService, OAuthTokenService],
 })
 export class OAuthModule {}
