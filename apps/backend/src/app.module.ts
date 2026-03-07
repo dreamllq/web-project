@@ -20,6 +20,7 @@ import { NotificationModule } from './notification/notification.module';
 import { WebsocketModule } from './websocket/websocket.module';
 import { FileModule } from './file/file.module';
 import { OAuthModule } from './oauth/oauth.module';
+import { ApiKeyModule } from './api-key/api-key.module';
 import { InitModule } from './init/init.module';
 import { MailModule } from './mail/mail.module';
 import { storageConfig } from './config/storage.config';
@@ -74,6 +75,7 @@ import { permissionConfig } from './config/permission.config';
     WebsocketModule,
     FileModule,
     OAuthModule,
+    ApiKeyModule,
     InitModule,
     MailModule,
   ],

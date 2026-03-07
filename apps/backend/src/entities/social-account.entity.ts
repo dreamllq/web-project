@@ -8,13 +8,9 @@ import {
   JoinColumn,
   Index,
 } from 'typeorm';
-import { User } from './user.entity';
+import { SocialProvider, SocialAccountStatus } from './social-provider.enum';
 
-export enum SocialProvider {
-  WECHAT = 'wechat',
-  WECHAT_MINIPROGRAM = 'wechat_miniprogram',
-  DINGTALK_MINIPROGRAM = 'dingtalk_miniprogram',
-}
+export { SocialProvider, SocialAccountStatus };
 
 @Entity('social_accounts')
 @Index(['provider', 'providerUserId'], { unique: true })
@@ -37,14 +33,32 @@ export class SocialAccount {
   @Column({ name: 'provider_data', type: 'jsonb', nullable: true })
   providerData: Record<string, unknown> | null;
 
+  @Column({ name: 'access_token', type: 'varchar', length: 500, nullable: true })
+  accessToken: string | null;
+
+  @Column({ name: 'refresh_token', type: 'varchar', length: 500, nullable: true })
+  refreshToken: string | null;
+
+  @Column({ name: 'token_expires_at', type: 'timestamp', nullable: true })
+  tokenExpiresAt: Date | null;
+
+  @Column({
+    type: 'enum',
+    enum: SocialAccountStatus,
+    default: SocialAccountStatus.LINKED,
+  })
+  status: SocialAccountStatus;
+
+  @Column({ name: 'unbound_at', type: 'timestamp', nullable: true })
+  unboundAt: Date | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 
-  // Relations
-  @ManyToOne(() => User, (user) => user.socialAccounts)
+  @ManyToOne(() => require('./user.entity').User, (user: any) => user.socialAccounts)
   @JoinColumn({ name: 'user_id' })
-  user: User;
+  user: any;
 }
