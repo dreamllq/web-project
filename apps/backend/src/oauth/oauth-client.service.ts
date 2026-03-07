@@ -118,7 +118,12 @@ export class OAuthClientService {
       throw new NotFoundException('OAuth client not found');
     }
 
-    const updatePayload: Partial<OAuthClient> = {};
+    const updatePayload: {
+      name?: string;
+      redirectUris?: string[];
+      allowedScopes?: string[];
+      isConfidential?: boolean;
+    } = {};
 
     if (dto.name !== undefined) {
       updatePayload.name = dto.name;
