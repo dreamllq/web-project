@@ -10,8 +10,8 @@ export interface OAuthClient {
   clientId: string;
   clientSecret?: string;
   redirectUris: string[];
-  grants: string[];
-  scope: string;
+  scopes: string[];
+  isConfidential: boolean;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -29,8 +29,8 @@ export interface OAuthClientListResponse {
 export interface CreateOAuthClientDto {
   name: string;
   redirectUris: string[];
-  grants?: string[];
-  scope?: string;
+  scopes?: string[];
+  isConfidential?: boolean;
 }
 
 export interface OAuthClientQuery {
