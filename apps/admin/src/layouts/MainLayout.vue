@@ -49,17 +49,25 @@ function logout() {
             <el-icon><Avatar /></el-icon>
             <span>{{ t('menu.roles') }}</span>
           </el-menu-item>
-          <el-menu-item index="/admin/permissions">
-            <el-icon><Lock /></el-icon>
-            <span>{{ t('menu.permissions') }}</span>
+          <el-menu-item index="/admin/oauth-clients">
+            <el-icon><Key /></el-icon>
+            <span>{{ t('menu.oauthClients') }}</span>
           </el-menu-item>
-          <el-menu-item index="/admin/policies">
+          <el-menu-item index="/admin/oauth-tokens">
+            <el-icon><Tickets /></el-icon>
+            <span>{{ t('menu.oauthTokens') }}</span>
+          </el-menu-item>
+          <el-menu-item index="/admin/social-accounts">
+            <el-icon><Link /></el-icon>
+            <span>{{ t('menu.socialAccounts') }}</span>
+          </el-menu-item>
+          <el-menu-item index="/admin/oauth-providers">
             <el-icon><Setting /></el-icon>
-            <span>{{ t('menu.policies') }}</span>
+            <span>{{ t('menu.oauthProviders') }}</span>
           </el-menu-item>
-          <el-menu-item index="/admin/audit-logs">
-            <el-icon><Document /></el-icon>
-            <span>{{ t('menu.auditLogs') }}</span>
+          <el-menu-item index="/admin/api-keys">
+            <el-icon><Unlock /></el-icon>
+            <span>{{ t('menu.apiKeys') }}</span>
           </el-menu-item>
         </el-sub-menu>
       </el-menu>

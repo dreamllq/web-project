@@ -40,7 +40,12 @@
     "permissions": "权限管理",
     "userCenter": "用户中心",
     "profile": "个人资料",
-    "changePassword": "修改密码"
+    "changePassword": "修改密码",
+    "oauthClients": "OAuth客户端",
+    "oauthTokens": "OAuth令牌",
+    "socialAccounts": "社交账号",
+    "oauthProviders": "OAuth配置",
+    "apiKeys": "API密钥"
   },
   "dashboard": {
     "title": "Dashboard",

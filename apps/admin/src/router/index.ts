@@ -73,6 +73,31 @@ const routes: RouteRecordRaw[] = [
         name: 'Permissions',
         component: () => import('@/views/Permissions.vue'),
       },
+      {
+        path: 'oauth-clients',
+        name: 'OAuthClients',
+        component: () => import('@/views/OAuthClients.vue'),
+      },
+      {
+        path: 'oauth-tokens',
+        name: 'OAuthTokens',
+        component: () => import('@/views/OAuthTokens.vue'),
+      },
+      {
+        path: 'social-accounts',
+        name: 'SocialAccounts',
+        component: () => import('@/views/SocialAccounts.vue'),
+      },
+      {
+        path: 'oauth-providers',
+        name: 'OAuthProviders',
+        component: () => import('@/views/OAuthProviderSettings.vue'),
+      },
+      {
+        path: 'api-keys',
+        name: 'APIKeys',
+        component: () => import('@/views/APIKeys.vue'),
+      },
     ],
   },
   {

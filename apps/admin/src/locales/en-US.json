@@ -33,11 +33,19 @@
     "auditLogs": "Audit Logs",
     "devices": "Device Management",
     "loginHistory": "Login History",
-    "twoFactorSettings": "Two-Factor Auth",
+    "twoFactorSettings": "Two-Factor Settings",
     "phoneVerification": "Phone Verification",
     "policies": "Policies",
     "roles": "Roles",
-    "permissions": "Permissions"
+    "permissions": "Permissions",
+    "userCenter": "User Center",
+    "profile": "Profile",
+    "changePassword": "Change Password",
+    "oauthClients": "OAuth Clients",
+    "oauthTokens": "OAuth Tokens",
+    "socialAccounts": "Social Accounts",
+    "oauthProviders": "OAuth Providers",
+    "apiKeys": "API Keys"
   },
   "dashboard": {
     "title": "Dashboard",
