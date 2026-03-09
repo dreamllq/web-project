@@ -31,6 +31,20 @@ export interface OAuthTokenQuery {
   offset?: number;
 }
 
+export interface BatchRevokeRequest {
+  ids: string[];
+}
+
+export interface BatchRevokeResponse {
+  success: string[];
+  failed: Array<{ id: string; reason: string }>;
+}
+
+export interface ExportQuery extends OAuthTokenQuery {
+  format: 'csv' | 'json';
+  includeUserPII?: boolean;
+}
+
 // ============================================
 // API Functions
 // ============================================
@@ -51,4 +65,23 @@ export function getOAuthTokens(
  */
 export function deleteOAuthToken(id: string): Promise<void> {
   return api.delete(`/admin/oauth-tokens/${id}`);
+}
+
+/**
+ * Batch revoke OAuth tokens
+ * POST /api/admin/oauth-tokens/batch/revoke
+ */
+export function batchRevokeTokens(ids: string[]): Promise<{ data: BatchRevokeResponse }> {
+  return api.post('/admin/oauth-tokens/batch/revoke', { ids });
+}
+
+/**
+ * Export OAuth tokens
+ * GET /api/admin/oauth-tokens/export
+ */
+export function exportTokens(params: ExportQuery): Promise<{ data: Blob }> {
+  return api.get('/admin/oauth-tokens/export', {
+    params,
+    responseType: 'blob',
+  });
 }

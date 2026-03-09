@@ -46,6 +46,14 @@ export interface OAuthProviderQuery {
   offset?: number;
 }
 
+export interface ProviderMetadata {
+  type: string;
+  name: string;
+  icon: string;
+  color: string;
+  sortOrder: number;
+}
+
 // ============================================
 // API Functions
 // ============================================
@@ -69,4 +77,12 @@ export function updateOAuthProvider(
   data: UpdateOAuthProviderDto
 ): Promise<{ data: OAuthProvider }> {
   return api.patch(`/admin/oauth-providers/${id}`, data);
+}
+
+/**
+ * Get OAuth providers metadata (icons, colors, names)
+ * GET /api/v1/admin/oauth-providers/metadata
+ */
+export function getProvidersMetadata(): Promise<{ data: { data: ProviderMetadata[] } }> {
+  return api.get('/v1/admin/oauth-providers/metadata');
 }

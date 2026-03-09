@@ -1,8 +1,23 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue';
-import { ElMessage } from 'element-plus';
-import { Plus, Edit, Delete, Search, Refresh, Key } from '@element-plus/icons-vue';
-import { getOAuthClients, createOAuthClient, deleteOAuthClient } from '@/api/oauth';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import {
+  Plus,
+  Edit,
+  Delete,
+  Search,
+  Refresh,
+  Key,
+  InfoFilled,
+  RefreshRight,
+} from '@element-plus/icons-vue';
+import {
+  getOAuthClients,
+  createOAuthClient,
+  updateOAuthClient,
+  deleteOAuthClient,
+  regenerateClientSecret,
+} from '@/api/oauth';
 import { extractApiError } from '@/api';
 import type { OAuthClient, CreateOAuthClientDto, OAuthClientQuery } from '@/api/oauth';
 import OAuthClientForm from '@/components/OAuthClientForm.vue';
@@ -25,6 +40,11 @@ const searchKeyword = ref('');
 const dialogVisible = ref(false);
 const editingClient = ref<OAuthClient | null>(null);
 const formLoading = ref(false);
+
+// Regenerate Secret Dialog
+const regenerateDialogVisible = ref(false);
+const regeneratingClient = ref<OAuthClient | null>(null);
+const newClientSecret = ref('');
 
 // ============================================
 // Computed
@@ -96,8 +116,13 @@ function openEditDialog(client: OAuthClient) {
 async function handleFormSubmit(data: CreateOAuthClientDto) {
   formLoading.value = true;
   try {
-    await createOAuthClient(data);
-    ElMessage.success(editingClient.value ? 'OAuth客户端更新成功' : 'OAuth客户端创建成功');
+    if (editingClient.value) {
+      await updateOAuthClient(editingClient.value.id, data);
+      ElMessage.success('OAuth客户端更新成功');
+    } else {
+      await createOAuthClient(data);
+      ElMessage.success('OAuth客户端创建成功');
+    }
     dialogVisible.value = false;
     fetchClients();
   } catch (error: unknown) {
@@ -115,7 +140,43 @@ async function handleDelete(id: string) {
     fetchClients();
   } catch (error: unknown) {
     const apiError = extractApiError(error);
+    if (apiError.statusCode === 400 && apiError.message.includes('active tokens')) {
+      ElMessage.error('该客户端存在活跃的 Token，请先撤销所有 Token 后再删除');
+    } else {
+      ElMessage.error(apiError.displayMessage);
+    }
+  }
+}
+
+async function openRegenerateSecretDialog(client: OAuthClient) {
+  try {
+    await ElMessageBox.confirm('重新生成 Secret 后，旧的 Secret 将立即失效。确定继续？', '警告', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning',
+    });
+
+    regeneratingClient.value = client;
+    regenerateDialogVisible.value = true;
+    newClientSecret.value = '';
+  } catch {
+    // 用户取消
+  }
+}
+
+async function handleRegenerateSecret() {
+  if (!regeneratingClient.value) return;
+
+  formLoading.value = true;
+  try {
+    const response = await regenerateClientSecret(regeneratingClient.value.id);
+    newClientSecret.value = response.data.clientSecret;
+    ElMessage.success('Secret 重新生成成功，请立即保存');
+  } catch (error: unknown) {
+    const apiError = extractApiError(error);
     ElMessage.error(apiError.displayMessage);
+  } finally {
+    formLoading.value = false;
   }
 }
 
@@ -193,6 +254,18 @@ onMounted(() => {
           </template>
         </el-table-column>
 
+        <el-table-column prop="clientSecret" label="Client Secret" min-width="150">
+          <template #default>
+            <span class="client-secret">••••••••</span>
+            <el-tooltip
+              content="Client Secret 已加密存储，仅在创建和重新生成时显示明文"
+              placement="top"
+            >
+              <el-icon class="info-icon"><InfoFilled /></el-icon>
+            </el-tooltip>
+          </template>
+        </el-table-column>
+
         <el-table-column prop="redirectUris" label="回调地址" min-width="200">
           <template #default="{ row }">
             <div class="redirect-uris">
@@ -231,11 +304,19 @@ onMounted(() => {
           </template>
         </el-table-column>
 
-        <el-table-column label="操作" width="180" fixed="right" align="center">
+        <el-table-column label="操作" width="280" fixed="right" align="center">
           <template #default="{ row }">
             <div class="action-buttons">
               <el-button type="primary" size="small" :icon="Edit" @click="openEditDialog(row)">
                 编辑
+              </el-button>
+              <el-button
+                type="warning"
+                size="small"
+                :icon="RefreshRight"
+                @click="openRegenerateSecretDialog(row)"
+              >
+                重新生成 Secret
               </el-button>
               <el-popconfirm
                 title="确定要删除该OAuth客户端吗？"
@@ -280,6 +361,50 @@ onMounted(() => {
       :loading="formLoading"
       @submit="handleFormSubmit"
     />
+
+    <!-- Regenerate Secret Dialog -->
+    <el-dialog
+      v-model="regenerateDialogVisible"
+      title="重新生成 Client Secret"
+      width="500px"
+      :close-on-click-modal="false"
+    >
+      <el-alert
+        v-if="newClientSecret"
+        title="请立即保存新的 Client Secret，关闭对话框后将无法再次查看"
+        type="warning"
+        :closable="false"
+        show-icon
+        class="secret-alert"
+      />
+
+      <div v-if="newClientSecret" class="secret-display">
+        <label>新的 Client Secret:</label>
+        <div class="secret-value">
+          <code>{{ newClientSecret }}</code>
+          <el-button size="small" @click="copyToClipboard(newClientSecret)"> 复制 </el-button>
+        </div>
+      </div>
+
+      <div v-else class="regenerate-info">
+        <p>
+          将重新生成 <strong>{{ regeneratingClient?.name }}</strong> 的 Client Secret。
+        </p>
+        <p>旧的 Secret 将立即失效，请确保已更新所有使用该 Secret 的应用。</p>
+      </div>
+
+      <template #footer>
+        <el-button @click="regenerateDialogVisible = false">关闭</el-button>
+        <el-button
+          v-if="!newClientSecret"
+          type="primary"
+          :loading="formLoading"
+          @click="handleRegenerateSecret"
+        >
+          重新生成
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -368,6 +493,19 @@ onMounted(() => {
   color: #606266;
 }
 
+.client-secret {
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  color: #909399;
+  letter-spacing: 2px;
+}
+
+.info-icon {
+  margin-left: 8px;
+  color: #909399;
+  cursor: help;
+}
+
 .redirect-uris {
   display: flex;
   flex-wrap: wrap;
@@ -427,5 +565,46 @@ onMounted(() => {
 /* Empty State */
 :deep(.el-empty) {
   padding: 48px 0;
+}
+
+/* Regenerate Secret Dialog */
+.secret-alert {
+  margin-bottom: 20px;
+}
+
+.secret-display {
+  padding: 16px;
+  background-color: #f5f7fa;
+  border-radius: 8px;
+}
+
+.secret-display label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: #606266;
+}
+
+.secret-value {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.secret-value code {
+  flex: 1;
+  padding: 8px 12px;
+  background-color: #fff;
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+  font-family: 'Courier New', monospace;
+  font-size: 14px;
+  color: #303133;
+  word-break: break-all;
+}
+
+.regenerate-info {
+  line-height: 1.8;
+  color: #606266;
 }
 </style>

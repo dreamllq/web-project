@@ -62,9 +62,30 @@ export function createOAuthClient(data: CreateOAuthClientDto): Promise<{ data: O
 }
 
 /**
+ * Update an OAuth client
+ * PATCH /api/admin/oauth-clients/:id
+ */
+export function updateOAuthClient(
+  id: string,
+  data: Partial<CreateOAuthClientDto>
+): Promise<{ data: OAuthClient }> {
+  return api.patch(`/admin/oauth-clients/${id}`, data);
+}
+
+/**
  * Delete an OAuth client
  * DELETE /api/admin/oauth-clients/:id
  */
 export function deleteOAuthClient(id: string): Promise<void> {
   return api.delete(`/admin/oauth-clients/${id}`);
+}
+
+/**
+ * Regenerate client secret
+ * POST /api/admin/oauth-clients/:id/regenerate-secret
+ */
+export function regenerateClientSecret(id: string): Promise<{
+  data: { clientSecret: string };
+}> {
+  return api.post(`/admin/oauth-clients/${id}/regenerate-secret`);
 }

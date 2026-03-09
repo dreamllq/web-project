@@ -8,7 +8,7 @@ import type { OAuthProvider, UpdateOAuthProviderDto } from '@/api/oauth-provider
 // Props & Emits
 // ============================================
 interface Props {
-  visible: boolean;
+  visible?: boolean;
   provider?: OAuthProvider | null;
 }
 

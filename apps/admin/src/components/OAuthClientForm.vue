@@ -9,7 +9,7 @@ import type { OAuthClient, CreateOAuthClientDto } from '@/api/oauth';
 // ============================================
 interface Props {
   modelValue?: OAuthClient | null;
-  visible: boolean;
+  visible?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {

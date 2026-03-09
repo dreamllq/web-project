@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, onMounted, computed } from 'vue';
 import { ElMessage } from 'element-plus';
 import {
   Edit,
@@ -10,9 +10,9 @@ import {
   User,
   Search,
 } from '@element-plus/icons-vue';
-import { getOAuthProviders, updateOAuthProvider } from '@/api/oauth-provider';
+import { getOAuthProviders, updateOAuthProvider, getProvidersMetadata } from '@/api/oauth-provider';
 import { extractApiError } from '@/api';
-import type { OAuthProvider, UpdateOAuthProviderDto } from '@/api/oauth-provider';
+import type { OAuthProvider, UpdateOAuthProviderDto, ProviderMetadata } from '@/api/oauth-provider';
 
 // ============================================
 // Types
@@ -46,7 +46,21 @@ const form = reactive<UpdateOAuthProviderDto>({
 });
 
 // Provider metadata
-const providerConfigs: ProviderConfig[] = [
+const metadataLoading = ref(false);
+const providerMetadata = ref<ProviderMetadata[]>([]);
+
+// Icon mapping
+const iconMap: Record<string, typeof ChatDotRound> = {
+  ChatDotRound,
+  Message,
+  ChatLineRound,
+  VideoCamera,
+  User,
+  Search,
+};
+
+// Fallback config (used when API fails)
+const fallbackConfigs: ProviderConfig[] = [
   { type: 'wechat', name: '微信', icon: ChatDotRound, color: '#07C160' },
   { type: 'dingtalk', name: '钉钉', icon: Message, color: '#0089FF' },
   { type: 'feishu', name: '飞书', icon: ChatLineRound, color: '#3370FF' },
@@ -54,6 +68,21 @@ const providerConfigs: ProviderConfig[] = [
   { type: 'qq', name: 'QQ', icon: User, color: '#12B7F5' },
   { type: 'baidu', name: '百度', icon: Search, color: '#2932E1' },
 ];
+
+// Computed provider configs (merge API data with fallback)
+const providerConfigs = computed<ProviderConfig[]>(() => {
+  if (providerMetadata.value.length > 0) {
+    return [...providerMetadata.value]
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .map((metadata) => ({
+        type: metadata.type,
+        name: metadata.name,
+        icon: iconMap[metadata.icon] || ChatDotRound,
+        color: metadata.color,
+      }));
+  }
+  return fallbackConfigs;
+});
 
 // ============================================
 // Functions
@@ -71,8 +100,20 @@ async function fetchProviders() {
   }
 }
 
+async function fetchProviderMetadata() {
+  metadataLoading.value = true;
+  try {
+    const response = await getProvidersMetadata();
+    providerMetadata.value = response.data.data;
+  } catch {
+    ElMessage.warning('使用默认配置');
+  } finally {
+    metadataLoading.value = false;
+  }
+}
+
 function getProviderConfig(type: string): ProviderConfig | undefined {
-  return providerConfigs.find((config) => config.type === type);
+  return providerConfigs.value.find((config) => config.type === type);
 }
 
 function getProviderData(type: string): OAuthProvider | undefined {
@@ -153,6 +194,7 @@ function formRules() {
 // ============================================
 onMounted(() => {
   fetchProviders();
+  fetchProviderMetadata();
 });
 </script>
 

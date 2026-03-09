@@ -1,9 +1,14 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { ElMessage } from 'element-plus';
-import { Delete, Search, Refresh, Tickets } from '@element-plus/icons-vue';
-import { getOAuthTokens, deleteOAuthToken } from '@/api/oauth-token';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import { Delete, Search, Refresh, Tickets, Download, ArrowDown } from '@element-plus/icons-vue';
+import {
+  getOAuthTokens,
+  deleteOAuthToken,
+  batchRevokeTokens,
+  exportTokens,
+} from '@/api/oauth-token';
 import { extractApiError } from '@/api';
 import type { OAuthToken, OAuthTokenQuery } from '@/api/oauth-token';
 
@@ -26,6 +31,10 @@ const pagination = reactive({
 // Search & Filter
 const searchClientId = ref('');
 const searchUserId = ref('');
+
+// Batch Operations
+const selectedTokens = ref<OAuthToken[]>([]);
+const exportLoading = ref(false);
 
 // ============================================
 // Computed
@@ -100,6 +109,90 @@ async function handleRevoke(id: string) {
 }
 
 // ============================================
+// Batch Operations
+// ============================================
+function handleSelectionChange(selection: OAuthToken[]) {
+  selectedTokens.value = selection;
+}
+
+async function handleBatchRevoke() {
+  if (selectedTokens.value.length === 0) return;
+  if (selectedTokens.value.length > 100) {
+    ElMessage.warning('单次最多撤销 100 个令牌');
+    return;
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `确定要撤销选中的 ${selectedTokens.value.length} 个令牌吗？此操作不可逆。`,
+      '批量撤销确认',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    );
+
+    const ids = selectedTokens.value.map((t) => t.id);
+    const response = await batchRevokeTokens(ids);
+
+    const result = response.data;
+    if (result.failed.length > 0) {
+      ElMessage.warning(`成功撤销 ${result.success.length} 个，失败 ${result.failed.length} 个`);
+    } else {
+      ElMessage.success(`成功撤销 ${result.success.length} 个令牌`);
+    }
+
+    selectedTokens.value = [];
+    fetchTokens();
+  } catch (error: unknown) {
+    if (error !== 'cancel') {
+      const apiError = extractApiError(error);
+      ElMessage.error(apiError.displayMessage);
+    }
+  }
+}
+
+async function handleExportCommand(format: string) {
+  exportLoading.value = true;
+  try {
+    const params: OAuthTokenQuery & { format: 'csv' | 'json'; includeUserPII: boolean } = {
+      limit: 10000,
+      offset: 0,
+      format: format as 'csv' | 'json',
+      includeUserPII: false,
+    };
+    if (searchClientId.value.trim()) {
+      params.clientId = searchClientId.value.trim();
+    }
+    if (searchUserId.value.trim()) {
+      params.userId = searchUserId.value.trim();
+    }
+
+    const response = await exportTokens(params);
+
+    const blob = new Blob([response.data], {
+      type: format === 'csv' ? 'text/csv' : 'application/json',
+    });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `oauth-tokens-${new Date().toISOString().split('T')[0]}.${format}`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+
+    ElMessage.success(`成功导出 ${format.toUpperCase()} 文件`);
+  } catch (error: unknown) {
+    const apiError = extractApiError(error);
+    ElMessage.error(apiError.displayMessage);
+  } finally {
+    exportLoading.value = false;
+  }
+}
+
+// ============================================
 // Utility Functions
 // ============================================
 function formatDate(dateString: string): string {
@@ -140,6 +233,20 @@ onMounted(() => {
       <template #header>
         <div class="card-header">
           <h2>{{ t('oauth.tokens.title') }}</h2>
+          <div class="header-actions">
+            <el-dropdown @command="handleExportCommand">
+              <el-button :icon="Download" :loading="exportLoading">
+                {{ t('oauth.tokens.export') }}
+                <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+              </el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item command="csv">导出为 CSV</el-dropdown-item>
+                  <el-dropdown-item command="json">导出为 JSON</el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+          </div>
         </div>
       </template>
 
@@ -173,8 +280,31 @@ onMounted(() => {
         <el-button :icon="Refresh" @click="handleReset">{{ t('common.reset') }}</el-button>
       </div>
 
+      <!-- Batch Actions Bar -->
+      <div v-if="selectedTokens.length > 0" class="batch-actions-bar">
+        <span class="selected-count">已选择 {{ selectedTokens.length }} 个令牌</span>
+        <el-button
+          type="danger"
+          :icon="Delete"
+          :disabled="selectedTokens.length > 100"
+          @click="handleBatchRevoke"
+        >
+          批量撤销
+        </el-button>
+        <span v-if="selectedTokens.length > 100" class="batch-limit-hint">
+          （单次最多撤销 100 个）
+        </span>
+      </div>
+
       <!-- Tokens Table -->
-      <el-table v-if="tokens.length > 0" :data="tokens" stripe class="tokens-table">
+      <el-table
+        v-if="tokens.length > 0"
+        :data="tokens"
+        stripe
+        class="tokens-table"
+        @selection-change="handleSelectionChange"
+      >
+        <el-table-column type="selection" width="55" />
         <el-table-column prop="accessToken" :label="t('oauth.tokens.accessToken')" min-width="200">
           <template #default="{ row }">
             <div class="token-wrapper">
@@ -287,6 +417,11 @@ onMounted(() => {
   margin: 0;
 }
 
+.header-actions {
+  display: flex;
+  gap: 12px;
+}
+
 .search-bar {
   display: flex;
   gap: 12px;
@@ -296,6 +431,27 @@ onMounted(() => {
 
 .search-input {
   width: 200px;
+}
+
+.batch-actions-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  margin-bottom: 20px;
+  background-color: #f0f9ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+}
+
+.selected-count {
+  font-weight: 500;
+  color: #1e40af;
+}
+
+.batch-limit-hint {
+  font-size: 12px;
+  color: #dc2626;
 }
 
 .tokens-table {
