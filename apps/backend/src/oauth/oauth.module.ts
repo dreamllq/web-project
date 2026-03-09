@@ -5,7 +5,9 @@ import { OAuthClient } from '../entities/oauth-client.entity';
 import { OAuthToken } from '../entities/oauth-token.entity';
 import { OAuthProviderConfig } from '../entities/oauth-provider-config.entity';
 import { OAuthController } from './oauth.controller';
-import { OAuthAdminController } from './oauth-admin.controller';
+import { OAuthClientController } from './oauth-client.controller';
+import { OAuthProviderController } from './oauth-provider.controller';
+import { OAuthTokenController } from './oauth-token.controller';
 import { OAuthService } from './oauth.service';
 import { OAuthProviderService } from './oauth-provider.service';
 import { OAuthClientService } from './oauth-client.service';
@@ -19,7 +21,12 @@ import { OAuthSecretEncryptionService } from './oauth-secret-encryption.service'
     UsersModule,
     CustomCacheModule,
   ],
-  controllers: [OAuthController, OAuthAdminController],
+  controllers: [
+    OAuthController,
+    OAuthClientController,
+    OAuthProviderController,
+    OAuthTokenController,
+  ],
   providers: [
     OAuthService,
     OAuthProviderService,

@@ -72,54 +72,54 @@ export interface UpdateProviderMetadataDto {
 
 /**
  * Get list of OAuth providers
- * GET /api/v1/admin/oauth-providers
+ * GET /api/v1/oauth/providers
  */
 export function getOAuthProviders(params?: OAuthProviderQuery): Promise<{ data: OAuthProvider[] }> {
-  return api.get('/v1/admin/oauth-providers', { params });
+  return api.get('/v1/oauth/providers', { params });
 }
 
 /**
  * Update an OAuth provider configuration
- * PATCH /api/v1/admin/oauth-providers/:id
+ * PATCH /api/v1/oauth/providers/:id
  */
 export function updateOAuthProvider(
   id: string,
   data: UpdateOAuthProviderDto
 ): Promise<{ data: OAuthProvider }> {
-  return api.patch(`/v1/admin/oauth-providers/${id}`, data);
+  return api.patch(`/v1/oauth/providers/${id}`, data);
 }
 
 /**
  * Get provider metadata list (for dynamic UI display)
- * GET /api/v1/admin/oauth-providers/metadata
+ * GET /api/v1/oauth/providers/metadata
  */
 export function getProvidersMetadata(): Promise<{ data: ProviderMetadata[] }> {
-  return api.get('/v1/admin/oauth-providers/metadata');
+  return api.get('/v1/oauth/providers/metadata');
 }
 
 /**
  * Update provider metadata (display settings)
- * PATCH /api/v1/admin/oauth-providers/:id
+ * PATCH /api/v1/oauth/providers/:id
  */
 export function updateMetadata(
   id: string,
   data: UpdateProviderMetadataDto
 ): Promise<{ data: OAuthProvider }> {
-  return api.patch(`/v1/admin/oauth-providers/${id}`, data);
+  return api.patch(`/v1/oauth/providers/${id}`, data);
 }
 
 /**
  * Batch enable providers
- * POST /api/v1/admin/oauth-providers/batch/enable
+ * POST /api/v1/oauth/providers/batch/enable
  */
 export function batchEnable(ids: string[]): Promise<{ data: { success: boolean } }> {
-  return api.post('/v1/admin/oauth-providers/batch/enable', { ids });
+  return api.post('/v1/oauth/providers/batch/enable', { ids });
 }
 
 /**
  * Batch disable providers
- * POST /api/v1/admin/oauth-providers/batch/disable
+ * POST /api/v1/oauth/providers/batch/disable
  */
 export function batchDisable(ids: string[]): Promise<{ data: { success: boolean } }> {
-  return api.post('/v1/admin/oauth-providers/batch/disable', { ids });
+  return api.post('/v1/oauth/providers/batch/disable', { ids });
 }

@@ -58,35 +58,35 @@ export interface BatchOperationResult {
 
 /**
  * Get list of social accounts
- * GET /api/admin/social-accounts
+ * GET /api/v1/social-accounts
  */
 export function getSocialAccounts(
   params?: SocialAccountQuery
 ): Promise<{ data: SocialAccountListResponse }> {
-  return api.get('/admin/social-accounts', { params });
+  return api.get('/v1/social-accounts', { params });
 }
 
 /**
  * Delete (unlink) a social account
- * DELETE /api/admin/social-accounts/:id
+ * DELETE /api/v1/social-accounts/:id
  */
 export function deleteSocialAccount(id: string): Promise<void> {
-  return api.delete(`/admin/social-accounts/${id}`);
+  return api.delete(`/v1/social-accounts/${id}`);
 }
 
 /**
  * Get social account detail with user info and login history
- * GET /api/admin/social-accounts/:id/detail
+ * GET /api/v1/social-accounts/:id/detail
  */
 export function getSocialAccountDetail(id: string): Promise<{ data: SocialAccountDetail }> {
-  return api.get(`/admin/social-accounts/${id}/detail`);
+  return api.get(`/v1/social-accounts/${id}/detail`);
 }
 
 /**
  * Batch unlink social accounts
- * POST /api/admin/social-accounts/batch/unlink
+ * POST /api/v1/social-accounts/batch/unlink
  * Note: Maximum 50 accounts at once
  */
 export function batchUnlinkSocialAccounts(ids: string[]): Promise<{ data: BatchOperationResult }> {
-  return api.post('/admin/social-accounts/batch/unlink', { ids });
+  return api.post('/v1/social-accounts/batch/unlink', { ids });
 }
