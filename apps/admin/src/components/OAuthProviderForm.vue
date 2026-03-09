@@ -2,24 +2,22 @@
 import { ref, watch, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { FormInstance, FormRules } from 'element-plus';
-import type { OAuthProvider, UpdateOAuthProviderDto } from '@/api/oauth-provider';
+import type { OAuthProvider, UpdateProviderMetadataDto } from '@/api/oauth-provider';
 
 // ============================================
 // Props & Emits
 // ============================================
 interface Props {
-  visible?: boolean;
-  provider?: OAuthProvider | null;
+  modelValue: OAuthProvider | null;
+  visible: boolean;
 }
 
-const props = withDefaults(defineProps<Props>(), {
-  visible: false,
-  provider: null,
-});
+const props = defineProps<Props>();
 
 const emit = defineEmits<{
+  (e: 'update:modelValue', value: OAuthProvider | null): void;
   (e: 'update:visible', value: boolean): void;
-  (e: 'submit', data: UpdateOAuthProviderDto): void;
+  (e: 'submit', data: UpdateProviderMetadataDto): void;
   (e: 'cancel'): void;
 }>();
 
@@ -28,14 +26,11 @@ const emit = defineEmits<{
 // ============================================
 const { t } = useI18n();
 const formRef = ref<FormInstance>();
-const formData = ref<UpdateOAuthProviderDto>({
-  name: '',
-  clientId: '',
-  clientSecret: '',
-  authorizationUrl: '',
-  tokenUrl: '',
-  userInfoUrl: '',
-  scope: '',
+const formData = ref<UpdateProviderMetadataDto>({
+  displayName: undefined,
+  icon: undefined,
+  color: undefined,
+  sortOrder: undefined,
 });
 
 // ============================================
@@ -50,27 +45,39 @@ const dialogTitle = computed(() => {
   return t('oauth.providers.editProvider');
 });
 
+const provider = computed(() => props.modelValue);
+
 // ============================================
 // Form Rules
 // ============================================
-const rules: FormRules<UpdateOAuthProviderDto> = {
-  name: [
+const rules: FormRules<UpdateProviderMetadataDto> = {
+  displayName: [
     {
-      required: true,
-      message: t('oauth.providers.nameRequired'),
-      trigger: 'blur',
-    },
-    {
-      min: 2,
       max: 100,
-      message: t('oauth.providers.nameLength'),
+      message: t('oauth.providers.displayNameMaxLength'),
       trigger: 'blur',
     },
   ],
-  clientId: [
+  icon: [
     {
-      required: true,
-      message: t('oauth.providers.clientIdRequired'),
+      max: 255,
+      message: t('oauth.providers.iconMaxLength'),
+      trigger: 'blur',
+    },
+  ],
+  color: [
+    {
+      max: 50,
+      message: t('oauth.providers.colorMaxLength'),
+      trigger: 'blur',
+    },
+  ],
+  sortOrder: [
+    {
+      type: 'number',
+      min: 0,
+      max: 999,
+      message: t('oauth.providers.sortOrderRange'),
       trigger: 'blur',
     },
   ],
@@ -82,27 +89,21 @@ const rules: FormRules<UpdateOAuthProviderDto> = {
 watch(
   () => props.visible,
   (visible) => {
-    if (visible && props.provider) {
-      // Edit mode: populate form
+    if (visible && props.modelValue) {
+      // Edit mode: populate form with existing metadata
       formData.value = {
-        name: props.provider.name,
-        clientId: props.provider.clientId,
-        clientSecret: props.provider.clientSecret || '',
-        authorizationUrl: props.provider.authorizationUrl || '',
-        tokenUrl: props.provider.tokenUrl || '',
-        userInfoUrl: props.provider.userInfoUrl || '',
-        scope: props.provider.scope || '',
+        displayName: props.modelValue.displayName ?? undefined,
+        icon: props.modelValue.icon ?? undefined,
+        color: props.modelValue.color ?? undefined,
+        sortOrder: props.modelValue.sortOrder ?? undefined,
       };
     } else if (visible) {
-      // Reset form
+      // Reset form when opening without provider
       formData.value = {
-        name: '',
-        clientId: '',
-        clientSecret: '',
-        authorizationUrl: '',
-        tokenUrl: '',
-        userInfoUrl: '',
-        scope: '',
+        displayName: undefined,
+        icon: undefined,
+        color: undefined,
+        sortOrder: undefined,
       };
     }
   }
@@ -126,16 +127,45 @@ function handleCancel() {
   emit('cancel');
   dialogVisible.value = false;
 }
+
+function handleColorInput(value: string) {
+  // Ensure color value starts with # for hex colors
+  if (value && !value.startsWith('#') && !value.startsWith('rgb')) {
+    formData.value.color = `#${value}`;
+  }
+}
 </script>
 
 <template>
   <el-dialog
     v-model="dialogVisible"
     :title="dialogTitle"
-    width="600px"
+    width="560px"
     :close-on-click-modal="false"
     @close="handleCancel"
   >
+    <!-- Provider Info Section (Readonly) -->
+    <div v-if="provider" class="provider-info">
+      <div class="info-title">{{ t('oauth.providers.basicInfo') }}</div>
+      <el-descriptions :column="2" border size="small">
+        <el-descriptions-item :label="t('oauth.providers.code')">
+          <el-tag size="small">{{ provider.code }}</el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item :label="t('oauth.providers.name')">
+          {{ provider.name }}
+        </el-descriptions-item>
+        <el-descriptions-item :label="t('oauth.providers.appId')">
+          <span class="mono-text">{{ provider.appId }}</span>
+        </el-descriptions-item>
+        <el-descriptions-item :label="t('oauth.providers.providerType')">
+          <el-tag type="info" size="small">{{ provider.providerType || '-' }}</el-tag>
+        </el-descriptions-item>
+      </el-descriptions>
+    </div>
+
+    <el-divider />
+
+    <!-- Editable Form Fields -->
     <el-form
       ref="formRef"
       :model="formData"
@@ -143,67 +173,53 @@ function handleCancel() {
       label-width="120px"
       label-position="top"
     >
-      <el-form-item :label="t('oauth.providers.name')" prop="name">
+      <el-form-item :label="t('oauth.providers.displayName')" prop="displayName">
         <el-input
-          v-model="formData.name"
-          :placeholder="t('oauth.providers.namePlaceholder')"
+          v-model="formData.displayName"
+          :placeholder="t('oauth.providers.displayNamePlaceholder')"
           maxlength="100"
-          show-word-limit
+          clearable
         />
+        <div class="form-hint">{{ t('oauth.providers.displayNameHint') }}</div>
       </el-form-item>
 
-      <el-form-item :label="t('oauth.providers.clientId')" prop="clientId">
+      <el-form-item :label="t('oauth.providers.icon')" prop="icon">
         <el-input
-          v-model="formData.clientId"
-          :placeholder="t('oauth.providers.clientIdPlaceholder')"
+          v-model="formData.icon"
+          :placeholder="t('oauth.providers.iconPlaceholder')"
           maxlength="255"
+          clearable
         />
+        <div class="form-hint">{{ t('oauth.providers.iconHint') }}</div>
       </el-form-item>
 
-      <el-form-item :label="t('oauth.providers.clientSecret')" prop="clientSecret">
-        <el-input
-          v-model="formData.clientSecret"
-          type="password"
-          :placeholder="t('oauth.providers.clientSecretPlaceholder')"
-          maxlength="255"
-          show-password
-        />
+      <el-form-item :label="t('oauth.providers.color')" prop="color">
+        <div class="color-input-wrapper">
+          <el-input
+            v-model="formData.color"
+            :placeholder="t('oauth.providers.colorPlaceholder')"
+            maxlength="50"
+            clearable
+            @input="handleColorInput"
+          />
+          <el-color-picker
+            v-if="formData.color"
+            :model-value="formData.color"
+            @update:model-value="formData.color = $event"
+          />
+        </div>
+        <div class="form-hint">{{ t('oauth.providers.colorHint') }}</div>
       </el-form-item>
 
-      <el-form-item :label="t('oauth.providers.authorizationUrl')" prop="authorizationUrl">
-        <el-input
-          v-model="formData.authorizationUrl"
-          :placeholder="t('oauth.providers.authorizationUrlPlaceholder')"
-          maxlength="500"
+      <el-form-item :label="t('oauth.providers.sortOrder')" prop="sortOrder">
+        <el-input-number
+          v-model="formData.sortOrder"
+          :min="0"
+          :max="999"
+          :step="10"
+          controls-position="right"
         />
-        <div class="form-hint">{{ t('oauth.providers.authorizationUrlHint') }}</div>
-      </el-form-item>
-
-      <el-form-item :label="t('oauth.providers.tokenUrl')" prop="tokenUrl">
-        <el-input
-          v-model="formData.tokenUrl"
-          :placeholder="t('oauth.providers.tokenUrlPlaceholder')"
-          maxlength="500"
-        />
-        <div class="form-hint">{{ t('oauth.providers.tokenUrlHint') }}</div>
-      </el-form-item>
-
-      <el-form-item :label="t('oauth.providers.userInfoUrl')" prop="userInfoUrl">
-        <el-input
-          v-model="formData.userInfoUrl"
-          :placeholder="t('oauth.providers.userInfoUrlPlaceholder')"
-          maxlength="500"
-        />
-        <div class="form-hint">{{ t('oauth.providers.userInfoUrlHint') }}</div>
-      </el-form-item>
-
-      <el-form-item :label="t('oauth.providers.scope')" prop="scope">
-        <el-input
-          v-model="formData.scope"
-          :placeholder="t('oauth.providers.scopePlaceholder')"
-          maxlength="255"
-        />
-        <div class="form-hint">{{ t('oauth.providers.scopeHint') }}</div>
+        <div class="form-hint">{{ t('oauth.providers.sortOrderHint') }}</div>
       </el-form-item>
     </el-form>
 
@@ -217,6 +233,32 @@ function handleCancel() {
 </template>
 
 <style scoped>
+.provider-info {
+  margin-bottom: 16px;
+}
+
+.info-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1a1a2e;
+  margin-bottom: 12px;
+}
+
+.mono-text {
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Mono', monospace;
+  font-size: 12px;
+}
+
+.color-input-wrapper {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.color-input-wrapper .el-input {
+  flex: 1;
+}
+
 .form-hint {
   margin-top: 4px;
   font-size: 12px;
@@ -241,5 +283,14 @@ function handleCancel() {
 :deep(.el-dialog__footer) {
   border-top: 1px solid #ebeef5;
   padding-top: 16px;
+}
+
+:deep(.el-descriptions) {
+  margin-top: 8px;
+}
+
+:deep(.el-descriptions__label) {
+  font-weight: 500;
+  color: #606266;
 }
 </style>

@@ -1,16 +1,38 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
-import { Plus, Edit, Delete, Search, Refresh, Key } from '@element-plus/icons-vue';
 import {
-  getOAuthClients,
-  createOAuthClient,
-  updateOAuthClient,
-  deleteOAuthClient,
+  Plus,
+  Edit,
+  Delete,
+  Search,
+  Refresh,
+  Key,
+  CopyDocument,
+  Lock,
+  Unlock,
+} from '@element-plus/icons-vue';
+import {
+  listClients,
+  createClient,
+  updateClient,
+  deleteClient,
+  regenerateSecret,
 } from '@/api/oauth';
 import { extractApiError } from '@/api';
-import type { OAuthClient, CreateOAuthClientDto, OAuthClientQuery } from '@/api/oauth';
+import type {
+  OAuthClient,
+  CreateOAuthClientDto,
+  UpdateOAuthClientDto,
+  OAuthClientQuery,
+} from '@/api/oauth';
 import OAuthClientForm from '@/components/OAuthClientForm.vue';
+
+// ============================================
+// Composables
+// ============================================
+const { t } = useI18n();
 
 // ============================================
 // State
@@ -30,6 +52,11 @@ const searchKeyword = ref('');
 const dialogVisible = ref(false);
 const editingClient = ref<OAuthClient | null>(null);
 const formLoading = ref(false);
+
+// Regenerate Secret Dialog
+const secretDialogVisible = ref(false);
+const regeneratedSecret = ref('');
+const regeneratingClientId = ref<string | null>(null);
 
 // ============================================
 // Computed
@@ -55,9 +82,9 @@ async function fetchClients() {
       params.keyword = searchKeyword.value.trim();
     }
 
-    const response = await getOAuthClients(params);
-    clients.value = response.data.data;
-    total.value = response.data.total;
+    const response = await listClients(params);
+    clients.value = response.data;
+    total.value = response.total;
   } catch (error: unknown) {
     const apiError = extractApiError(error);
     ElMessage.error(apiError.displayMessage);
@@ -102,11 +129,23 @@ async function handleFormSubmit(data: CreateOAuthClientDto) {
   formLoading.value = true;
   try {
     if (editingClient.value) {
-      await updateOAuthClient(editingClient.value.id, data);
-      ElMessage.success('OAuth客户端更新成功');
+      const updateData: UpdateOAuthClientDto = {
+        name: data.name,
+        redirectUris: data.redirectUris,
+        scopes: data.scopes,
+        isConfidential: data.isConfidential,
+      };
+      await updateClient(editingClient.value.id, updateData);
+      ElMessage.success(t('oauth.clients.updateSuccess'));
     } else {
-      await createOAuthClient(data);
-      ElMessage.success('OAuth客户端创建成功');
+      const newClient = await createClient(data);
+      ElMessage.success(t('oauth.clients.createSuccess'));
+      // Show the new secret one-time
+      if (newClient.clientSecret) {
+        regeneratedSecret.value = newClient.clientSecret;
+        regeneratingClientId.value = newClient.id;
+        secretDialogVisible.value = true;
+      }
     }
     dialogVisible.value = false;
     fetchClients();
@@ -120,13 +159,48 @@ async function handleFormSubmit(data: CreateOAuthClientDto) {
 
 async function handleDelete(id: string) {
   try {
-    await deleteOAuthClient(id);
-    ElMessage.success('OAuth客户端删除成功');
+    await deleteClient(id);
+    ElMessage.success(t('oauth.clients.deleteSuccess'));
     fetchClients();
+  } catch (error: unknown) {
+    const apiError = extractApiError(error);
+    // Check for active tokens error
+    if (apiError.message.includes('active tokens') || apiError.statusCode === 400) {
+      ElMessage.error(t('oauth.clients.hasActiveTokens'));
+    } else {
+      ElMessage.error(apiError.displayMessage);
+    }
+  }
+}
+
+async function handleRegenerateSecret(client: OAuthClient) {
+  regeneratingClientId.value = client.id;
+  try {
+    const response = await regenerateSecret(client.id);
+    regeneratedSecret.value = response.clientSecret;
+    secretDialogVisible.value = true;
+    ElMessage.success(t('oauth.clients.regenerateSecretSuccess'));
   } catch (error: unknown) {
     const apiError = extractApiError(error);
     ElMessage.error(apiError.displayMessage);
   }
+}
+
+function copySecretToClipboard() {
+  navigator.clipboard
+    .writeText(regeneratedSecret.value)
+    .then(() => {
+      ElMessage.success(t('twoFactor.codesCopied'));
+    })
+    .catch(() => {
+      ElMessage.error(t('twoFactor.copyFailed'));
+    });
+}
+
+function closeSecretDialog() {
+  secretDialogVisible.value = false;
+  regeneratedSecret.value = '';
+  regeneratingClientId.value = null;
 }
 
 // ============================================
@@ -141,10 +215,10 @@ function copyToClipboard(text: string) {
   navigator.clipboard
     .writeText(text)
     .then(() => {
-      ElMessage.success('已复制到剪贴板');
+      ElMessage.success(t('twoFactor.codesCopied'));
     })
     .catch(() => {
-      ElMessage.error('复制失败');
+      ElMessage.error(t('twoFactor.copyFailed'));
     });
 }
 
@@ -161,8 +235,10 @@ onMounted(() => {
     <el-card v-loading="loading" class="page-card">
       <template #header>
         <div class="card-header">
-          <h2>OAuth客户端管理</h2>
-          <el-button type="primary" :icon="Plus" @click="openCreateDialog"> 新建客户端 </el-button>
+          <h2>{{ t('oauth.clients.title') }}</h2>
+          <el-button type="primary" :icon="Plus" @click="openCreateDialog">
+            {{ t('oauth.clients.create') }}
+          </el-button>
         </div>
       </template>
 
@@ -170,7 +246,7 @@ onMounted(() => {
       <div class="search-bar">
         <el-input
           v-model="searchKeyword"
-          placeholder="搜索客户端名称或ID"
+          :placeholder="t('policies.searchPlaceholder')"
           clearable
           class="search-input"
           @keyup.enter="handleSearch"
@@ -179,13 +255,15 @@ onMounted(() => {
             <el-icon><Search /></el-icon>
           </template>
         </el-input>
-        <el-button type="primary" :icon="Search" @click="handleSearch"> 搜索 </el-button>
-        <el-button :icon="Refresh" @click="handleReset">重置</el-button>
+        <el-button type="primary" :icon="Search" @click="handleSearch">
+          {{ t('common.search') }}
+        </el-button>
+        <el-button :icon="Refresh" @click="handleReset">{{ t('common.reset') }}</el-button>
       </div>
 
       <!-- Clients Table -->
       <el-table v-if="clients.length > 0" :data="clients" stripe class="clients-table">
-        <el-table-column prop="name" label="客户端名称" min-width="150">
+        <el-table-column prop="name" :label="t('oauth.clients.name')" min-width="150">
           <template #default="{ row }">
             <div class="client-name">
               <el-icon class="client-icon"><Key /></el-icon>
@@ -194,16 +272,22 @@ onMounted(() => {
           </template>
         </el-table-column>
 
-        <el-table-column prop="clientId" label="Client ID" min-width="200">
+        <el-table-column prop="clientId" :label="t('oauth.clients.clientId')" min-width="200">
           <template #default="{ row }">
             <div class="client-id-wrapper">
               <span class="client-id">{{ row.clientId }}</span>
-              <el-button size="small" text @click="copyToClipboard(row.clientId)"> 复制 </el-button>
+              <el-button size="small" text @click="copyToClipboard(row.clientId)">
+                <el-icon><CopyDocument /></el-icon>
+              </el-button>
             </div>
           </template>
         </el-table-column>
 
-        <el-table-column prop="redirectUris" label="回调地址" min-width="200">
+        <el-table-column
+          prop="redirectUris"
+          :label="t('oauth.clients.redirectUris')"
+          min-width="200"
+        >
           <template #default="{ row }">
             <div class="redirect-uris">
               <el-tag
@@ -221,11 +305,11 @@ onMounted(() => {
           </template>
         </el-table-column>
 
-        <el-table-column prop="allowedScopes" label="权限范围" min-width="120">
+        <el-table-column prop="allowedScopes" :label="t('oauth.clients.scope')" min-width="120">
           <template #default="{ row }">
             <div v-if="row.allowedScopes && row.allowedScopes.length > 0" class="scope-tags">
               <el-tag
-                v-for="scope in row.allowedScopes"
+                v-for="scope in row.allowedScopes.slice(0, 3)"
                 :key="scope"
                 size="small"
                 type="info"
@@ -233,31 +317,62 @@ onMounted(() => {
               >
                 {{ scope }}
               </el-tag>
+              <el-tag
+                v-if="row.allowedScopes.length > 3"
+                size="small"
+                type="info"
+                class="scope-tag"
+              >
+                +{{ row.allowedScopes.length - 3 }}
+              </el-tag>
             </div>
             <span v-else class="no-scopes">-</span>
           </template>
         </el-table-column>
 
-        <el-table-column label="创建时间" min-width="160">
+        <el-table-column prop="isConfidential" label="类型" width="100" align="center">
+          <template #default="{ row }">
+            <el-tooltip :content="row.isConfidential ? '机密客户端' : '公开客户端'" placement="top">
+              <el-icon v-if="row.isConfidential" class="confidential-icon"><Lock /></el-icon>
+              <el-icon v-else class="public-icon"><Unlock /></el-icon>
+            </el-tooltip>
+          </template>
+        </el-table-column>
+
+        <el-table-column :label="t('oauth.clients.createdAt')" min-width="160">
           <template #default="{ row }">
             {{ formatDate(row.createdAt) }}
           </template>
         </el-table-column>
 
-        <el-table-column label="操作" width="180" fixed="right" align="center">
+        <el-table-column :label="t('common.actions')" width="260" fixed="right" align="center">
           <template #default="{ row }">
             <div class="action-buttons">
               <el-button type="primary" size="small" :icon="Edit" @click="openEditDialog(row)">
-                编辑
+                {{ t('common.edit') }}
               </el-button>
               <el-popconfirm
-                title="确定要删除该OAuth客户端吗？"
-                confirm-button-text="确定"
-                cancel-button-text="取消"
+                :title="t('oauth.clients.regenerateSecretConfirm')"
+                :confirm-button-text="t('common.confirm')"
+                :cancel-button-text="t('common.cancel')"
+                @confirm="handleRegenerateSecret(row)"
+              >
+                <template #reference>
+                  <el-button type="warning" size="small" :icon="Key">
+                    {{ t('oauth.clients.regenerateSecret') }}
+                  </el-button>
+                </template>
+              </el-popconfirm>
+              <el-popconfirm
+                :title="t('oauth.clients.deleteConfirm')"
+                :confirm-button-text="t('common.confirm')"
+                :cancel-button-text="t('common.cancel')"
                 @confirm="handleDelete(row.id)"
               >
                 <template #reference>
-                  <el-button type="danger" size="small" :icon="Delete"> 删除 </el-button>
+                  <el-button type="danger" size="small" :icon="Delete">
+                    {{ t('common.delete') }}
+                  </el-button>
                 </template>
               </el-popconfirm>
             </div>
@@ -266,9 +381,9 @@ onMounted(() => {
       </el-table>
 
       <!-- Empty State -->
-      <el-empty v-else description="暂无OAuth客户端">
+      <el-empty v-else :description="t('oauth.clients.noData')">
         <el-button type="primary" :icon="Plus" @click="openCreateDialog">
-          创建第一个客户端
+          {{ t('oauth.clients.create') }}
         </el-button>
       </el-empty>
 
@@ -289,10 +404,46 @@ onMounted(() => {
     <!-- Create/Edit Dialog -->
     <OAuthClientForm
       v-model:visible="dialogVisible"
-      :client="editingClient"
+      :model-value="editingClient"
       :loading="formLoading"
       @submit="handleFormSubmit"
+      @cancel="dialogVisible = false"
     />
+
+    <!-- Regenerated Secret Dialog (One-time display) -->
+    <el-dialog
+      v-model="secretDialogVisible"
+      :title="t('oauth.clients.newClientSecret')"
+      width="500px"
+      :close-on-click-modal="false"
+      @close="closeSecretDialog"
+    >
+      <el-alert
+        :title="t('oauth.clients.regenerateSecretWarning')"
+        type="warning"
+        :closable="false"
+        show-icon
+        class="secret-warning"
+      />
+
+      <div class="secret-display">
+        <el-input :model-value="regeneratedSecret" readonly class="secret-input">
+          <template #append>
+            <el-button :icon="CopyDocument" @click="copySecretToClipboard"> 复制 </el-button>
+          </template>
+        </el-input>
+      </div>
+
+      <div class="secret-hint">
+        {{ t('oauth.clients.secretHidden') }}
+      </div>
+
+      <template #footer>
+        <el-button type="primary" @click="closeSecretDialog">
+          {{ t('common.confirm') }}
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -372,7 +523,7 @@ onMounted(() => {
 .client-id-wrapper {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
 }
 
 .client-id {
@@ -394,39 +545,43 @@ onMounted(() => {
   white-space: nowrap;
 }
 
+.scope-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.scope-tag {
+  max-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.no-scopes {
+  color: #c0c4cc;
+}
+
+.confidential-icon {
+  color: #e6a23c;
+  font-size: 18px;
+}
+
+.public-icon {
+  color: #67c23a;
+  font-size: 18px;
+}
+
 .action-buttons {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .action-buttons .el-button {
   border-radius: 6px;
-}
-
-.action-buttons .el-button--primary {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border: none;
-  transition:
-    transform 0.2s,
-    box-shadow 0.2s;
-}
-
-.action-buttons .el-button--primary:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.4);
-}
-
-.action-buttons .el-button--danger {
-  transition:
-    transform 0.2s,
-    box-shadow 0.2s;
-}
-
-.action-buttons .el-button--danger:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(245, 108, 108, 0.4);
 }
 
 .pagination-wrapper {
@@ -435,6 +590,30 @@ onMounted(() => {
   margin-top: 20px;
   padding-top: 20px;
   border-top: 1px solid #ebeef5;
+}
+
+/* Secret Dialog Styles */
+.secret-warning {
+  margin-bottom: 20px;
+}
+
+.secret-display {
+  margin-bottom: 16px;
+}
+
+.secret-input {
+  font-family: 'Courier New', monospace;
+}
+
+.secret-input :deep(.el-input__inner) {
+  font-family: 'Courier New', monospace;
+  font-size: 14px;
+}
+
+.secret-hint {
+  font-size: 12px;
+  color: #909399;
+  line-height: 1.5;
 }
 
 /* Empty State */

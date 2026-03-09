@@ -2,13 +2,8 @@
 import { ref, reactive, computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Delete, Search, Refresh, Tickets, Download, ArrowDown } from '@element-plus/icons-vue';
-import {
-  getOAuthTokens,
-  deleteOAuthToken,
-  batchRevokeTokens,
-  exportTokens,
-} from '@/api/oauth-token';
+import { Delete, Search, Refresh, Tickets, Download } from '@element-plus/icons-vue';
+import { listTokens, revokeToken, batchRevokeTokens, exportTokens } from '@/api/oauth-token';
 import { extractApiError } from '@/api';
 import type { OAuthToken, OAuthTokenQuery } from '@/api/oauth-token';
 
@@ -28,12 +23,13 @@ const pagination = reactive({
   offset: 0,
 });
 
-// Search & Filter
+// Filters
 const searchClientId = ref('');
 const searchUserId = ref('');
+const searchRevoked = ref<boolean | undefined>(undefined);
 
 // Batch Operations
-const selectedTokens = ref<OAuthToken[]>([]);
+const selectedIds = ref<string[]>([]);
 const exportLoading = ref(false);
 
 // ============================================
@@ -62,10 +58,13 @@ async function fetchTokens() {
     if (searchUserId.value.trim()) {
       params.userId = searchUserId.value.trim();
     }
+    if (searchRevoked.value !== undefined) {
+      params.revoked = searchRevoked.value;
+    }
 
-    const response = await getOAuthTokens(params);
-    tokens.value = response.data.data;
-    total.value = response.data.pagination.total;
+    const response = await listTokens(params);
+    tokens.value = response.data;
+    total.value = response.total;
   } catch (error: unknown) {
     const apiError = extractApiError(error);
     ElMessage.error(apiError.displayMessage);
@@ -82,6 +81,7 @@ function handleSearch() {
 function handleReset() {
   searchClientId.value = '';
   searchUserId.value = '';
+  searchRevoked.value = undefined;
   pagination.offset = 0;
   fetchTokens();
 }
@@ -99,7 +99,7 @@ function handleSizeChange(size: number) {
 
 async function handleRevoke(id: string) {
   try {
-    await deleteOAuthToken(id);
+    await revokeToken(id);
     ElMessage.success(t('oauth.tokens.revokeSuccess'));
     fetchTokens();
   } catch (error: unknown) {
@@ -112,38 +112,41 @@ async function handleRevoke(id: string) {
 // Batch Operations
 // ============================================
 function handleSelectionChange(selection: OAuthToken[]) {
-  selectedTokens.value = selection;
+  selectedIds.value = selection.map((t) => t.id);
 }
 
 async function handleBatchRevoke() {
-  if (selectedTokens.value.length === 0) return;
-  if (selectedTokens.value.length > 100) {
-    ElMessage.warning('单次最多撤销 100 个令牌');
+  if (selectedIds.value.length === 0) return;
+  if (selectedIds.value.length > 100) {
+    ElMessage.warning(t('oauth.tokens.batchLimitHint'));
     return;
   }
 
   try {
     await ElMessageBox.confirm(
-      `确定要撤销选中的 ${selectedTokens.value.length} 个令牌吗？此操作不可逆。`,
-      '批量撤销确认',
+      t('oauth.tokens.batchRevokeConfirm', { count: selectedIds.value.length }),
+      t('oauth.tokens.batchRevokeTitle'),
       {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
+        confirmButtonText: t('common.confirm'),
+        cancelButtonText: t('common.cancel'),
         type: 'warning',
       }
     );
 
-    const ids = selectedTokens.value.map((t) => t.id);
-    const response = await batchRevokeTokens(ids);
+    const result = await batchRevokeTokens({ ids: selectedIds.value });
 
-    const result = response.data;
     if (result.failed.length > 0) {
-      ElMessage.warning(`成功撤销 ${result.success.length} 个，失败 ${result.failed.length} 个`);
+      ElMessage.warning(
+        t('oauth.tokens.batchRevokePartial', {
+          success: result.success.length,
+          failed: result.failed.length,
+        })
+      );
     } else {
-      ElMessage.success(`成功撤销 ${result.success.length} 个令牌`);
+      ElMessage.success(t('oauth.tokens.batchRevokeSuccess', { count: result.success.length }));
     }
 
-    selectedTokens.value = [];
+    selectedIds.value = [];
     fetchTokens();
   } catch (error: unknown) {
     if (error !== 'cancel') {
@@ -153,37 +156,22 @@ async function handleBatchRevoke() {
   }
 }
 
-async function handleExportCommand(format: string) {
+async function handleExport() {
   exportLoading.value = true;
   try {
-    const params: OAuthTokenQuery & { format: 'csv' | 'json'; includeUserPII: boolean } = {
-      limit: 10000,
-      offset: 0,
-      format: format as 'csv' | 'json',
-      includeUserPII: false,
-    };
+    const params: OAuthTokenQuery = {};
     if (searchClientId.value.trim()) {
       params.clientId = searchClientId.value.trim();
     }
     if (searchUserId.value.trim()) {
       params.userId = searchUserId.value.trim();
     }
+    if (searchRevoked.value !== undefined) {
+      params.revoked = searchRevoked.value;
+    }
 
-    const response = await exportTokens(params);
-
-    const blob = new Blob([response.data], {
-      type: format === 'csv' ? 'text/csv' : 'application/json',
-    });
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `oauth-tokens-${new Date().toISOString().split('T')[0]}.${format}`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    window.URL.revokeObjectURL(url);
-
-    ElMessage.success(`成功导出 ${format.toUpperCase()} 文件`);
+    await exportTokens(params);
+    ElMessage.success(t('oauth.tokens.exportSuccess'));
   } catch (error: unknown) {
     const apiError = extractApiError(error);
     ElMessage.error(apiError.displayMessage);
@@ -234,18 +222,9 @@ onMounted(() => {
         <div class="card-header">
           <h2>{{ t('oauth.tokens.title') }}</h2>
           <div class="header-actions">
-            <el-dropdown @command="handleExportCommand">
-              <el-button :icon="Download" :loading="exportLoading">
-                {{ t('oauth.tokens.export') }}
-                <el-icon class="el-icon--right"><ArrowDown /></el-icon>
-              </el-button>
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item command="csv">导出为 CSV</el-dropdown-item>
-                  <el-dropdown-item command="json">导出为 JSON</el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
+            <el-button :icon="Download" :loading="exportLoading" @click="handleExport">
+              {{ t('oauth.tokens.export') }}
+            </el-button>
           </div>
         </div>
       </template>
@@ -274,6 +253,16 @@ onMounted(() => {
             <el-icon><Search /></el-icon>
           </template>
         </el-input>
+        <el-select
+          v-model="searchRevoked"
+          :placeholder="t('oauth.tokens.revokedStatus')"
+          clearable
+          class="search-input"
+        >
+          <el-option :label="t('oauth.tokens.all')" :value="undefined" />
+          <el-option :label="t('oauth.tokens.active')" :value="false" />
+          <el-option :label="t('oauth.tokens.revoked')" :value="true" />
+        </el-select>
         <el-button type="primary" :icon="Search" @click="handleSearch">
           {{ t('common.search') }}
         </el-button>
@@ -281,18 +270,20 @@ onMounted(() => {
       </div>
 
       <!-- Batch Actions Bar -->
-      <div v-if="selectedTokens.length > 0" class="batch-actions-bar">
-        <span class="selected-count">已选择 {{ selectedTokens.length }} 个令牌</span>
+      <div v-if="selectedIds.length > 0" class="batch-actions-bar">
+        <span class="selected-count">{{
+          t('oauth.tokens.selectedCount', { count: selectedIds.length })
+        }}</span>
         <el-button
           type="danger"
           :icon="Delete"
-          :disabled="selectedTokens.length > 100"
+          :disabled="selectedIds.length > 100"
           @click="handleBatchRevoke"
         >
-          批量撤销
+          {{ t('oauth.tokens.batchRevoke') }}
         </el-button>
-        <span v-if="selectedTokens.length > 100" class="batch-limit-hint">
-          （单次最多撤销 100 个）
+        <span v-if="selectedIds.length > 100" class="batch-limit-hint">
+          {{ t('oauth.tokens.batchLimitHint') }}
         </span>
       </div>
 
@@ -305,15 +296,6 @@ onMounted(() => {
         @selection-change="handleSelectionChange"
       >
         <el-table-column type="selection" width="55" />
-        <el-table-column prop="accessToken" :label="t('oauth.tokens.accessToken')" min-width="200">
-          <template #default="{ row }">
-            <div class="token-wrapper">
-              <el-icon class="token-icon"><Tickets /></el-icon>
-              <span class="token-text">{{ maskToken(row.accessToken) }}</span>
-            </div>
-          </template>
-        </el-table-column>
-
         <el-table-column prop="clientId" :label="t('oauth.tokens.clientId')" min-width="180">
           <template #default="{ row }">
             <span class="client-id">{{ row.clientId }}</span>
@@ -327,9 +309,29 @@ onMounted(() => {
           </template>
         </el-table-column>
 
-        <el-table-column prop="scope" :label="t('oauth.tokens.scope')" min-width="120">
+        <el-table-column prop="accessToken" :label="t('oauth.tokens.accessToken')" min-width="200">
           <template #default="{ row }">
-            <el-tag size="small" type="info">{{ row.scope }}</el-tag>
+            <div class="token-wrapper">
+              <el-icon class="token-icon"><Tickets /></el-icon>
+              <span class="token-text">{{ maskToken(row.accessToken) }}</span>
+            </div>
+          </template>
+        </el-table-column>
+
+        <el-table-column prop="scopes" :label="t('oauth.tokens.scopes')" min-width="150">
+          <template #default="{ row }">
+            <div class="scopes-wrapper">
+              <el-tag
+                v-for="scope in row.scopes"
+                :key="scope"
+                size="small"
+                type="info"
+                class="scope-tag"
+              >
+                {{ scope }}
+              </el-tag>
+              <span v-if="!row.scopes || row.scopes.length === 0" class="no-data">-</span>
+            </div>
           </template>
         </el-table-column>
 
@@ -343,6 +345,17 @@ onMounted(() => {
                 {{ t('oauth.tokens.expired') }}
               </span>
             </div>
+          </template>
+        </el-table-column>
+
+        <el-table-column prop="revokedAt" :label="t('oauth.tokens.revokedAt')" min-width="160">
+          <template #default="{ row }">
+            <el-tag v-if="row.revokedAt" type="danger" size="small">
+              {{ formatDate(row.revokedAt) }}
+            </el-tag>
+            <el-tag v-else type="success" size="small">
+              {{ t('oauth.tokens.active') }}
+            </el-tag>
           </template>
         </el-table-column>
 
@@ -361,7 +374,7 @@ onMounted(() => {
               @confirm="handleRevoke(row.id)"
             >
               <template #reference>
-                <el-button type="danger" size="small" :icon="Delete">
+                <el-button type="danger" size="small" :icon="Delete" :disabled="!!row.revokedAt">
                   {{ t('oauth.tokens.revoke') }}
                 </el-button>
               </template>
@@ -430,7 +443,7 @@ onMounted(() => {
 }
 
 .search-input {
-  width: 200px;
+  width: 180px;
 }
 
 .batch-actions-bar {
@@ -498,6 +511,16 @@ onMounted(() => {
 
 .no-data {
   color: #c0c4cc;
+}
+
+.scopes-wrapper {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.scope-tag {
+  margin: 0;
 }
 
 .expires-wrapper {
