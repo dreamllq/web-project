@@ -339,8 +339,17 @@
       "batchRevokeConfirm": "确定要撤销选中的 {count} 个令牌吗？此操作不可逆。",
       "batchRevokeSuccess": "成功撤销 {count} 个令牌",
       "batchRevokePartialSuccess": "成功撤销 {success} 个，失败 {failed} 个",
+      "batchRevokePartial": "成功撤销 {success} 个，失败 {failed} 个",
       "selectedCount": "已选择 {count} 个令牌",
-      "batchLimitHint": "（单次最多撤销 100 个）"
+      "batchLimitHint": "（单次最多撤销 100 个）",
+      "batchRevokeTitle": "批量撤销确认",
+      "exportSuccess": "导出成功",
+      "revokedStatus": "撤销状态",
+      "all": "全部",
+      "active": "活跃",
+      "revoked": "已撤销",
+      "scopes": "权限范围",
+      "revokedAt": "撤销时间"
     },
     "socialAccounts": {
       "title": "社交账号管理",
@@ -401,7 +410,20 @@
       "newClientSecret": "新的 Client Secret:",
       "regenerateInfo": "将重新生成 <strong>{name}</strong> 的 Client Secret。旧的 Secret 将立即失效，请确保已更新所有使用该 Secret 的应用。",
       "secretHidden": "Client Secret 已加密存储，仅在创建和重新生成时显示明文",
-      "hasActiveTokens": "该客户端存在活跃的 Token，请先撤销所有 Token 后再删除"
+      "hasActiveTokens": "该客户端存在活跃的 Token，请先撤销所有 Token 后再删除",
+      "createClient": "新建 OAuth 客户端",
+      "editClient": "编辑 OAuth 客户端",
+      "nameRequired": "请输入客户端名称",
+      "nameLength": "名称长度需在 3-100 个字符之间",
+      "namePlaceholder": "请输入客户端名称",
+      "redirectUrisRequired": "请至少添加一个回调地址",
+      "redirectUrisPlaceholder": "输入回调 URL 后按回车添加",
+      "redirectUrisHint": "OAuth 认证完成后的重定向地址，支持多个",
+      "scopes": "权限范围",
+      "scopesPlaceholder": "输入权限范围后按回车添加",
+      "scopesHint": "如 openid, profile, email 等",
+      "isConfidential": "机密客户端",
+      "isConfidentialHint": "机密客户端可安全存储 Secret，适用于服务端应用"
     },
     "providers": {
       "title": "OAuth 提供商设置",

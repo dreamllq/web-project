@@ -339,8 +339,17 @@
       "batchRevokeConfirm": "Are you sure you want to revoke {count} selected tokens? This action cannot be undone.",
       "batchRevokeSuccess": "Successfully revoked {count} tokens",
       "batchRevokePartialSuccess": "Successfully revoked {success} tokens, failed {failed}",
+      "batchRevokePartial": "Successfully revoked {success} tokens, failed {failed}",
       "selectedCount": "Selected {count} tokens",
-      "batchLimitHint": "(Maximum 100 tokens per batch)"
+      "batchLimitHint": "(Maximum 100 tokens per batch)",
+      "batchRevokeTitle": "Batch Revoke Confirmation",
+      "exportSuccess": "Export successful",
+      "revokedStatus": "Revocation Status",
+      "all": "All",
+      "active": "Active",
+      "revoked": "Revoked",
+      "scopes": "Scopes",
+      "revokedAt": "Revoked At"
     },
     "socialAccounts": {
       "title": "Social Accounts Management",
@@ -401,7 +410,20 @@
       "newClientSecret": "New Client Secret:",
       "regenerateInfo": "This will regenerate the Client Secret for <strong>{name}</strong>. The old secret will be immediately invalidated. Please ensure all applications using this secret have been updated.",
       "secretHidden": "Client Secret is encrypted and only shown in plain text during creation and regeneration",
-      "hasActiveTokens": "This client has active tokens. Please revoke all tokens before deleting the client."
+      "hasActiveTokens": "This client has active tokens. Please revoke all tokens before deleting the client.",
+      "createClient": "Create OAuth Client",
+      "editClient": "Edit OAuth Client",
+      "nameRequired": "Please enter client name",
+      "nameLength": "Name must be between 3-100 characters",
+      "namePlaceholder": "Please enter client name",
+      "redirectUrisRequired": "Please add at least one redirect URI",
+      "redirectUrisPlaceholder": "Press Enter to add redirect URL",
+      "redirectUrisHint": "Redirect URL after OAuth authentication, supports multiple",
+      "scopes": "Scopes",
+      "scopesPlaceholder": "Press Enter to add scope",
+      "scopesHint": "E.g., openid, profile, email",
+      "isConfidential": "Confidential Client",
+      "isConfidentialHint": "Confidential clients can securely store secrets, suitable for server-side applications"
     },
     "providers": {
       "title": "OAuth Provider Settings",
