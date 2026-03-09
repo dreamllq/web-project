@@ -2,7 +2,12 @@
 import { ref, reactive, computed, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
 import { Plus, Edit, Delete, Search, Refresh, Key } from '@element-plus/icons-vue';
-import { getOAuthClients, createOAuthClient, deleteOAuthClient } from '@/api/oauth';
+import {
+  getOAuthClients,
+  createOAuthClient,
+  updateOAuthClient,
+  deleteOAuthClient,
+} from '@/api/oauth';
 import { extractApiError } from '@/api';
 import type { OAuthClient, CreateOAuthClientDto, OAuthClientQuery } from '@/api/oauth';
 import OAuthClientForm from '@/components/OAuthClientForm.vue';
@@ -96,8 +101,13 @@ function openEditDialog(client: OAuthClient) {
 async function handleFormSubmit(data: CreateOAuthClientDto) {
   formLoading.value = true;
   try {
-    await createOAuthClient(data);
-    ElMessage.success(editingClient.value ? 'OAuth客户端更新成功' : 'OAuth客户端创建成功');
+    if (editingClient.value) {
+      await updateOAuthClient(editingClient.value.id, data);
+      ElMessage.success('OAuth客户端更新成功');
+    } else {
+      await createOAuthClient(data);
+      ElMessage.success('OAuth客户端创建成功');
+    }
     dialogVisible.value = false;
     fetchClients();
   } catch (error: unknown) {

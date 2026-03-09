@@ -31,6 +31,25 @@ export interface OAuthTokenQuery {
   offset?: number;
 }
 
+/**
+ * Batch operation result (matches backend BatchOperationResult)
+ */
+export interface BatchOperationResult {
+  success: string[];
+  failed: string[];
+  errors: string[];
+}
+
+/**
+ * Export tokens query parameters
+ */
+export interface ExportTokensQuery {
+  format?: 'csv' | 'json';
+  includeUserPII?: boolean;
+  clientId?: string;
+  userId?: string;
+}
+
 // ============================================
 // API Functions
 // ============================================
@@ -51,4 +70,39 @@ export function getOAuthTokens(
  */
 export function deleteOAuthToken(id: string): Promise<void> {
   return api.delete(`/admin/oauth-tokens/${id}`);
+}
+
+/**
+ * Export OAuth tokens to file (CSV or JSON)
+ * GET /api/admin/oauth-tokens/export
+ * Triggers file download in browser
+ */
+export async function exportTokens(query: ExportTokensQuery): Promise<void> {
+  const params = new URLSearchParams();
+  if (query.format) params.append('format', query.format);
+  if (query.includeUserPII) params.append('includeUserPII', 'true');
+  if (query.clientId) params.append('clientId', query.clientId);
+  if (query.userId) params.append('userId', query.userId);
+
+  const response = await api.get(`/admin/oauth-tokens/export?${params.toString()}`, {
+    responseType: 'blob',
+  });
+
+  const url = window.URL.createObjectURL(new Blob([response as any]));
+  const link = document.createElement('a');
+  link.href = url;
+  link.setAttribute('download', `oauth-tokens.${query.format || 'csv'}`);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
+}
+
+/**
+ * Batch revoke OAuth tokens
+ * POST /api/admin/oauth-tokens/batch/revoke
+ * Max 100 tokens per batch (enforced by backend)
+ */
+export function batchRevokeTokens(ids: string[]): Promise<{ data: BatchOperationResult }> {
+  return api.post('/admin/oauth-tokens/batch/revoke', { ids });
 }

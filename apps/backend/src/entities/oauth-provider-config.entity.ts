@@ -49,6 +49,21 @@ export class OAuthProviderConfig {
   @Column({ type: 'jsonb', nullable: true })
   config: Record<string, unknown> | null;
 
+  @Column({ name: 'display_name', type: 'varchar', length: 50, nullable: true })
+  displayName: string | null;
+
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  icon: string | null;
+
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  color: string | null;
+
+  @Column({ name: 'provider_type', type: 'varchar', length: 20, nullable: true })
+  providerType: string | null;
+
+  @Column({ name: 'sort_order', type: 'int', nullable: true })
+  sortOrder: number | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 

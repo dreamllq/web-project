@@ -1,4 +1,4 @@
-import { Module, forwardRef } from '@nestjs/common';
+import { Module, forwardRef, OnModuleInit, Logger } from '@nestjs/common';
 import { DiscoveryModule } from '@nestjs/core';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Policy } from '../entities/policy.entity';
@@ -16,6 +16,7 @@ import { PermissionCacheService } from './services/permission-cache.service';
 import { SubjectTypeRegistryService } from './services/subject-type-registry.service';
 import { CustomCacheModule } from '../custom-cache/custom-cache.module';
 import { UsersModule } from '../users/users.module';
+import { OAuthPermissionsSeed } from './seeds/oauth-permissions.seed';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { UsersModule } from '../users/users.module';
     PermissionSyncService,
     PermissionCacheService,
     SubjectTypeRegistryService,
+    OAuthPermissionsSeed,
   ],
   exports: [
     PolicyService,
@@ -42,7 +44,19 @@ import { UsersModule } from '../users/users.module';
     RoleGuard,
     PermissionCacheService,
     SubjectTypeRegistryService,
-    RbacModule, // Re-export RbacModule so consumers get RoleService
+    RbacModule,
   ],
 })
-export class PolicyModule {}
+export class PolicyModule implements OnModuleInit {
+  private readonly logger = new Logger(PolicyModule.name);
+
+  constructor(private readonly oauthPermissionsSeed: OAuthPermissionsSeed) {}
+
+  async onModuleInit() {
+    try {
+      await this.oauthPermissionsSeed.seed();
+    } catch (error) {
+      this.logger.error('Failed to seed OAuth permissions', error);
+    }
+  }
+}

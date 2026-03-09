@@ -10,11 +10,6 @@ import {
   ManyToMany,
   JoinTable,
 } from 'typeorm';
-import { SocialAccount } from './social-account.entity';
-import { Notification } from './notification.entity';
-import { File } from './file.entity';
-import { OAuthToken } from './oauth-token.entity';
-import { VerificationToken } from './verification-token.entity';
 import { Role } from './role.entity';
 
 export enum UserStatus {
@@ -94,20 +89,20 @@ export class User {
   deletedAt: Date | null;
 
   // Relations
-  @OneToMany(() => SocialAccount, (socialAccount) => socialAccount.user)
-  socialAccounts: SocialAccount[];
+  @OneToMany('SocialAccount', (socialAccount: any) => socialAccount.user)
+  socialAccounts: any[];
 
-  @OneToMany(() => Notification, (notification) => notification.user)
-  notifications: Notification[];
+  @OneToMany('Notification', (notification: any) => notification.user)
+  notifications: any[];
 
-  @OneToMany(() => File, (file) => file.user)
-  files: File[];
+  @OneToMany('File', (file: any) => file.user)
+  files: any[];
 
-  @OneToMany(() => OAuthToken, (token) => token.user)
-  oauthTokens: OAuthToken[];
+  @OneToMany('OAuthToken', (token: any) => token.user)
+  oauthTokens: any[];
 
-  @OneToMany(() => VerificationToken, (verificationToken) => verificationToken.user)
-  verificationTokens: VerificationToken[];
+  @OneToMany('VerificationToken', (verificationToken: any) => verificationToken.user)
+  verificationTokens: any[];
 
   // RBAC relation
   @ManyToMany(() => Role, { cascade: true })

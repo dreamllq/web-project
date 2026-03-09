@@ -1,5 +1,4 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { mock, describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import { NotFoundException } from '@nestjs/common';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -19,15 +18,21 @@ describe('OAuthProviderService', () => {
     redirectUri: 'https://example.com/callback',
     enabled: true,
     config: null,
+    displayName: null,
+    icon: null,
+    color: null,
+    providerType: null,
+    sortOrder: 0,
     createdAt: new Date(),
     updatedAt: new Date(),
   };
 
   beforeEach(async () => {
     mockRepository = {
-      find: mock(),
-      findOne: mock(),
-      save: mock(),
+      find: jest.fn(),
+      findOne: jest.fn(),
+      save: jest.fn(),
+      update: jest.fn(),
     } as any;
 
     const module: TestingModule = await Test.createTestingModule({
@@ -219,6 +224,306 @@ describe('OAuthProviderService', () => {
 
       await service.getByCode(OAuthProviderCode.DINGTALK);
       expect(mockRepository.findOne).toHaveBeenCalledTimes(3);
+    });
+  });
+
+  describe('getProvidersMetadata', () => {
+    it('should return metadata for enabled providers only', async () => {
+      const enabledConfig = {
+        ...mockConfig,
+        code: OAuthProviderCode.WECHAT,
+        enabled: true,
+        displayName: '微信',
+        icon: 'ChatDotRound',
+        color: '#07C160',
+        providerType: 'oauth2',
+        sortOrder: 1,
+      };
+
+      mockRepository.find.mockResolvedValue([enabledConfig]);
+
+      const result = await service.getProvidersMetadata();
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toEqual({
+        code: OAuthProviderCode.WECHAT,
+        displayName: '微信',
+        icon: 'ChatDotRound',
+        color: '#07C160',
+        providerType: 'oauth2',
+        isEnabled: true,
+      });
+      expect(mockRepository.find).toHaveBeenCalledWith({
+        where: { enabled: true },
+        order: { sortOrder: 'ASC' },
+      });
+    });
+
+    it('should fill default values when displayName/icon/color/providerType are null', async () => {
+      const configWithNulls = {
+        ...mockConfig,
+        code: OAuthProviderCode.WECHAT,
+        enabled: true,
+        displayName: null,
+        icon: null,
+        color: null,
+        providerType: null,
+        sortOrder: 1,
+      };
+
+      mockRepository.find.mockResolvedValue([configWithNulls]);
+
+      const result = await service.getProvidersMetadata();
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toEqual({
+        code: OAuthProviderCode.WECHAT,
+        displayName: '微信',
+        icon: 'ChatDotRound',
+        color: '#07C160',
+        providerType: 'oauth2',
+        isEnabled: true,
+      });
+    });
+
+    it('should sort providers by sortOrder', async () => {
+      const config1 = {
+        ...mockConfig,
+        id: 'id-1',
+        code: OAuthProviderCode.DINGTALK,
+        enabled: true,
+        displayName: '钉钉',
+        sortOrder: 2,
+      };
+      const config2 = {
+        ...mockConfig,
+        id: 'id-2',
+        code: OAuthProviderCode.WECHAT,
+        enabled: true,
+        displayName: '微信',
+        sortOrder: 1,
+      };
+
+      mockRepository.find.mockResolvedValue([config2, config1]);
+
+      const result = await service.getProvidersMetadata();
+
+      expect(result[0].code).toBe(OAuthProviderCode.WECHAT);
+      expect(result[1].code).toBe(OAuthProviderCode.DINGTALK);
+    });
+
+    it('should infer providerType as miniprogram for *_miniprogram codes', async () => {
+      const miniprogramConfig = {
+        ...mockConfig,
+        code: OAuthProviderCode.WECHAT_MINIPROGRAM,
+        enabled: true,
+        displayName: null,
+        icon: null,
+        color: null,
+        providerType: null,
+        sortOrder: 1,
+      };
+
+      mockRepository.find.mockResolvedValue([miniprogramConfig]);
+
+      const result = await service.getProvidersMetadata();
+
+      expect(result[0].providerType).toBe('miniprogram');
+    });
+
+    it('should return empty array when no enabled providers exist', async () => {
+      mockRepository.find.mockResolvedValue([]);
+
+      const result = await service.getProvidersMetadata();
+
+      expect(result).toEqual([]);
+    });
+  });
+
+  describe('updateMetadata', () => {
+    it('should update metadata fields and return updated config', async () => {
+      const updatedConfig = {
+        ...mockConfig,
+        displayName: '微信登录',
+        icon: 'WechatIcon',
+        color: '#07C160',
+        sortOrder: 10,
+      };
+      mockRepository.findOne.mockResolvedValue(mockConfig);
+      mockRepository.update.mockResolvedValue({ affected: 1 } as any);
+      mockRepository.findOne.mockResolvedValue(updatedConfig);
+
+      const result = await service.updateMetadata('test-id', {
+        displayName: '微信登录',
+        icon: 'WechatIcon',
+        color: '#07C160',
+        sortOrder: 10,
+      });
+
+      expect(result).toEqual(updatedConfig);
+      expect(mockRepository.update).toHaveBeenCalledWith('test-id', {
+        displayName: '微信登录',
+        icon: 'WechatIcon',
+        color: '#07C160',
+        sortOrder: 10,
+      });
+    });
+
+    it('should only update provided fields (partial update)', async () => {
+      const updatedConfig = { ...mockConfig, displayName: '微信登录' };
+      mockRepository.findOne.mockResolvedValue(mockConfig);
+      mockRepository.update.mockResolvedValue({ affected: 1 } as any);
+      mockRepository.findOne.mockResolvedValue(updatedConfig);
+
+      const result = await service.updateMetadata('test-id', {
+        displayName: '微信登录',
+      });
+
+      expect(result).toEqual(updatedConfig);
+      expect(mockRepository.update).toHaveBeenCalledWith('test-id', {
+        displayName: '微信登录',
+      });
+    });
+
+    it('should clear cache for the provider after update', async () => {
+      mockRepository.findOne.mockResolvedValue(mockConfig);
+      mockRepository.update.mockResolvedValue({ affected: 1 } as any);
+
+      // First, cache the config
+      await service.getByCode(OAuthProviderCode.WECHAT);
+      expect(mockRepository.findOne).toHaveBeenCalledTimes(1);
+
+      // Update metadata
+      mockRepository.findOne.mockClear();
+      mockRepository.findOne.mockResolvedValue(mockConfig);
+      await service.updateMetadata('test-id', { displayName: 'New Name' });
+
+      // Cache should be cleared, so next call hits DB
+      mockRepository.findOne.mockClear();
+      mockRepository.findOne.mockResolvedValue(mockConfig);
+      await service.getByCode(OAuthProviderCode.WECHAT);
+      expect(mockRepository.findOne).toHaveBeenCalledTimes(1);
+    });
+
+    it('should throw NotFoundException if config not found', async () => {
+      mockRepository.findOne.mockResolvedValue(null);
+
+      await expect(service.updateMetadata('non-existent', { displayName: 'Test' })).rejects.toThrow(
+        NotFoundException
+      );
+    });
+
+    it('should not call update if no fields provided', async () => {
+      mockRepository.findOne.mockResolvedValue(mockConfig);
+
+      const result = await service.updateMetadata('test-id', {});
+
+      expect(result).toEqual(mockConfig);
+      expect(mockRepository.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('batchEnable', () => {
+    it('should enable multiple providers by IDs', async () => {
+      const configs = [
+        { ...mockConfig, id: 'id-1', code: OAuthProviderCode.WECHAT },
+        { ...mockConfig, id: 'id-2', code: OAuthProviderCode.DINGTALK },
+      ];
+      mockRepository.update.mockResolvedValue({ affected: 2 } as any);
+      mockRepository.find.mockResolvedValue(configs);
+
+      await service.batchEnable(['id-1', 'id-2']);
+
+      expect(mockRepository.update).toHaveBeenCalledWith(['id-1', 'id-2'], {
+        enabled: true,
+      });
+      expect(mockRepository.find).toHaveBeenCalled();
+    });
+
+    it('should clear cache for all affected providers', async () => {
+      const configs = [
+        { ...mockConfig, id: 'id-1', code: OAuthProviderCode.WECHAT },
+        { ...mockConfig, id: 'id-2', code: OAuthProviderCode.DINGTALK },
+      ];
+      mockRepository.update.mockResolvedValue({ affected: 2 } as any);
+      mockRepository.find.mockResolvedValue(configs);
+
+      // Cache configs first
+      mockRepository.findOne.mockResolvedValueOnce(configs[0]).mockResolvedValueOnce(configs[1]);
+      await service.getByCode(OAuthProviderCode.WECHAT);
+      await service.getByCode(OAuthProviderCode.DINGTALK);
+      expect(mockRepository.findOne).toHaveBeenCalledTimes(2);
+
+      // Batch enable
+      mockRepository.find.mockResolvedValue(configs);
+      await service.batchEnable(['id-1', 'id-2']);
+
+      // Cache should be cleared for both
+      mockRepository.findOne.mockResolvedValueOnce(configs[0]).mockResolvedValueOnce(configs[1]);
+      await service.getByCode(OAuthProviderCode.WECHAT);
+      await service.getByCode(OAuthProviderCode.DINGTALK);
+      expect(mockRepository.findOne).toHaveBeenCalledTimes(4);
+    });
+
+    it('should handle empty array', async () => {
+      mockRepository.update.mockResolvedValue({ affected: 0 } as any);
+      mockRepository.find.mockResolvedValue([]);
+
+      await service.batchEnable([]);
+
+      expect(mockRepository.update).toHaveBeenCalledWith([], { enabled: true });
+    });
+  });
+
+  describe('batchDisable', () => {
+    it('should disable multiple providers by IDs', async () => {
+      const configs = [
+        { ...mockConfig, id: 'id-1', code: OAuthProviderCode.WECHAT },
+        { ...mockConfig, id: 'id-2', code: OAuthProviderCode.DINGTALK },
+      ];
+      mockRepository.update.mockResolvedValue({ affected: 2 } as any);
+      mockRepository.find.mockResolvedValue(configs);
+
+      await service.batchDisable(['id-1', 'id-2']);
+
+      expect(mockRepository.update).toHaveBeenCalledWith(['id-1', 'id-2'], {
+        enabled: false,
+      });
+      expect(mockRepository.find).toHaveBeenCalled();
+    });
+
+    it('should clear cache for all affected providers', async () => {
+      const configs = [
+        { ...mockConfig, id: 'id-1', code: OAuthProviderCode.WECHAT },
+        { ...mockConfig, id: 'id-2', code: OAuthProviderCode.DINGTALK },
+      ];
+      mockRepository.update.mockResolvedValue({ affected: 2 } as any);
+      mockRepository.find.mockResolvedValue(configs);
+
+      // Cache configs first
+      mockRepository.findOne.mockResolvedValueOnce(configs[0]).mockResolvedValueOnce(configs[1]);
+      await service.getByCode(OAuthProviderCode.WECHAT);
+      await service.getByCode(OAuthProviderCode.DINGTALK);
+      expect(mockRepository.findOne).toHaveBeenCalledTimes(2);
+
+      // Batch disable
+      mockRepository.find.mockResolvedValue(configs);
+      await service.batchDisable(['id-1', 'id-2']);
+
+      // Cache should be cleared for both
+      mockRepository.findOne.mockResolvedValueOnce(configs[0]).mockResolvedValueOnce(configs[1]);
+      await service.getByCode(OAuthProviderCode.WECHAT);
+      await service.getByCode(OAuthProviderCode.DINGTALK);
+      expect(mockRepository.findOne).toHaveBeenCalledTimes(4);
+    });
+
+    it('should handle empty array', async () => {
+      mockRepository.update.mockResolvedValue({ affected: 0 } as any);
+      mockRepository.find.mockResolvedValue([]);
+
+      await service.batchDisable([]);
+
+      expect(mockRepository.update).toHaveBeenCalledWith([], { enabled: false });
     });
   });
 });

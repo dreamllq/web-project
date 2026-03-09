@@ -33,6 +33,25 @@ export interface SocialAccountQuery {
   offset?: number;
 }
 
+export interface SocialAccountDetail extends SocialAccount {
+  user: {
+    id: string;
+    username: string;
+    email: string | null;
+  };
+  loginHistory: {
+    lastLoginAt: string | null;
+    lastLoginIp: string | null;
+    loginCount: number;
+  };
+}
+
+export interface BatchOperationResult {
+  success: string[];
+  failed: string[];
+  errors: string[];
+}
+
 // ============================================
 // API Functions
 // ============================================
@@ -53,4 +72,21 @@ export function getSocialAccounts(
  */
 export function deleteSocialAccount(id: string): Promise<void> {
   return api.delete(`/admin/social-accounts/${id}`);
+}
+
+/**
+ * Get social account detail with user info and login history
+ * GET /api/admin/social-accounts/:id/detail
+ */
+export function getSocialAccountDetail(id: string): Promise<{ data: SocialAccountDetail }> {
+  return api.get(`/admin/social-accounts/${id}/detail`);
+}
+
+/**
+ * Batch unlink social accounts
+ * POST /api/admin/social-accounts/batch/unlink
+ * Note: Maximum 50 accounts at once
+ */
+export function batchUnlinkSocialAccounts(ids: string[]): Promise<{ data: BatchOperationResult }> {
+  return api.post('/admin/social-accounts/batch/unlink', { ids });
 }

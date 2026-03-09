@@ -33,6 +33,14 @@ export interface CreateOAuthClientDto {
   isConfidential?: boolean;
 }
 
+export interface UpdateOAuthClientDto {
+  name?: string;
+  redirectUris?: string[];
+  scopes?: string[];
+  isConfidential?: boolean;
+  isActive?: boolean;
+}
+
 export interface OAuthClientQuery {
   keyword?: string;
   limit?: number;
@@ -59,6 +67,25 @@ export function getOAuthClients(
  */
 export function createOAuthClient(data: CreateOAuthClientDto): Promise<{ data: OAuthClient }> {
   return api.post('/admin/oauth-clients', data);
+}
+
+/**
+ * Update an OAuth client
+ * PATCH /api/admin/oauth-clients/:id
+ */
+export function updateOAuthClient(
+  id: string,
+  data: UpdateOAuthClientDto
+): Promise<{ data: OAuthClient }> {
+  return api.patch(`/admin/oauth-clients/${id}`, data);
+}
+
+/**
+ * Regenerate client secret
+ * POST /api/admin/oauth-clients/:id/regenerate-secret
+ */
+export function regenerateClientSecret(id: string): Promise<{ data: OAuthClient }> {
+  return api.post(`/admin/oauth-clients/${id}/regenerate-secret`);
 }
 
 /**

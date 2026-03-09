@@ -1,9 +1,11 @@
-import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { OAuthClient } from '../entities/oauth-client.entity';
 import { CustomCacheService } from '../custom-cache/custom-cache.service';
 import { CacheKeyPrefix } from '../custom-cache/custom-cache.constants';
+import { OAuthSecretEncryptionService } from './oauth-secret-encryption.service';
+import { OAuthTokenService } from './oauth-token.service';
 
 export interface OAuthClientQueryDto {
   keyword?: string;
@@ -44,7 +46,9 @@ export class OAuthClientService {
   constructor(
     @InjectRepository(OAuthClient)
     private readonly clientRepository: Repository<OAuthClient>,
-    private readonly cacheService: CustomCacheService
+    private readonly cacheService: CustomCacheService,
+    private readonly encryptionService: OAuthSecretEncryptionService,
+    private readonly tokenService: OAuthTokenService
   ) {}
 
   /**
@@ -92,10 +96,11 @@ export class OAuthClientService {
   async create(dto: CreateOAuthClientDto): Promise<OAuthClient> {
     const clientId = this.generateClientId();
     const clientSecret = this.generateClientSecret();
+    const encryptedSecret = this.encryptionService.encrypt(clientSecret);
 
     const client = this.clientRepository.create({
       clientId,
-      clientSecret,
+      clientSecret: encryptedSecret,
       name: dto.name,
       redirectUris: dto.redirectUris,
       allowedScopes: dto.scopes || ['openid', 'profile', 'email'],
@@ -106,7 +111,8 @@ export class OAuthClientService {
 
     this.logger.log(`Created OAuth client: ${clientId}`);
 
-    return savedClient;
+    const response = { ...savedClient, clientSecret };
+    return response;
   }
 
   /**
@@ -155,6 +161,13 @@ export class OAuthClientService {
       throw new NotFoundException('OAuth client not found');
     }
 
+    const tokenCount = await this.tokenService.countByClientId(id);
+    if (tokenCount > 0) {
+      throw new BadRequestException(
+        `Cannot delete client with ${tokenCount} active tokens. Revoke tokens first or use force delete.`
+      );
+    }
+
     await this.clientRepository.delete(id);
     await this.cacheService.del(`${CacheKeyPrefix.OAUTH_CLIENT}:${client.clientId}`);
     this.logger.log(`Deleted OAuth client: ${client.clientId}`);
@@ -170,11 +183,13 @@ export class OAuthClientService {
     }
 
     const newSecret = this.generateClientSecret();
-    await this.clientRepository.update(id, { clientSecret: newSecret });
+    const encryptedSecret = this.encryptionService.encrypt(newSecret);
+    await this.clientRepository.update(id, { clientSecret: encryptedSecret });
     await this.cacheService.del(`${CacheKeyPrefix.OAUTH_CLIENT}:${client.clientId}`);
     this.logger.log(`Regenerated secret for OAuth client: ${client.clientId}`);
 
-    return (await this.findById(id))!;
+    const updatedClient = (await this.findById(id))!;
+    return { ...updatedClient, clientSecret: newSecret };
   }
 
   /**
@@ -184,7 +199,7 @@ export class OAuthClientService {
     return {
       id: client.id,
       clientId: client.clientId,
-      clientSecret: client.clientSecret,
+      clientSecret: '••••••••',
       name: client.name,
       redirectUris: client.redirectUris,
       allowedScopes: client.allowedScopes,

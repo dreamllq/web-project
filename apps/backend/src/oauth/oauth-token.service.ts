@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { OAuthToken } from '../entities/oauth-token.entity';
@@ -22,6 +22,12 @@ export interface OAuthTokenResponse {
   expiresAt: Date;
   revokedAt: Date | null;
   createdAt: Date;
+}
+
+export interface BatchOperationResult {
+  success: string[];
+  failed: string[];
+  errors: string[];
 }
 
 @Injectable()
@@ -98,12 +104,13 @@ export class OAuthTokenService {
       return token;
     }
 
-    await this.tokenRepository.update(id, { revokedAt: new Date() });
+    const revokedAt = new Date();
+    await this.tokenRepository.update(id, { revokedAt });
     await this.cacheService.del(`${CacheKeyPrefix.OAUTH_TOKEN}:${token.accessToken}`);
 
     this.logger.log(`Revoked OAuth token: ${id}`);
 
-    return (await this.findById(id))!;
+    return { ...token, revokedAt };
   }
 
   async revokeByUser(userId: string): Promise<void> {
@@ -119,6 +126,42 @@ export class OAuthTokenService {
     this.logger.log(`Revoked ${tokens.length} tokens for user: ${userId}`);
   }
 
+  async countByClientId(clientId: string): Promise<number> {
+    return this.tokenRepository.count({
+      where: { clientId },
+    });
+  }
+
+  async batchRevoke(ids: string[]): Promise<BatchOperationResult> {
+    if (ids.length > 100) {
+      throw new BadRequestException('Cannot revoke more than 100 tokens at once');
+    }
+
+    const result: BatchOperationResult = {
+      success: [],
+      failed: [],
+      errors: [],
+    };
+
+    for (const id of ids) {
+      try {
+        await this.revoke(id);
+        result.success.push(id);
+      } catch (error) {
+        result.failed.push(id);
+        result.errors.push(
+          `Failed to revoke token ${id}: ${error instanceof Error ? error.message : 'Unknown error'}`
+        );
+      }
+    }
+
+    this.logger.log(
+      `Batch revoke completed: ${result.success.length} succeeded, ${result.failed.length} failed`
+    );
+
+    return result;
+  }
+
   toResponse(token: OAuthToken): OAuthTokenResponse {
     return {
       id: token.id,
@@ -130,5 +173,28 @@ export class OAuthTokenService {
       revokedAt: token.revokedAt,
       createdAt: token.createdAt,
     };
+  }
+
+  async export(query: OAuthTokenQueryDto): Promise<string> {
+    const { data } = await this.list({ ...query, limit: 10000 });
+
+    const headers = ['Access Token', 'Client ID', 'User ID', 'Scope', 'Expires At', 'Created At'];
+
+    const rows = data.map((token) => [
+      this.maskToken(token.accessToken),
+      token.clientId,
+      token.userId || '',
+      token.scopes.join(';'),
+      token.expiresAt.toISOString(),
+      token.createdAt.toISOString(),
+    ]);
+
+    return [headers, ...rows].map((row) => row.join(',')).join('\n');
+  }
+
+  private maskToken(token: string): string {
+    if (!token) return '';
+    if (token.length <= 20) return '***';
+    return `${token.slice(0, 10)}...${token.slice(-10)}`;
   }
 }
