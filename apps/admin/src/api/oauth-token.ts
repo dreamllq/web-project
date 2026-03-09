@@ -1,38 +1,51 @@
 import api from './index';
 
 // ============================================
-// Type Definitions
+// Type Definitions (match backend DTOs exactly)
 // ============================================
 
+/**
+ * OAuth token response (matches backend OAuthTokenResponse)
+ */
 export interface OAuthToken {
   id: string;
-  accessToken: string;
-  refreshToken?: string;
   clientId: string;
-  userId?: string;
+  userId: string | null;
+  accessToken: string;
+  scopes: string[];
   expiresAt: string;
-  scope: string;
+  revokedAt: string | null;
   createdAt: string;
 }
 
-export interface OAuthTokenListResponse {
-  data: OAuthToken[];
-  pagination: {
-    total: number;
-    limit: number;
-    offset: number;
-  };
-}
-
+/**
+ * Query parameters for listing OAuth tokens (matches backend OAuthTokenQueryDto)
+ */
 export interface OAuthTokenQuery {
   clientId?: string;
   userId?: string;
+  revoked?: boolean;
   limit?: number;
   offset?: number;
 }
 
 /**
- * Batch operation result (matches backend BatchOperationResult)
+ * Response for token list (matches backend OAuthTokenListResponse)
+ */
+export interface OAuthTokenListResponse {
+  data: OAuthToken[];
+  total: number;
+}
+
+/**
+ * DTO for batch revoke tokens (matches backend BatchRevokeTokensDto)
+ */
+export interface BatchRevokeTokensDto {
+  ids: string[];
+}
+
+/**
+ * Result of batch operation (matches backend BatchOperationResult)
  */
 export interface BatchOperationResult {
   success: string[];
@@ -40,69 +53,57 @@ export interface BatchOperationResult {
   errors: string[];
 }
 
-/**
- * Export tokens query parameters
- */
-export interface ExportTokensQuery {
-  format?: 'csv' | 'json';
-  includeUserPII?: boolean;
-  clientId?: string;
-  userId?: string;
-}
-
 // ============================================
 // API Functions
 // ============================================
 
 /**
- * Get list of OAuth tokens
- * GET /api/v1/oauth/tokens
+ * Get list of OAuth tokens with filters
+ * GET /v1/oauth/tokens
  */
-export function getOAuthTokens(
-  params?: OAuthTokenQuery
-): Promise<{ data: OAuthTokenListResponse }> {
-  return api.get('/v1/oauth/tokens', { params });
+export function listTokens(query?: OAuthTokenQuery): Promise<OAuthTokenListResponse> {
+  return api.get('/v1/oauth/tokens', { params: query });
 }
 
 /**
- * Delete (revoke) an OAuth token
- * DELETE /api/v1/oauth/tokens/:id
+ * Revoke (delete) a single OAuth token
+ * DELETE /v1/oauth/tokens/:id
+ * Returns the revoked token
  */
-export function deleteOAuthToken(id: string): Promise<void> {
+export function revokeToken(id: string): Promise<OAuthToken> {
   return api.delete(`/v1/oauth/tokens/${id}`);
 }
 
 /**
- * Export OAuth tokens to file (CSV or JSON)
- * GET /api/v1/oauth/tokens/export
+ * Batch revoke OAuth tokens
+ * POST /v1/oauth/tokens/batch/revoke
+ * Max 100 tokens per batch (enforced by backend)
+ */
+export function batchRevokeTokens(dto: BatchRevokeTokensDto): Promise<BatchOperationResult> {
+  return api.post('/v1/oauth/tokens/batch/revoke', dto);
+}
+
+/**
+ * Export OAuth tokens to CSV file
+ * GET /v1/oauth/tokens/export
  * Triggers file download in browser
  */
-export async function exportTokens(query: ExportTokensQuery): Promise<void> {
+export async function exportTokens(query?: OAuthTokenQuery): Promise<void> {
   const params = new URLSearchParams();
-  if (query.format) params.append('format', query.format);
-  if (query.includeUserPII) params.append('includeUserPII', 'true');
-  if (query.clientId) params.append('clientId', query.clientId);
-  if (query.userId) params.append('userId', query.userId);
+  if (query?.clientId) params.append('clientId', query.clientId);
+  if (query?.userId) params.append('userId', query.userId);
+  if (query?.revoked !== undefined) params.append('revoked', String(query.revoked));
 
   const response = await api.get(`/v1/oauth/tokens/export?${params.toString()}`, {
     responseType: 'blob',
   });
 
-  const url = window.URL.createObjectURL(new Blob([response as any]));
+  const url = window.URL.createObjectURL(new Blob([response as unknown as BlobPart]));
   const link = document.createElement('a');
   link.href = url;
-  link.setAttribute('download', `oauth-tokens.${query.format || 'csv'}`);
+  link.setAttribute('download', 'oauth-tokens.csv');
   document.body.appendChild(link);
   link.click();
   link.remove();
   window.URL.revokeObjectURL(url);
-}
-
-/**
- * Batch revoke OAuth tokens
- * POST /api/v1/oauth/tokens/batch/revoke
- * Max 100 tokens per batch (enforced by backend)
- */
-export function batchRevokeTokens(ids: string[]): Promise<{ data: BatchOperationResult }> {
-  return api.post('/v1/oauth/tokens/batch/revoke', { ids });
 }

@@ -1,9 +1,31 @@
 import api from './index';
 
 // ============================================
+// Enums
+// ============================================
+
+/**
+ * OAuth provider codes - matches backend OAuthProviderCode enum
+ */
+export enum OAuthProviderCode {
+  WECHAT = 'wechat',
+  WECHAT_MINIPROGRAM = 'wechat_miniprogram',
+  DINGTALK_MINIPROGRAM = 'dingtalk_miniprogram',
+  DINGTALK = 'dingtalk',
+  FEISHU = 'feishu',
+  DOUYIN = 'douyin',
+  QQ = 'qq',
+  BAIDU = 'baidu',
+}
+
+// ============================================
 // Type Definitions
 // ============================================
 
+/**
+ * Response interface for OAuth provider (without sensitive data)
+ * Matches backend OAuthProviderResponse
+ */
 export interface OAuthProvider {
   id: string;
   code: string;
@@ -20,32 +42,9 @@ export interface OAuthProvider {
   updatedAt: string;
 }
 
-export interface OAuthProviderListResponse {
-  data: OAuthProvider[];
-  pagination: {
-    total: number;
-    limit: number;
-    offset: number;
-  };
-}
-
-export interface UpdateOAuthProviderDto {
-  name?: string;
-  appId?: string;
-  appSecret?: string;
-  redirectUri?: string | null;
-  enabled?: boolean;
-}
-
-export interface OAuthProviderQuery {
-  type?: string;
-  keyword?: string;
-  limit?: number;
-  offset?: number;
-}
-
 /**
- * Provider metadata response (for dynamic list display)
+ * Response interface for provider metadata
+ * Matches backend ProviderMetadataResponse
  */
 export interface ProviderMetadata {
   code: string;
@@ -58,12 +57,21 @@ export interface ProviderMetadata {
 
 /**
  * DTO for updating provider metadata (display settings)
+ * Matches backend UpdateProviderMetadataDto
  */
 export interface UpdateProviderMetadataDto {
   displayName?: string;
   icon?: string;
   color?: string;
-  sortOrder?: number;
+  sortOrder?: number; // 0-999
+}
+
+/**
+ * DTO for batch operations with provider IDs
+ * Matches backend BatchProviderIdsDto
+ */
+export interface BatchProviderIdsDto {
+  ids: string[];
 }
 
 // ============================================
@@ -72,54 +80,62 @@ export interface UpdateProviderMetadataDto {
 
 /**
  * Get list of OAuth providers
- * GET /api/v1/oauth/providers
+ * GET /v1/oauth/providers
+ * @returns Array of providers (not wrapped)
  */
-export function getOAuthProviders(params?: OAuthProviderQuery): Promise<{ data: OAuthProvider[] }> {
-  return api.get('/v1/oauth/providers', { params });
+export function listProviders(): Promise<OAuthProvider[]> {
+  return api.get('/v1/oauth/providers');
 }
 
 /**
- * Update an OAuth provider configuration
- * PATCH /api/v1/oauth/providers/:id
+ * Get single OAuth provider by ID
+ * GET /v1/oauth/providers/:id
+ * @param id - Provider UUID
+ * @returns Single provider
  */
-export function updateOAuthProvider(
-  id: string,
-  data: UpdateOAuthProviderDto
-): Promise<{ data: OAuthProvider }> {
-  return api.patch(`/v1/oauth/providers/${id}`, data);
+export function getProvider(id: string): Promise<OAuthProvider> {
+  return api.get(`/v1/oauth/providers/${id}`);
 }
 
 /**
  * Get provider metadata list (for dynamic UI display)
- * GET /api/v1/oauth/providers/metadata
+ * GET /v1/oauth/providers/metadata
+ * @returns Array of metadata (not wrapped)
  */
-export function getProvidersMetadata(): Promise<{ data: ProviderMetadata[] }> {
+export function getMetadata(): Promise<ProviderMetadata[]> {
   return api.get('/v1/oauth/providers/metadata');
 }
 
 /**
  * Update provider metadata (display settings)
- * PATCH /api/v1/oauth/providers/:id
+ * PATCH /v1/oauth/providers/:id
+ * @param id - Provider UUID
+ * @param data - Metadata to update
+ * @returns Updated provider
  */
-export function updateMetadata(
+export function updateProvider(
   id: string,
   data: UpdateProviderMetadataDto
-): Promise<{ data: OAuthProvider }> {
+): Promise<OAuthProvider> {
   return api.patch(`/v1/oauth/providers/${id}`, data);
 }
 
 /**
  * Batch enable providers
- * POST /api/v1/oauth/providers/batch/enable
+ * POST /v1/oauth/providers/batch/enable
+ * @param ids - Array of provider UUIDs
+ * @returns Success response
  */
-export function batchEnable(ids: string[]): Promise<{ data: { success: boolean } }> {
+export function batchEnable(ids: string[]): Promise<{ success: boolean }> {
   return api.post('/v1/oauth/providers/batch/enable', { ids });
 }
 
 /**
  * Batch disable providers
- * POST /api/v1/oauth/providers/batch/disable
+ * POST /v1/oauth/providers/batch/disable
+ * @param ids - Array of provider UUIDs
+ * @returns Success response
  */
-export function batchDisable(ids: string[]): Promise<{ data: { success: boolean } }> {
+export function batchDisable(ids: string[]): Promise<{ success: boolean }> {
   return api.post('/v1/oauth/providers/batch/disable', { ids });
 }

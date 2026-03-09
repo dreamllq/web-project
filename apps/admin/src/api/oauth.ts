@@ -6,9 +6,9 @@ import api from './index';
 
 export interface OAuthClient {
   id: string;
-  name: string;
   clientId: string;
-  clientSecret?: string;
+  clientSecret: string;
+  name: string;
   redirectUris: string[];
   allowedScopes: string[];
   isConfidential: boolean;
@@ -46,20 +46,27 @@ export interface OAuthClientQuery {
 // ============================================
 
 /**
- * Get list of OAuth clients
+ * Get list of OAuth clients with pagination
  * GET /api/v1/oauth/clients
  */
-export function getOAuthClients(
-  params?: OAuthClientQuery
-): Promise<{ data: OAuthClientListResponse }> {
+export function listClients(params?: OAuthClientQuery): Promise<OAuthClientListResponse> {
   return api.get('/v1/oauth/clients', { params });
+}
+
+/**
+ * Get a single OAuth client by ID
+ * GET /api/v1/oauth/clients/:id
+ */
+export function getClient(id: string): Promise<OAuthClient> {
+  return api.get(`/v1/oauth/clients/${id}`);
 }
 
 /**
  * Create a new OAuth client
  * POST /api/v1/oauth/clients
+ * Note: Returns plain client secret once (only on create)
  */
-export function createOAuthClient(data: CreateOAuthClientDto): Promise<{ data: OAuthClient }> {
+export function createClient(data: CreateOAuthClientDto): Promise<OAuthClient> {
   return api.post('/v1/oauth/clients', data);
 }
 
@@ -67,25 +74,24 @@ export function createOAuthClient(data: CreateOAuthClientDto): Promise<{ data: O
  * Update an OAuth client
  * PATCH /api/v1/oauth/clients/:id
  */
-export function updateOAuthClient(
-  id: string,
-  data: UpdateOAuthClientDto
-): Promise<{ data: OAuthClient }> {
+export function updateClient(id: string, data: UpdateOAuthClientDto): Promise<OAuthClient> {
   return api.patch(`/v1/oauth/clients/${id}`, data);
-}
-
-/**
- * Regenerate client secret
- * POST /api/v1/oauth/clients/:id/regenerate-secret
- */
-export function regenerateClientSecret(id: string): Promise<{ data: OAuthClient }> {
-  return api.post(`/v1/oauth/clients/${id}/regenerate-secret`);
 }
 
 /**
  * Delete an OAuth client
  * DELETE /api/v1/oauth/clients/:id
+ * Note: Fails if client has active tokens
  */
-export function deleteOAuthClient(id: string): Promise<void> {
+export function deleteClient(id: string): Promise<void> {
   return api.delete(`/v1/oauth/clients/${id}`);
+}
+
+/**
+ * Regenerate client secret
+ * POST /api/v1/oauth/clients/:id/regenerate-secret
+ * Note: Returns plain client secret once (only on regenerate)
+ */
+export function regenerateSecret(id: string): Promise<OAuthClient> {
+  return api.post(`/v1/oauth/clients/${id}/regenerate-secret`);
 }
