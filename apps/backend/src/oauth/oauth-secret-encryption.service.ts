@@ -71,7 +71,7 @@ export class OAuthSecretEncryptionService implements OnModuleInit {
     try {
       const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]);
       return decrypted.toString('utf8');
-    } catch (_error) {
+    } catch {
       throw new Error('Decryption failed: authentication tag mismatch or invalid data');
     }
   }

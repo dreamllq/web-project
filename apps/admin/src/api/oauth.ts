@@ -53,45 +53,45 @@ export interface OAuthClientQuery {
 
 /**
  * Get list of OAuth clients
- * GET /api/admin/oauth-clients
+ * GET /api/v1/oauth/clients
  */
 export function getOAuthClients(
   params?: OAuthClientQuery
 ): Promise<{ data: OAuthClientListResponse }> {
-  return api.get('/admin/oauth-clients', { params });
+  return api.get('/v1/oauth/clients', { params });
 }
 
 /**
  * Create a new OAuth client
- * POST /api/admin/oauth-clients
+ * POST /api/v1/oauth/clients
  */
 export function createOAuthClient(data: CreateOAuthClientDto): Promise<{ data: OAuthClient }> {
-  return api.post('/admin/oauth-clients', data);
+  return api.post('/v1/oauth/clients', data);
 }
 
 /**
  * Update an OAuth client
- * PATCH /api/admin/oauth-clients/:id
+ * PATCH /api/v1/oauth/clients/:id
  */
 export function updateOAuthClient(
   id: string,
   data: UpdateOAuthClientDto
 ): Promise<{ data: OAuthClient }> {
-  return api.patch(`/admin/oauth-clients/${id}`, data);
+  return api.patch(`/v1/oauth/clients/${id}`, data);
 }
 
 /**
  * Regenerate client secret
- * POST /api/admin/oauth-clients/:id/regenerate-secret
+ * POST /api/v1/oauth/clients/:id/regenerate-secret
  */
 export function regenerateClientSecret(id: string): Promise<{ data: OAuthClient }> {
-  return api.post(`/admin/oauth-clients/${id}/regenerate-secret`);
+  return api.post(`/v1/oauth/clients/${id}/regenerate-secret`);
 }
 
 /**
  * Delete an OAuth client
- * DELETE /api/admin/oauth-clients/:id
+ * DELETE /api/v1/oauth/clients/:id
  */
 export function deleteOAuthClient(id: string): Promise<void> {
-  return api.delete(`/admin/oauth-clients/${id}`);
+  return api.delete(`/v1/oauth/clients/${id}`);
 }

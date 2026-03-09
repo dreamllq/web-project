@@ -27,6 +27,7 @@ import { TotpService } from './services/totp.service';
 import { RecoveryCodeService } from './services/recovery-code.service';
 import { SocialAccountService } from './social-account.service';
 import { SocialAccount } from '../entities/social-account.entity';
+import { SocialAccountAdminController } from './social-account-admin.controller';
 
 @Module({
   imports: [
@@ -70,7 +71,7 @@ import { SocialAccount } from '../entities/social-account.entity';
     SmsModule,
     forwardRef(() => PolicyModule),
   ],
-  controllers: [AuthController],
+  controllers: [AuthController, SocialAccountAdminController],
   providers: [
     AuthService,
     JwtStrategy,

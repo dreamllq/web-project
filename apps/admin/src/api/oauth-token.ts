@@ -56,25 +56,25 @@ export interface ExportTokensQuery {
 
 /**
  * Get list of OAuth tokens
- * GET /api/admin/oauth-tokens
+ * GET /api/v1/oauth/tokens
  */
 export function getOAuthTokens(
   params?: OAuthTokenQuery
 ): Promise<{ data: OAuthTokenListResponse }> {
-  return api.get('/admin/oauth-tokens', { params });
+  return api.get('/v1/oauth/tokens', { params });
 }
 
 /**
  * Delete (revoke) an OAuth token
- * DELETE /api/admin/oauth-tokens/:id
+ * DELETE /api/v1/oauth/tokens/:id
  */
 export function deleteOAuthToken(id: string): Promise<void> {
-  return api.delete(`/admin/oauth-tokens/${id}`);
+  return api.delete(`/v1/oauth/tokens/${id}`);
 }
 
 /**
  * Export OAuth tokens to file (CSV or JSON)
- * GET /api/admin/oauth-tokens/export
+ * GET /api/v1/oauth/tokens/export
  * Triggers file download in browser
  */
 export async function exportTokens(query: ExportTokensQuery): Promise<void> {
@@ -84,7 +84,7 @@ export async function exportTokens(query: ExportTokensQuery): Promise<void> {
   if (query.clientId) params.append('clientId', query.clientId);
   if (query.userId) params.append('userId', query.userId);
 
-  const response = await api.get(`/admin/oauth-tokens/export?${params.toString()}`, {
+  const response = await api.get(`/v1/oauth/tokens/export?${params.toString()}`, {
     responseType: 'blob',
   });
 
@@ -100,9 +100,9 @@ export async function exportTokens(query: ExportTokensQuery): Promise<void> {
 
 /**
  * Batch revoke OAuth tokens
- * POST /api/admin/oauth-tokens/batch/revoke
+ * POST /api/v1/oauth/tokens/batch/revoke
  * Max 100 tokens per batch (enforced by backend)
  */
 export function batchRevokeTokens(ids: string[]): Promise<{ data: BatchOperationResult }> {
-  return api.post('/admin/oauth-tokens/batch/revoke', { ids });
+  return api.post('/v1/oauth/tokens/batch/revoke', { ids });
 }

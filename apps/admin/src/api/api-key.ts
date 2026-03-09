@@ -45,24 +45,24 @@ export interface ApiKeyQuery {
 
 /**
  * Get list of API keys
- * GET /api/admin/api-keys
+ * GET /api/v1/api-keys
  */
 export function getApiKeys(params?: ApiKeyQuery): Promise<{ data: ApiKeyListResponse }> {
-  return api.get('/admin/api-keys', { params });
+  return api.get('/v1/api-keys', { params });
 }
 
 /**
  * Create a new API key
- * POST /api/admin/api-keys
+ * POST /api/v1/api-keys
  */
 export function createApiKey(data: CreateApiKeyDto): Promise<{ data: ApiKey }> {
-  return api.post('/admin/api-keys', data);
+  return api.post('/v1/api-keys', data);
 }
 
 /**
  * Delete (revoke) an API key
- * DELETE /api/admin/api-keys/:id
+ * DELETE /api/v1/api-keys/:id
  */
 export function deleteApiKey(id: string): Promise<void> {
-  return api.delete(`/admin/api-keys/${id}`);
+  return api.delete(`/v1/api-keys/${id}`);
 }
