@@ -57,7 +57,7 @@ async function fetchClients() {
 
     const response = await getOAuthClients(params);
     clients.value = response.data.data;
-    total.value = response.data.pagination.total;
+    total.value = response.data.total;
   } catch (error: unknown) {
     const apiError = extractApiError(error);
     ElMessage.error(apiError.displayMessage);
@@ -221,17 +221,20 @@ onMounted(() => {
           </template>
         </el-table-column>
 
-        <el-table-column prop="scope" label="权限范围" min-width="120">
+        <el-table-column prop="allowedScopes" label="权限范围" min-width="120">
           <template #default="{ row }">
-            <el-tag size="small" type="info">{{ row.scope }}</el-tag>
-          </template>
-        </el-table-column>
-
-        <el-table-column prop="isActive" label="状态" width="100" align="center">
-          <template #default="{ row }">
-            <el-tag :type="row.isActive ? 'success' : 'danger'" size="small">
-              {{ row.isActive ? '启用' : '禁用' }}
-            </el-tag>
+            <div v-if="row.allowedScopes && row.allowedScopes.length > 0" class="scope-tags">
+              <el-tag
+                v-for="scope in row.allowedScopes"
+                :key="scope"
+                size="small"
+                type="info"
+                class="scope-tag"
+              >
+                {{ scope }}
+              </el-tag>
+            </div>
+            <span v-else class="no-scopes">-</span>
           </template>
         </el-table-column>
 

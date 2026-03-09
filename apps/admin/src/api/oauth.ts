@@ -10,20 +10,15 @@ export interface OAuthClient {
   clientId: string;
   clientSecret?: string;
   redirectUris: string[];
-  scopes: string[];
+  allowedScopes: string[];
   isConfidential: boolean;
-  isActive: boolean;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface OAuthClientListResponse {
   data: OAuthClient[];
-  pagination: {
-    total: number;
-    limit: number;
-    offset: number;
-  };
+  total: number;
 }
 
 export interface CreateOAuthClientDto {
@@ -38,7 +33,6 @@ export interface UpdateOAuthClientDto {
   redirectUris?: string[];
   scopes?: string[];
   isConfidential?: boolean;
-  isActive?: boolean;
 }
 
 export interface OAuthClientQuery {

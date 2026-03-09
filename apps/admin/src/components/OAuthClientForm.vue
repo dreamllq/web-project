@@ -89,7 +89,7 @@ watch(
       formData.value = {
         name: props.modelValue.name,
         redirectUris: [...props.modelValue.redirectUris],
-        scopes: props.modelValue.scopes || [],
+        scopes: props.modelValue.allowedScopes || [],
         isConfidential: props.modelValue.isConfidential ?? true,
       };
     } else if (visible) {
