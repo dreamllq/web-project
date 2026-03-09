@@ -137,4 +137,56 @@ describe('OAuthProviderConfig Entity', () => {
       });
     });
   });
+
+  describe('metadata fields', () => {
+    it('should support displayName field', () => {
+      const config = new OAuthProviderConfig();
+      config.displayName = '微信';
+
+      expect(config.displayName).toBe('微信');
+    });
+
+    it('should support icon field', () => {
+      const config = new OAuthProviderConfig();
+      config.icon = 'ChatDotRound';
+
+      expect(config.icon).toBe('ChatDotRound');
+    });
+
+    it('should support color field', () => {
+      const config = new OAuthProviderConfig();
+      config.color = '#07C160';
+
+      expect(config.color).toBe('#07C160');
+    });
+
+    it('should support providerType field', () => {
+      const config = new OAuthProviderConfig();
+      config.providerType = 'oauth2';
+
+      expect(config.providerType).toBe('oauth2');
+    });
+
+    it('should support sortOrder field', () => {
+      const config = new OAuthProviderConfig();
+      config.sortOrder = 1;
+
+      expect(config.sortOrder).toBe(1);
+    });
+
+    it('should allow nullable metadata fields', () => {
+      const config = new OAuthProviderConfig();
+      config.displayName = null;
+      config.icon = null;
+      config.color = null;
+      config.providerType = null;
+      config.sortOrder = null;
+
+      expect(config.displayName).toBeNull();
+      expect(config.icon).toBeNull();
+      expect(config.color).toBeNull();
+      expect(config.providerType).toBeNull();
+      expect(config.sortOrder).toBeNull();
+    });
+  });
 });

@@ -5,11 +5,13 @@ import { OAuthClient } from '../entities/oauth-client.entity';
 import { OAuthToken } from '../entities/oauth-token.entity';
 import { OAuthProviderConfig } from '../entities/oauth-provider-config.entity';
 import { OAuthController } from './oauth.controller';
+import { OAuthAdminController } from './oauth-admin.controller';
 import { OAuthService } from './oauth.service';
 import { OAuthProviderService } from './oauth-provider.service';
 import { OAuthClientService } from './oauth-client.service';
 import { OAuthTokenService } from './oauth-token.service';
 import { UsersModule } from '../users/users.module';
+import { OAuthSecretEncryptionService } from './oauth-secret-encryption.service';
 
 @Module({
   imports: [
@@ -17,8 +19,20 @@ import { UsersModule } from '../users/users.module';
     UsersModule,
     CustomCacheModule,
   ],
-  controllers: [OAuthController],
-  providers: [OAuthService, OAuthProviderService, OAuthClientService, OAuthTokenService],
-  exports: [OAuthService, OAuthProviderService, OAuthClientService, OAuthTokenService],
+  controllers: [OAuthController, OAuthAdminController],
+  providers: [
+    OAuthService,
+    OAuthProviderService,
+    OAuthClientService,
+    OAuthTokenService,
+    OAuthSecretEncryptionService,
+  ],
+  exports: [
+    OAuthService,
+    OAuthProviderService,
+    OAuthClientService,
+    OAuthTokenService,
+    OAuthSecretEncryptionService,
+  ],
 })
 export class OAuthModule {}

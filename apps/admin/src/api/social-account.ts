@@ -33,27 +33,20 @@ export interface SocialAccountQuery {
   offset?: number;
 }
 
-export interface SocialAccountLoginHistory {
-  timestamp: string;
-  ip: string;
-  userAgent?: string;
+export interface SocialAccountDetail extends SocialAccount {
+  user: {
+    id: string;
+    username: string;
+    email: string | null;
+  };
+  loginHistory: {
+    lastLoginAt: string | null;
+    lastLoginIp: string | null;
+    loginCount: number;
+  };
 }
 
-export interface SocialAccountDetail {
-  id: string;
-  userId: string;
-  username?: string;
-  email?: string;
-  avatarUrl?: string;
-  provider: string;
-  providerUserId: string;
-  providerData?: Record<string, unknown>;
-  loginHistory?: SocialAccountLoginHistory[];
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface BatchUnlinkResponse {
+export interface BatchOperationResult {
   success: string[];
   failed: string[];
   errors: string[];
@@ -82,17 +75,18 @@ export function deleteSocialAccount(id: string): Promise<void> {
 }
 
 /**
- * Batch unlink social accounts
- * POST /api/admin/social-accounts/batch/unlink
- */
-export function batchUnlinkSocialAccounts(ids: string[]): Promise<{ data: BatchUnlinkResponse }> {
-  return api.post('/admin/social-accounts/batch/unlink', { ids });
-}
-
-/**
- * Get social account detail
+ * Get social account detail with user info and login history
  * GET /api/admin/social-accounts/:id/detail
  */
 export function getSocialAccountDetail(id: string): Promise<{ data: SocialAccountDetail }> {
   return api.get(`/admin/social-accounts/${id}/detail`);
+}
+
+/**
+ * Batch unlink social accounts
+ * POST /api/admin/social-accounts/batch/unlink
+ * Note: Maximum 50 accounts at once
+ */
+export function batchUnlinkSocialAccounts(ids: string[]): Promise<{ data: BatchOperationResult }> {
+  return api.post('/admin/social-accounts/batch/unlink', { ids });
 }

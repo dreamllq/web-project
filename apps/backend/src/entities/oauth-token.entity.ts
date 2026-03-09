@@ -7,8 +7,6 @@ import {
   ManyToOne,
   JoinColumn,
 } from 'typeorm';
-import { User } from './user.entity';
-import { OAuthClient } from './oauth-client.entity';
 
 @Entity('oauth_tokens')
 export class OAuthToken {
@@ -43,11 +41,11 @@ export class OAuthToken {
   createdAt: Date;
 
   // Relations
-  @ManyToOne(() => OAuthClient, (client) => client.tokens)
+  @ManyToOne('OAuthClient', (client: any) => client.tokens)
   @JoinColumn({ name: 'client_id' })
-  client: OAuthClient;
+  client: any;
 
-  @ManyToOne(() => User, (user) => user.oauthTokens)
+  @ManyToOne('User', (user: any) => user.oauthTokens)
   @JoinColumn({ name: 'user_id' })
-  user: User | null;
+  user: any;
 }

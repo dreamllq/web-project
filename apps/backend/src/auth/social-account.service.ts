@@ -3,6 +3,13 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SocialAccount, SocialAccountStatus } from '../entities/social-account.entity';
 import { SocialProvider } from '../entities/social-provider.enum';
+import { UsersService } from '../users/users.service';
+import { LoginHistoryService } from '../users/services/login-history.service';
+import {
+  SocialAccountQueryDto,
+  BatchOperationResult,
+  SocialAccountDetail,
+} from './dto/social-account.dto';
 
 export interface SocialAccountResponse {
   id: string;
@@ -21,7 +28,9 @@ export class SocialAccountService {
 
   constructor(
     @InjectRepository(SocialAccount)
-    private readonly socialAccountRepository: Repository<SocialAccount>
+    private readonly socialAccountRepository: Repository<SocialAccount>,
+    private readonly usersService: UsersService,
+    private readonly loginHistoryService: LoginHistoryService
   ) {}
 
   async findById(id: string): Promise<SocialAccount | null> {
@@ -125,5 +134,120 @@ export class SocialAccountService {
       createdAt: socialAccount.createdAt,
       updatedAt: socialAccount.updatedAt,
     };
+  }
+
+  async list(query: SocialAccountQueryDto): Promise<{ data: SocialAccount[]; total: number }> {
+    const qb = this.socialAccountRepository
+      .createQueryBuilder('account')
+      .leftJoinAndSelect('account.user', 'user');
+
+    if (query.provider) {
+      qb.andWhere('account.provider = :provider', { provider: query.provider });
+    }
+
+    if (query.userId) {
+      qb.andWhere('account.userId = :userId', { userId: query.userId });
+    }
+
+    if (query.keyword) {
+      qb.andWhere('(user.username ILIKE :keyword OR user.email ILIKE :keyword)', {
+        keyword: `%${query.keyword}%`,
+      });
+    }
+
+    qb.orderBy('account.createdAt', 'DESC');
+
+    const total = await qb.getCount();
+
+    const limit = query.limit ?? 20;
+    const offset = query.offset ?? 0;
+    qb.skip(offset).take(limit);
+
+    const data = await qb.getMany();
+
+    return { data, total };
+  }
+
+  async batchUnlink(ids: string[]): Promise<BatchOperationResult> {
+    if (ids.length > 50) {
+      throw new BadRequestException('Cannot unlink more than 50 accounts at once');
+    }
+
+    const result: BatchOperationResult = {
+      success: [],
+      failed: [],
+      errors: [],
+    };
+
+    for (const id of ids) {
+      try {
+        const account = await this.findById(id);
+        if (!account) {
+          result.failed.push(id);
+          result.errors.push(`Account ${id} not found`);
+          continue;
+        }
+
+        const hasOtherAuth = await this.checkUserAuthenticationMethods(account.userId);
+        if (!hasOtherAuth) {
+          result.failed.push(id);
+          result.errors.push(
+            `Cannot unlink the only authentication method for user ${account.userId}`
+          );
+          continue;
+        }
+
+        await this.unlink(id);
+        result.success.push(id);
+      } catch (error: any) {
+        result.failed.push(id);
+        result.errors.push(`Failed to unlink ${id}: ${error.message}`);
+      }
+    }
+
+    return result;
+  }
+
+  async getDetail(id: string): Promise<SocialAccountDetail> {
+    const account = await this.findById(id);
+    if (!account) {
+      throw new NotFoundException('Social account not found');
+    }
+
+    const loginHistory = await this.loginHistoryService.getRecentLogins(account.userId, 10);
+
+    return {
+      id: account.id,
+      userId: account.userId,
+      provider: account.provider,
+      providerUserId: account.providerUserId,
+      providerData: account.providerData,
+      status: account.status,
+      createdAt: account.createdAt,
+      updatedAt: account.updatedAt,
+      user: {
+        id: account.user.id,
+        username: account.user.username,
+        email: account.user.email,
+      },
+      loginHistory: {
+        lastLoginAt: loginHistory[0]?.createdAt || null,
+        lastLoginIp: loginHistory[0]?.ipAddress || null,
+        loginCount: loginHistory.length,
+      },
+    };
+  }
+
+  private async checkUserAuthenticationMethods(userId: string): Promise<boolean> {
+    const user = await this.usersService.findById(userId);
+    if (!user) return false;
+
+    if (user.passwordHash) return true;
+
+    const otherAccountsCount = await this.socialAccountRepository.count({
+      where: { userId, status: SocialAccountStatus.LINKED },
+    });
+
+    return otherAccountsCount > 1;
   }
 }

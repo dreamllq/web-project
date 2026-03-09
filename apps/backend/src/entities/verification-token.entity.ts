@@ -1,5 +1,4 @@
 import { Entity, PrimaryColumn, Column, CreateDateColumn, ManyToOne, Index } from 'typeorm';
-import { User } from './user.entity';
 
 export enum VerificationTokenType {
   EMAIL_VERIFICATION = 'email_verification',
@@ -36,6 +35,6 @@ export class VerificationToken {
   createdAt: Date;
 
   // Relation to User
-  @ManyToOne(() => User, (user) => user.verificationTokens)
-  user: User;
+  @ManyToOne('User', (user: any) => user.verificationTokens)
+  user: any;
 }
