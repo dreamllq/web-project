@@ -5,6 +5,7 @@ import {
   Delete,
   Body,
   Param,
+  Query,
   UseGuards,
   ParseUUIDPipe,
   Version,
@@ -13,7 +14,14 @@ import {
   NotFoundException,
   ForbiddenException,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiParam,
+  ApiQuery,
+} from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User } from '../entities/user.entity';
@@ -54,19 +62,34 @@ export class ApiKeyController {
   @Get()
   @Version('1')
   @ApiOperation({ summary: 'Get all API keys for current user' })
+  @ApiQuery({ name: 'limit', required: false, description: 'Page size', example: 20 })
+  @ApiQuery({ name: 'offset', required: false, description: 'Page offset', example: 0 })
   @ApiResponse({ status: 200, description: 'List of API keys' })
-  async findAll(@CurrentUser() user: User) {
-    const apiKeys = await this.apiKeyService.findByUser(user.id);
+  async findAll(
+    @CurrentUser() user: User,
+    @Query('limit') limit?: number,
+    @Query('offset') offset?: number
+  ) {
+    const [apiKeys, total] = await Promise.all([
+      this.apiKeyService.findByUser(user.id),
+      this.apiKeyService.countByUser(user.id),
+    ]);
 
-    return apiKeys.map((apiKey) => ({
-      id: apiKey.id,
-      name: apiKey.name,
-      scopes: apiKey.scopes,
-      expiresAt: apiKey.expiresAt,
-      lastUsedAt: apiKey.lastUsedAt,
-      createdAt: apiKey.createdAt,
-      revokedAt: apiKey.revokedAt,
-    }));
+    const pageSize = limit ?? 20;
+    const pageOffset = offset ?? 0;
+
+    return {
+      data: apiKeys.map((apiKey) => ({
+        id: apiKey.id,
+        name: apiKey.name,
+        scopes: apiKey.scopes,
+        expiresAt: apiKey.expiresAt,
+        lastUsedAt: apiKey.lastUsedAt,
+        createdAt: apiKey.createdAt,
+        revokedAt: apiKey.revokedAt,
+      })),
+      pagination: { total, limit: pageSize, offset: pageOffset },
+    };
   }
 
   @Delete(':id')

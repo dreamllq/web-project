@@ -57,7 +57,12 @@ export class SocialAccountAdminController {
   @ApiResponse({ status: 403, description: 'Forbidden - Insufficient permissions' })
   async listSocialAccounts(@Query() query: SocialAccountQueryDto) {
     const { data, total } = await this.socialAccountService.list(query);
-    return { data, total };
+    const limit = query.limit ?? 20;
+    const offset = query.offset ?? 0;
+    return {
+      data,
+      pagination: { total, limit, offset },
+    };
   }
 
   @Get(':id')

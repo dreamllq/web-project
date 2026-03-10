@@ -65,6 +65,10 @@ export class ApiKeyService {
     });
   }
 
+  async countByUser(userId: string): Promise<number> {
+    return this.apiKeyRepository.count({ where: { userId } });
+  }
+
   async revoke(id: string): Promise<void> {
     const apiKey = await this.apiKeyRepository.findOne({ where: { id } });
     if (!apiKey) {

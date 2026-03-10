@@ -81,10 +81,11 @@ export interface BatchProviderIdsDto {
 /**
  * Get list of OAuth providers
  * GET /v1/oauth/providers
- * @returns Array of providers (not wrapped)
+ * @returns Array of providers
  */
-export function listProviders(): Promise<OAuthProvider[]> {
-  return api.get('/v1/oauth/providers');
+export async function listProviders(): Promise<OAuthProvider[]> {
+  const response = await api.get<{ data: OAuthProvider[] }>('/v1/oauth/providers');
+  return response.data.data;
 }
 
 /**
@@ -100,10 +101,11 @@ export function getProvider(id: string): Promise<OAuthProvider> {
 /**
  * Get provider metadata list (for dynamic UI display)
  * GET /v1/oauth/providers/metadata
- * @returns Array of metadata (not wrapped)
+ * @returns Array of metadata
  */
-export function getMetadata(): Promise<ProviderMetadata[]> {
-  return api.get('/v1/oauth/providers/metadata');
+export async function getMetadata(): Promise<ProviderMetadata[]> {
+  const response = await api.get<{ data: ProviderMetadata[] }>('/v1/oauth/providers/metadata');
+  return response.data.data;
 }
 
 /**

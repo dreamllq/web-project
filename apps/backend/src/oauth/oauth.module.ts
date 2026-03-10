@@ -14,12 +14,14 @@ import { OAuthClientService } from './oauth-client.service';
 import { OAuthTokenService } from './oauth-token.service';
 import { UsersModule } from '../users/users.module';
 import { OAuthSecretEncryptionService } from './oauth-secret-encryption.service';
+import { PolicyModule } from '../policy/policy.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([OAuthClient, OAuthToken, OAuthProviderConfig]),
     UsersModule,
     CustomCacheModule,
+    PolicyModule,
   ],
   controllers: [
     OAuthController,

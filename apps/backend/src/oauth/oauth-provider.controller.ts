@@ -23,6 +23,25 @@ import {
 } from './dto/oauth-admin.dto';
 import { OAuthProviderConfig } from '../entities';
 
+/**
+ * Response interface for provider list
+ */
+export interface OAuthProviderListResponse {
+  data: OAuthProviderResponse[];
+  pagination: {
+    total: number;
+    limit: number;
+    offset: number;
+  };
+}
+
+/**
+ * Response interface for provider metadata list
+ */
+export interface ProviderMetadataListResponse {
+  data: ProviderMetadataResponse[];
+}
+
 @ApiTags('oauth/providers')
 @Controller('oauth/providers')
 @UseGuards(JwtAuthGuard, PermissionGuard)
@@ -37,9 +56,17 @@ export class OAuthProviderController {
   @ApiResponse({ status: 200, description: 'List of OAuth providers' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 403, description: 'Forbidden - Insufficient permissions' })
-  async listProviders(): Promise<OAuthProviderResponse[]> {
+  async listProviders(): Promise<OAuthProviderListResponse> {
     const configs = await this.oauthProviderService.list();
-    return configs.map((config) => this.sanitizeProviderResponse(config));
+    const data = configs.map((config) => this.sanitizeProviderResponse(config));
+    return {
+      data,
+      pagination: {
+        total: data.length,
+        limit: data.length,
+        offset: 0,
+      },
+    };
   }
 
   @Get('metadata')
@@ -49,8 +76,9 @@ export class OAuthProviderController {
   @ApiResponse({ status: 200, description: 'Provider metadata list' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 403, description: 'Forbidden - Insufficient permissions' })
-  async getProvidersMetadata(): Promise<ProviderMetadataResponse[]> {
-    return this.oauthProviderService.getProvidersMetadata();
+  async getProvidersMetadata(): Promise<ProviderMetadataListResponse> {
+    const data = await this.oauthProviderService.getProvidersMetadata();
+    return { data };
   }
 
   @Get(':id')

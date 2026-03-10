@@ -1,38 +1,40 @@
-import {
-  IsString,
-  IsOptional,
-  IsBoolean,
-  IsNumber,
-  Min,
-  IsArray,
-  IsNotEmpty,
-} from 'class-validator';
+import { IsString, IsOptional, IsBoolean, IsInt, Min, IsArray, IsNotEmpty } from 'class-validator';
+import { Type } from 'class-transformer';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 
 /**
  * DTO for querying OAuth tokens
  */
 export class OAuthTokenQueryDto {
+  @ApiPropertyOptional({ description: 'Filter by client ID' })
   @IsOptional()
   @IsString()
   clientId?: string;
 
+  @ApiPropertyOptional({ description: 'Filter by user ID' })
   @IsOptional()
   @IsString()
   userId?: string;
 
+  @ApiPropertyOptional({ description: 'Filter by revoked status' })
+  @Type(() => Boolean)
   @IsOptional()
   @IsBoolean()
   revoked?: boolean;
 
-  @IsOptional()
-  @IsNumber()
+  @ApiPropertyOptional({ description: 'Number of results per page', default: 20 })
+  @Type(() => Number)
+  @IsInt()
   @Min(1)
-  limit?: number;
-
   @IsOptional()
-  @IsNumber()
+  limit?: number = 20;
+
+  @ApiPropertyOptional({ description: 'Offset for pagination', default: 0 })
+  @Type(() => Number)
+  @IsInt()
   @Min(0)
-  offset?: number;
+  @IsOptional()
+  offset?: number = 0;
 }
 
 /**
