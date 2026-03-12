@@ -191,4 +191,38 @@ export class BaiduOAuthService {
       throw new UnauthorizedException('Failed to get user info from Baidu');
     }
   }
+
+  async handleTestCallback(
+    code: string,
+    configId?: string
+  ): Promise<{
+    providerUserId: string;
+    nickname: string | null;
+    avatarUrl: string | null;
+    rawUserInfo: Record<string, unknown>;
+  }> {
+    this.logger.log('Processing Baidu OAuth test callback');
+
+    const tokenResponse = await this.getAccessToken(code, configId);
+    const { access_token } = tokenResponse;
+
+    const userInfo = await this.getUserInfo(access_token);
+
+    const avatarUrl = userInfo.portrait
+      ? `${this.BAIDU_AVATAR_BASE_URL}/${userInfo.portrait}`
+      : null;
+
+    return {
+      providerUserId: userInfo.openid,
+      nickname: userInfo.username,
+      avatarUrl,
+      rawUserInfo: {
+        openid: userInfo.openid,
+        unionid: userInfo.unionid,
+        username: userInfo.username,
+        portrait: userInfo.portrait,
+        sex: userInfo.sex,
+      },
+    };
+  }
 }

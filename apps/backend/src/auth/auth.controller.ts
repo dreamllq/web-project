@@ -55,8 +55,56 @@ import { SmsServiceInterface } from '../sms/sms.service.interface';
 import { SmsConfig } from '../config/sms.config';
 import { UsersService } from '../users/users.service';
 import { randomInt } from 'crypto';
+import { OAuthProviderService } from '../oauth/oauth-provider.service';
+import { ApiTags } from '@nestjs/swagger';
+
+/**
+ * State parameter structure for OAuth flows
+ * Encoded as base64 JSON to pass configId through the OAuth round-trip
+ */
+interface OAuthState {
+  random: string;
+  configId?: string;
+}
+
+/**
+ * Encode state object to base64 string
+ */
+function encodeState(state: OAuthState): string {
+  return Buffer.from(JSON.stringify(state)).toString('base64');
+}
+
+/**
+ * Decode base64 state string to object
+ * Returns null if decoding fails (backward compatibility)
+ */
+function decodeState(state: string): OAuthState | null {
+  try {
+    // Try to decode as JSON first (new format)
+    const decoded = JSON.parse(Buffer.from(state, 'base64').toString('utf-8'));
+    if (typeof decoded === 'object' && decoded !== null) {
+      return decoded;
+    }
+    // If it's not an object, treat as legacy random string
+    return { random: state };
+  } catch {
+    // Legacy format: state is just a random string
+    return { random: state };
+  }
+}
+
+export interface LoginOptionResponse {
+  id: string;
+  code: string;
+  displayName: string | null;
+  icon: string | null;
+  color: string | null;
+  providerType: string | null;
+  configName: string;
+}
 
 @Controller('auth')
+@ApiTags('auth')
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
@@ -71,8 +119,57 @@ export class AuthController {
     private readonly configService: ConfigService,
     @Inject('SmsServiceInterface')
     private readonly smsService: SmsServiceInterface,
-    private readonly usersService: UsersService
+    private readonly usersService: UsersService,
+    private readonly oauthProviderService: OAuthProviderService
   ) {}
+
+  // ==================== Login Options Endpoint ====================
+
+  /**
+   * Get available OAuth login options
+   * GET /api/v1/auth/login-options
+   * Public endpoint - no authentication required
+   */
+  @Version('1')
+  @Public()
+  @Get('login-options')
+  @ApiOperation({ summary: 'Get available OAuth login options' })
+  @ApiResponse({
+    status: 200,
+    description: 'List of login options',
+    schema: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          code: { type: 'string' },
+          displayName: { type: 'string', nullable: true },
+          icon: { type: 'string', nullable: true },
+          color: { type: 'string', nullable: true },
+          providerType: { type: 'string', nullable: true },
+          configName: { type: 'string' },
+        },
+      },
+    },
+  })
+  async getLoginOptions(): Promise<LoginOptionResponse[]> {
+    const configs = await this.oauthProviderService.list();
+
+    // Filter enabled configs, sort by sortOrder ASC, map to response DTO
+    return configs
+      .filter((config) => config.enabled)
+      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+      .map((config) => ({
+        id: config.id,
+        code: config.code,
+        displayName: config.displayName,
+        icon: config.icon,
+        color: config.color,
+        providerType: config.providerType,
+        configName: config.configName,
+      }));
+  }
 
   @Public()
   @Throttle({ default: { limit: 3, ttl: 3600000 } }) // 3 requests per hour
@@ -109,28 +206,33 @@ export class AuthController {
 
   @Public()
   @Get('oauth/wechat/url')
-  async getWechatOAuthUrl(@Query('state') state?: string) {
-    return this.wechatOAuthService.getAuthorizationUrl(state);
+  async getWechatOAuthUrl(@Query('state') state?: string, @Query('configId') configId?: string) {
+    const encodedState = encodeState({
+      random: state || Math.random().toString(36).substring(7),
+      configId,
+    });
+    return this.wechatOAuthService.getAuthorizationUrl(encodedState, configId);
   }
 
   @Public()
   @Get('oauth/wechat/callback')
   async wechatOAuthCallback(
     @Query('code') code: string,
-    @Query('state') _state: string,
+    @Query('state') state: string,
+    @Query('configId') queryConfigId: string | undefined,
     @Req() req: Request,
     @Res() res: Response
   ) {
+    const decoded = decodeState(state);
+    const configId = queryConfigId || decoded?.configId;
     const ip = req.ip || req.socket.remoteAddress;
-    const tokens = await this.wechatOAuthService.handleCallback(code, ip);
+    const tokens = await this.wechatOAuthService.handleCallback(code, ip, configId);
 
-    // Get frontend URL from config or use default
     const frontendUrl =
       this.configService.get<string>('frontendUrl') ||
       process.env.FRONTEND_URL ||
       'http://localhost:5173';
 
-    // Redirect to frontend with tokens in query params
     return res.redirect(
       `${frontendUrl}/auth/callback?access_token=${tokens.access_token}&refresh_token=${tokens.refresh_token}&expires_in=${tokens.expires_in}`
     );
@@ -138,20 +240,27 @@ export class AuthController {
 
   @Public()
   @Get('oauth/feishu/url')
-  async getFeishuOAuthUrl(@Query('state') state?: string) {
-    return this.feishuOAuthService.getAuthorizationUrl(state);
+  async getFeishuOAuthUrl(@Query('state') state?: string, @Query('configId') configId?: string) {
+    const encodedState = encodeState({
+      random: state || Math.random().toString(36).substring(7),
+      configId,
+    });
+    return this.feishuOAuthService.getAuthorizationUrl(encodedState, configId);
   }
 
   @Public()
   @Get('oauth/feishu/callback')
   async feishuOAuthCallback(
     @Query('code') code: string,
-    @Query('state') _state: string,
+    @Query('state') state: string,
+    @Query('configId') queryConfigId: string | undefined,
     @Req() req: Request,
     @Res() res: Response
   ) {
+    const decoded = decodeState(state);
+    const configId = queryConfigId || decoded?.configId;
     const ip = req.ip || req.socket.remoteAddress;
-    const tokens = await this.feishuOAuthService.handleCallback(code, ip);
+    const tokens = await this.feishuOAuthService.handleCallback(code, ip, configId);
 
     const frontendUrl =
       this.configService.get<string>('frontendUrl') ||
@@ -165,20 +274,27 @@ export class AuthController {
 
   @Public()
   @Get('oauth/douyin/url')
-  async getDouyinOAuthUrl(@Query('state') state?: string) {
-    return this.douyinOAuthService.getAuthorizationUrl(state);
+  async getDouyinOAuthUrl(@Query('state') state?: string, @Query('configId') configId?: string) {
+    const encodedState = encodeState({
+      random: state || Math.random().toString(36).substring(7),
+      configId,
+    });
+    return this.douyinOAuthService.getAuthorizationUrl(encodedState, configId);
   }
 
   @Public()
   @Get('oauth/douyin/callback')
   async douyinOAuthCallback(
     @Query('code') code: string,
-    @Query('state') _state: string,
+    @Query('state') state: string,
+    @Query('configId') queryConfigId: string | undefined,
     @Req() req: Request,
     @Res() res: Response
   ) {
+    const decoded = decodeState(state);
+    const configId = queryConfigId || decoded?.configId;
     const ip = req.ip || req.socket.remoteAddress;
-    const tokens = await this.douyinOAuthService.handleCallback(code, ip);
+    const tokens = await this.douyinOAuthService.handleCallback(code, ip, configId);
 
     const frontendUrl =
       this.configService.get<string>('frontendUrl') ||
@@ -192,20 +308,27 @@ export class AuthController {
 
   @Public()
   @Get('oauth/qq/url')
-  async getQQOAuthUrl(@Query('state') state?: string) {
-    return this.qqOAuthService.getAuthorizationUrl(state);
+  async getQQOAuthUrl(@Query('state') state?: string, @Query('configId') configId?: string) {
+    const encodedState = encodeState({
+      random: state || Math.random().toString(36).substring(7),
+      configId,
+    });
+    return this.qqOAuthService.getAuthorizationUrl(encodedState, configId);
   }
 
   @Public()
   @Get('oauth/qq/callback')
   async qqOAuthCallback(
     @Query('code') code: string,
-    @Query('state') _state: string,
+    @Query('state') state: string,
+    @Query('configId') queryConfigId: string | undefined,
     @Req() req: Request,
     @Res() res: Response
   ) {
+    const decoded = decodeState(state);
+    const configId = queryConfigId || decoded?.configId;
     const ip = req.ip || req.socket.remoteAddress;
-    const tokens = await this.qqOAuthService.handleCallback(code, ip);
+    const tokens = await this.qqOAuthService.handleCallback(code, ip, configId);
 
     const frontendUrl =
       this.configService.get<string>('frontendUrl') ||
@@ -219,20 +342,27 @@ export class AuthController {
 
   @Public()
   @Get('oauth/baidu/url')
-  async getBaiduOAuthUrl(@Query('state') state?: string) {
-    return this.baiduOAuthService.getAuthorizationUrl(state);
+  async getBaiduOAuthUrl(@Query('state') state?: string, @Query('configId') configId?: string) {
+    const encodedState = encodeState({
+      random: state || Math.random().toString(36).substring(7),
+      configId,
+    });
+    return this.baiduOAuthService.getAuthorizationUrl(encodedState, configId);
   }
 
   @Public()
   @Get('oauth/baidu/callback')
   async baiduOAuthCallback(
     @Query('code') code: string,
-    @Query('state') _state: string,
+    @Query('state') state: string,
+    @Query('configId') queryConfigId: string | undefined,
     @Req() req: Request,
     @Res() res: Response
   ) {
+    const decoded = decodeState(state);
+    const configId = queryConfigId || decoded?.configId;
     const ip = req.ip || req.socket.remoteAddress;
-    const tokens = await this.baiduOAuthService.handleCallback(code, ip);
+    const tokens = await this.baiduOAuthService.handleCallback(code, ip, configId);
 
     const frontendUrl =
       this.configService.get<string>('frontendUrl') ||

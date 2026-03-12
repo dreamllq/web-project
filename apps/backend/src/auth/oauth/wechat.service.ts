@@ -241,4 +241,38 @@ export class WechatOAuthService {
       throw new UnauthorizedException('Failed to get user info from WeChat');
     }
   }
+
+  async handleTestCallback(
+    code: string,
+    configId?: string
+  ): Promise<{
+    providerUserId: string;
+    nickname: string | null;
+    avatarUrl: string | null;
+    rawUserInfo: Record<string, unknown>;
+  }> {
+    this.logger.log('Processing WeChat OAuth test callback');
+
+    const config = await this.getConfig(configId);
+    const tokenResponse = await this.getAccessToken(code, config);
+    const { access_token, openid, unionid } = tokenResponse;
+
+    const userInfo = await this.getUserInfo(access_token, openid);
+
+    return {
+      providerUserId: openid,
+      nickname: userInfo.nickname,
+      avatarUrl: userInfo.headimgurl,
+      rawUserInfo: {
+        openid,
+        unionid,
+        nickname: userInfo.nickname,
+        headimgurl: userInfo.headimgurl,
+        sex: userInfo.sex,
+        province: userInfo.province,
+        city: userInfo.city,
+        country: userInfo.country,
+      },
+    };
+  }
 }

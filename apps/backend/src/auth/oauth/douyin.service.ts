@@ -200,4 +200,36 @@ export class DouyinOAuthService {
       throw new UnauthorizedException('Failed to get user info from Douyin');
     }
   }
+
+  async handleTestCallback(
+    code: string,
+    configId?: string
+  ): Promise<{
+    providerUserId: string;
+    nickname: string | null;
+    avatarUrl: string | null;
+    rawUserInfo: Record<string, unknown>;
+  }> {
+    this.logger.log('Processing Douyin OAuth test callback');
+
+    const tokenResponse = await this.getAccessToken(code, configId);
+    const { access_token, open_id } = tokenResponse;
+
+    const userInfo = await this.getUserInfo(access_token, open_id);
+
+    return {
+      providerUserId: open_id,
+      nickname: userInfo.nickname,
+      avatarUrl: userInfo.avatar,
+      rawUserInfo: {
+        open_id: userInfo.open_id,
+        union_id: userInfo.union_id,
+        nickname: userInfo.nickname,
+        avatar: userInfo.avatar,
+        city: userInfo.city,
+        province: userInfo.province,
+        country: userInfo.country,
+      },
+    };
+  }
 }

@@ -51,6 +51,12 @@ export class OAuthPermissionsSeed {
         description: '删除 OAuth 提供商',
       },
       {
+        name: 'oauth-provider:test',
+        resource: 'oauth-provider',
+        action: 'test',
+        description: '测试 OAuth 提供商配置',
+      },
+      {
         name: 'oauth-client:read',
         resource: 'oauth-client',
         action: 'read',

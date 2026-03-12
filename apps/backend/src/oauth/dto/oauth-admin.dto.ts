@@ -126,3 +126,23 @@ export class CreateProviderDto {
   @IsBoolean()
   isDefault?: boolean;
 }
+
+/**
+ * Response interface for test login
+ */
+export interface TestLoginResponse {
+  providerUserId: string;
+  nickname: string | null;
+  avatarUrl: string | null;
+  provider: string;
+  rawUserInfo: Record<string, unknown>;
+}
+
+/**
+ * Response for starting test login
+ */
+export interface TestLoginUrlResponse {
+  url: string;
+  configId: string;
+  provider: string;
+}

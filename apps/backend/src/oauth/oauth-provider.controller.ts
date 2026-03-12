@@ -6,22 +6,33 @@ import {
   Delete,
   Body,
   Param,
+  Query,
   UseGuards,
   Version,
   NotFoundException,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiParam,
+  ApiQuery,
+} from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionGuard } from '../policy/guards/permission.guard';
 import { RequirePermission } from '../policy/decorators/require-permission.decorator';
 import { AuditLog } from '../audit/decorators/audit-log.decorator';
 import { OAuthProviderService } from './oauth-provider.service';
+import { OAuthTestLoginService } from './oauth-test-login.service';
 import {
   BatchProviderIdsDto,
   CreateProviderDto,
   UpdateProviderMetadataDto,
   OAuthProviderResponse,
   ProviderMetadataResponse,
+  TestLoginResponse,
+  TestLoginUrlResponse,
 } from './dto/oauth-admin.dto';
 import { OAuthProviderConfig } from '../entities';
 
@@ -49,7 +60,10 @@ export interface ProviderMetadataListResponse {
 @UseGuards(JwtAuthGuard, PermissionGuard)
 @ApiBearerAuth('JWT-auth')
 export class OAuthProviderController {
-  constructor(private readonly oauthProviderService: OAuthProviderService) {}
+  constructor(
+    private readonly oauthProviderService: OAuthProviderService,
+    private readonly oauthTestLoginService: OAuthTestLoginService
+  ) {}
 
   @Get()
   @Version('1')
@@ -96,6 +110,37 @@ export class OAuthProviderController {
   async getProvidersMetadata(): Promise<ProviderMetadataListResponse> {
     const data = await this.oauthProviderService.getProvidersMetadata();
     return { data };
+  }
+
+  @Post('test-login/:configId')
+  @Version('1')
+  @RequirePermission('oauth-provider', 'test')
+  @AuditLog('test-login', 'oauth-provider')
+  @ApiOperation({ summary: 'Admin: Get OAuth test login URL' })
+  @ApiParam({ name: 'configId', description: 'OAuth provider configuration ID', type: 'string' })
+  @ApiResponse({ status: 200, description: 'OAuth authorization URL', type: Object })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden - Insufficient permissions' })
+  @ApiResponse({ status: 404, description: 'Provider configuration not found' })
+  async startTestLogin(@Param('configId') configId: string): Promise<TestLoginUrlResponse> {
+    return this.oauthTestLoginService.getTestLoginUrl(configId);
+  }
+
+  @Get('test-login/:configId/callback')
+  @Version('1')
+  @RequirePermission('oauth-provider', 'test')
+  @ApiOperation({ summary: 'Admin: Handle OAuth test login callback' })
+  @ApiParam({ name: 'configId', description: 'OAuth provider configuration ID', type: 'string' })
+  @ApiQuery({ name: 'code', description: 'OAuth authorization code', type: 'string' })
+  @ApiResponse({ status: 200, description: 'Test user info from OAuth provider', type: Object })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden - Insufficient permissions' })
+  @ApiResponse({ status: 404, description: 'Provider configuration not found' })
+  async handleTestCallback(
+    @Param('configId') configId: string,
+    @Query('code') code: string
+  ): Promise<TestLoginResponse> {
+    return this.oauthTestLoginService.handleTestCallback(configId, code);
   }
 
   @Get(':id')

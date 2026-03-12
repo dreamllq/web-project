@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { CustomCacheModule } from '../custom-cache/custom-cache.module';
 import { OAuthClient } from '../entities/oauth-client.entity';
@@ -12,9 +12,11 @@ import { OAuthService } from './oauth.service';
 import { OAuthProviderService } from './oauth-provider.service';
 import { OAuthClientService } from './oauth-client.service';
 import { OAuthTokenService } from './oauth-token.service';
+import { OAuthTestLoginService } from './oauth-test-login.service';
 import { UsersModule } from '../users/users.module';
 import { OAuthSecretEncryptionService } from './oauth-secret-encryption.service';
 import { PolicyModule } from '../policy/policy.module';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
   imports: [
@@ -22,6 +24,7 @@ import { PolicyModule } from '../policy/policy.module';
     UsersModule,
     CustomCacheModule,
     PolicyModule,
+    forwardRef(() => AuthModule),
   ],
   controllers: [
     OAuthController,
@@ -35,6 +38,7 @@ import { PolicyModule } from '../policy/policy.module';
     OAuthClientService,
     OAuthTokenService,
     OAuthSecretEncryptionService,
+    OAuthTestLoginService,
   ],
   exports: [
     OAuthService,
@@ -42,6 +46,7 @@ import { PolicyModule } from '../policy/policy.module';
     OAuthClientService,
     OAuthTokenService,
     OAuthSecretEncryptionService,
+    OAuthTestLoginService,
   ],
 })
 export class OAuthModule {}

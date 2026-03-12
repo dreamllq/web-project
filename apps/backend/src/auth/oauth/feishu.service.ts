@@ -209,4 +209,35 @@ export class FeishuOAuthService {
       throw new UnauthorizedException('Failed to get user info from Feishu');
     }
   }
+
+  async handleTestCallback(
+    code: string,
+    configId?: string
+  ): Promise<{
+    providerUserId: string;
+    nickname: string | null;
+    avatarUrl: string | null;
+    rawUserInfo: Record<string, unknown>;
+  }> {
+    this.logger.log('Processing Feishu OAuth test callback');
+
+    const tokenResponse = await this.getAccessToken(code, configId);
+    const { access_token } = tokenResponse;
+
+    const userInfo = await this.getUserInfo(access_token);
+
+    return {
+      providerUserId: userInfo.open_id,
+      nickname: userInfo.name,
+      avatarUrl: userInfo.avatar_url,
+      rawUserInfo: {
+        open_id: userInfo.open_id,
+        union_id: userInfo.union_id,
+        name: userInfo.name,
+        avatar_url: userInfo.avatar_url,
+        mobile: userInfo.mobile,
+        email: userInfo.email,
+      },
+    };
+  }
 }

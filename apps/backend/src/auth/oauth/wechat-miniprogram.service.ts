@@ -163,4 +163,24 @@ export class WechatMiniprogramService {
       throw new UnauthorizedException('Failed to authenticate with WeChat miniprogram');
     }
   }
+
+  async getAuthorizationUrl(_state?: string, _configId?: string): Promise<{ url: string }> {
+    throw new UnauthorizedException(
+      'WeChat miniprogram does not support web-based OAuth authorization. Use the miniprogram client to login.'
+    );
+  }
+
+  async handleTestCallback(
+    _code: string,
+    _configId?: string
+  ): Promise<{
+    providerUserId: string;
+    nickname: string | null;
+    avatarUrl: string | null;
+    rawUserInfo: Record<string, unknown>;
+  }> {
+    throw new UnauthorizedException(
+      'WeChat miniprogram does not support web-based OAuth test login. Use the miniprogram client to test.'
+    );
+  }
 }

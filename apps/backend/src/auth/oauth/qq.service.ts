@@ -225,4 +225,38 @@ export class QQOAuthService {
       throw new UnauthorizedException('Failed to get user info from QQ');
     }
   }
+
+  async handleTestCallback(
+    code: string,
+    configId?: string
+  ): Promise<{
+    providerUserId: string;
+    nickname: string | null;
+    avatarUrl: string | null;
+    rawUserInfo: Record<string, unknown>;
+  }> {
+    this.logger.log('Processing QQ OAuth test callback');
+
+    const tokenResponse = await this.getAccessToken(code, configId);
+    const { access_token } = tokenResponse;
+
+    const openIdResponse = await this.getOpenId(access_token);
+    const { openid, unionid } = openIdResponse;
+
+    const config = await this.getConfig(configId);
+    const userInfo = await this.getUserInfo(access_token, openid, config.appId);
+
+    return {
+      providerUserId: openid,
+      nickname: userInfo.nickname,
+      avatarUrl: userInfo.figureurl_qq_1,
+      rawUserInfo: {
+        openid,
+        unionid,
+        nickname: userInfo.nickname,
+        figureurl_qq_1: userInfo.figureurl_qq_1,
+        gender: userInfo.gender,
+      },
+    };
+  }
 }
