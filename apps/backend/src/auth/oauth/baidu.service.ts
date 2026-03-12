@@ -5,13 +5,21 @@ import { firstValueFrom } from 'rxjs';
 import { AuthService, TokenResponse } from '../auth.service';
 import { UsersService } from '../../users/users.service';
 import { SocialProvider } from '../../entities/social-account.entity';
-import { BaiduConfig } from '../../config/baidu.config';
+import { UserAuthType } from '../../entities/user.entity';
+import { OAuthProviderCode } from '../../entities/oauth-provider-config.entity';
+import { OAuthProviderService } from '../../oauth/oauth-provider.service';
 import {
   BaiduAccessTokenResponse,
   BaiduUserInfo,
   BaiduAuthUrlResponse,
   BaiduErrorResponse,
 } from './dto/baidu.dto';
+
+interface BaiduConfig {
+  appId: string;
+  appSecret: string;
+  redirectUri: string;
+}
 
 @Injectable()
 export class BaiduOAuthService {
@@ -25,11 +33,37 @@ export class BaiduOAuthService {
     private readonly configService: ConfigService,
     private readonly httpService: HttpService,
     private readonly usersService: UsersService,
-    private readonly authService: AuthService
+    private readonly authService: AuthService,
+    private readonly oauthProviderService: OAuthProviderService
   ) {}
 
-  async getAuthorizationUrl(state?: string): Promise<BaiduAuthUrlResponse> {
-    const config = this.configService.get<BaiduConfig>('baidu');
+  private async getConfig(configId?: string): Promise<BaiduConfig> {
+    let config = null;
+
+    if (configId) {
+      config = await this.oauthProviderService.getByConfigId(configId);
+    } else {
+      const configs = await this.oauthProviderService.listByCode(OAuthProviderCode.BAIDU);
+      config = configs.find((c) => c.isDefault) || configs.find((c) => c.enabled) || null;
+    }
+
+    if (config) {
+      return {
+        appId: config.appId,
+        appSecret: config.appSecret,
+        redirectUri: config.redirectUri || '',
+      };
+    }
+
+    const envConfig = this.configService.get<BaiduConfig>('baidu');
+    if (!envConfig?.appId || !envConfig?.appSecret || !envConfig?.redirectUri) {
+      throw new UnauthorizedException('Baidu OAuth configuration is missing');
+    }
+    return envConfig;
+  }
+
+  async getAuthorizationUrl(state?: string, configId?: string): Promise<BaiduAuthUrlResponse> {
+    const config = await this.getConfig(configId);
     if (!config?.appId || !config?.redirectUri) {
       throw new Error('Baidu OAuth configuration is missing');
     }
@@ -47,10 +81,10 @@ export class BaiduOAuthService {
     return { url };
   }
 
-  async handleCallback(code: string, ip?: string): Promise<TokenResponse> {
+  async handleCallback(code: string, ip?: string, configId?: string): Promise<TokenResponse> {
     this.logger.log('Processing Baidu OAuth callback');
 
-    const tokenResponse = await this.getAccessToken(code);
+    const tokenResponse = await this.getAccessToken(code, configId);
     const { access_token } = tokenResponse;
 
     const userInfo = await this.getUserInfo(access_token);
@@ -73,6 +107,8 @@ export class BaiduOAuthService {
         username,
         nickname: userInfo.username,
         avatarUrl,
+        authType: UserAuthType.OAUTH,
+        authSource: 'baidu',
       });
 
       await this.usersService.createSocialAccount(user.id, SocialProvider.BAIDU, openid, {
@@ -90,8 +126,8 @@ export class BaiduOAuthService {
     return this.authService.generateTokens(user);
   }
 
-  private async getAccessToken(code: string): Promise<BaiduAccessTokenResponse> {
-    const config = this.configService.get<BaiduConfig>('baidu');
+  private async getAccessToken(code: string, configId?: string): Promise<BaiduAccessTokenResponse> {
+    const config = await this.getConfig(configId);
     if (!config?.appId || !config?.appSecret || !config?.redirectUri) {
       throw new UnauthorizedException('Baidu OAuth configuration is missing');
     }

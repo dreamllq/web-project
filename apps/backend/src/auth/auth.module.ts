@@ -8,6 +8,7 @@ import { CustomCacheModule } from '../custom-cache/custom-cache.module';
 import { MailModule } from '../mail/mail.module';
 import { SmsModule } from '../sms/sms.module';
 import { PolicyModule } from '../policy/policy.module';
+import { OAuthModule } from '../oauth/oauth.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { UsersModule } from '../users/users.module';
@@ -70,6 +71,7 @@ import { SocialAccountAdminController } from './social-account-admin.controller'
     MailModule,
     SmsModule,
     forwardRef(() => PolicyModule),
+    OAuthModule,
   ],
   controllers: [AuthController, SocialAccountAdminController],
   providers: [

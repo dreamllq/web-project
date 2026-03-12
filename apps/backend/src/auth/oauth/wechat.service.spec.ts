@@ -8,7 +8,9 @@ import { WechatOAuthService } from './wechat.service';
 import { AuthService } from '../auth.service';
 import { UsersService } from '../../users/users.service';
 import { SocialProvider } from '../../entities/social-account.entity';
-import { User, UserStatus } from '../../entities/user.entity';
+import { User, UserStatus, UserAuthType } from '../../entities/user.entity';
+import { OAuthProviderCode } from '../../entities/oauth-provider-config.entity';
+import { OAuthProviderService } from '../../oauth/oauth-provider.service';
 import { WeChatConfig } from '../../config/wechat.config';
 
 describe('WechatOAuthService', () => {
@@ -35,6 +37,8 @@ describe('WechatOAuthService', () => {
     nickname: 'Test User',
     avatarUrl: 'http://example.com/avatar.jpg',
     status: UserStatus.ACTIVE,
+    authType: UserAuthType.OAUTH,
+    authSource: 'wechat',
   } as User;
 
   const mockSocialAccount = {
@@ -57,7 +61,18 @@ describe('WechatOAuthService', () => {
     generateTokens: jest.fn(),
   };
 
+  const mockOAuthProviderService = {
+    getByConfigId: jest.fn().mockResolvedValue(null),
+    listByCode: jest.fn().mockResolvedValue([]),
+  };
+
   beforeEach(async () => {
+    jest.clearAllMocks();
+
+    mockConfigService.get.mockReturnValue(mockWechatConfig);
+    mockOAuthProviderService.getByConfigId.mockResolvedValue(null);
+    mockOAuthProviderService.listByCode.mockResolvedValue([]);
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         WechatOAuthService,
@@ -76,6 +91,10 @@ describe('WechatOAuthService', () => {
         {
           provide: AuthService,
           useValue: mockAuthService,
+        },
+        {
+          provide: OAuthProviderService,
+          useValue: mockOAuthProviderService,
         },
       ],
     }).compile();
@@ -105,11 +124,58 @@ describe('WechatOAuthService', () => {
       expect(result.url).toContain('#wechat_redirect');
     });
 
+    it('should use database config when available', async () => {
+      const dbConfig = {
+        id: 'config-uuid',
+        code: OAuthProviderCode.WECHAT,
+        configName: 'Production WeChat',
+        appId: 'db_app_id',
+        appSecret: 'db_app_secret',
+        redirectUri: 'http://db-redirect.com/callback',
+        isDefault: true,
+        enabled: true,
+      };
+      mockOAuthProviderService.listByCode.mockResolvedValueOnce([dbConfig]);
+
+      const result = await service.getAuthorizationUrl('test_state');
+
+      expect(result.url).toContain('appid=db_app_id');
+      expect(result.url).toContain('redirect_uri=http%3A%2F%2Fdb-redirect.com%2Fcallback');
+    });
+
+    it('should use specific config when configId is provided', async () => {
+      const specificConfig = {
+        id: 'specific-config-uuid',
+        code: OAuthProviderCode.WECHAT,
+        configName: 'Test WeChat',
+        appId: 'specific_app_id',
+        appSecret: 'specific_app_secret',
+        redirectUri: 'http://specific-redirect.com/callback',
+        isDefault: false,
+        enabled: true,
+      };
+      mockOAuthProviderService.getByConfigId.mockResolvedValueOnce(specificConfig);
+
+      const result = await service.getAuthorizationUrl('test_state', 'specific-config-uuid');
+
+      expect(result.url).toContain('appid=specific_app_id');
+      expect(mockOAuthProviderService.getByConfigId).toHaveBeenCalledWith('specific-config-uuid');
+    });
+
+    it('should fallback to environment variables if no database config', async () => {
+      mockOAuthProviderService.listByCode.mockResolvedValueOnce([]);
+
+      const result = await service.getAuthorizationUrl('test_state');
+
+      expect(result.url).toContain('appid=test_app_id');
+    });
+
     it('should throw error if config is missing', async () => {
+      mockOAuthProviderService.listByCode.mockResolvedValueOnce([]);
       mockConfigService.get.mockReturnValueOnce(null);
 
       await expect(service.getAuthorizationUrl()).rejects.toThrow(
-        'WeChat OAuth configuration is missing',
+        'WeChat OAuth configuration not found in database or environment'
       );
     });
   });
@@ -142,7 +208,6 @@ describe('WechatOAuthService', () => {
     };
 
     it('should handle callback for existing user', async () => {
-      // Mock getAccessToken
       const mockAxiosResponse: Partial<AxiosResponse> = {
         data: mockTokenResponse,
         status: 200,
@@ -152,7 +217,6 @@ describe('WechatOAuthService', () => {
       };
       mockHttpService.get.mockReturnValueOnce(of(mockAxiosResponse as AxiosResponse));
 
-      // Mock getUserInfo
       const mockUserInfoResponse: Partial<AxiosResponse> = {
         data: mockUserInfo,
         status: 200,
@@ -162,7 +226,6 @@ describe('WechatOAuthService', () => {
       };
       mockHttpService.get.mockReturnValueOnce(of(mockUserInfoResponse as AxiosResponse));
 
-      // Mock findSocialAccount - existing user
       mockUsersService.findSocialAccount.mockResolvedValue(mockSocialAccount);
       mockUsersService.updateLastLogin.mockResolvedValue(undefined);
       mockAuthService.generateTokens.mockResolvedValue(mockTokens);
@@ -172,14 +235,13 @@ describe('WechatOAuthService', () => {
       expect(result).toEqual(mockTokens);
       expect(mockUsersService.findSocialAccount).toHaveBeenCalledWith(
         SocialProvider.WECHAT,
-        'openid123',
+        'openid123'
       );
       expect(mockUsersService.updateLastLogin).toHaveBeenCalled();
       expect(mockAuthService.generateTokens).toHaveBeenCalledWith(mockUser);
     });
 
-    it('should create new user for new social account', async () => {
-      // Mock getAccessToken
+    it('should create new user for new social account with authType and authSource', async () => {
       const mockAxiosResponse: Partial<AxiosResponse> = {
         data: mockTokenResponse,
         status: 200,
@@ -189,7 +251,6 @@ describe('WechatOAuthService', () => {
       };
       mockHttpService.get.mockReturnValueOnce(of(mockAxiosResponse as AxiosResponse));
 
-      // Mock getUserInfo
       const mockUserInfoResponse: Partial<AxiosResponse> = {
         data: mockUserInfo,
         status: 200,
@@ -199,7 +260,6 @@ describe('WechatOAuthService', () => {
       };
       mockHttpService.get.mockReturnValueOnce(of(mockUserInfoResponse as AxiosResponse));
 
-      // Mock findSocialAccount - no existing user
       mockUsersService.findSocialAccount.mockResolvedValue(null);
       mockUsersService.generateOAuthUsername.mockReturnValue('wechat_openid12');
       mockUsersService.createOAuthUser.mockResolvedValue(mockUser);
@@ -214,6 +274,8 @@ describe('WechatOAuthService', () => {
         username: 'wechat_openid12',
         nickname: mockUserInfo.nickname,
         avatarUrl: mockUserInfo.headimgurl,
+        authType: UserAuthType.OAUTH,
+        authSource: 'wechat',
       });
       expect(mockUsersService.createSocialAccount).toHaveBeenCalledWith(
         mockUser.id,
@@ -222,7 +284,50 @@ describe('WechatOAuthService', () => {
         expect.objectContaining({
           unionid: 'unionid789',
           nickname: mockUserInfo.nickname,
-        }),
+        })
+      );
+    });
+
+    it('should use specific config when configId is provided in callback', async () => {
+      const specificConfig = {
+        id: 'specific-config-uuid',
+        code: OAuthProviderCode.WECHAT,
+        configName: 'Test WeChat',
+        appId: 'specific_app_id',
+        appSecret: 'specific_app_secret',
+        redirectUri: 'http://specific-redirect.com/callback',
+        isDefault: false,
+        enabled: true,
+      };
+      mockOAuthProviderService.getByConfigId.mockResolvedValueOnce(specificConfig);
+
+      const mockAxiosResponse: Partial<AxiosResponse> = {
+        data: mockTokenResponse,
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config: {} as any,
+      };
+      mockHttpService.get.mockReturnValueOnce(of(mockAxiosResponse as AxiosResponse));
+
+      const mockUserInfoResponse: Partial<AxiosResponse> = {
+        data: mockUserInfo,
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config: {} as any,
+      };
+      mockHttpService.get.mockReturnValueOnce(of(mockUserInfoResponse as AxiosResponse));
+
+      mockUsersService.findSocialAccount.mockResolvedValue(mockSocialAccount);
+      mockUsersService.updateLastLogin.mockResolvedValue(undefined);
+      mockAuthService.generateTokens.mockResolvedValue(mockTokens);
+
+      await service.handleCallback('auth_code', undefined, 'specific-config-uuid');
+
+      expect(mockOAuthProviderService.getByConfigId).toHaveBeenCalledWith('specific-config-uuid');
+      expect(mockHttpService.get).toHaveBeenCalledWith(
+        expect.stringContaining('appid=specific_app_id')
       );
     });
 
@@ -239,13 +344,10 @@ describe('WechatOAuthService', () => {
       };
       mockHttpService.get.mockReturnValueOnce(of(errorResponse as AxiosResponse));
 
-      await expect(service.handleCallback('invalid_code')).rejects.toThrow(
-        UnauthorizedException,
-      );
+      await expect(service.handleCallback('invalid_code')).rejects.toThrow(UnauthorizedException);
     });
 
     it('should throw UnauthorizedException if userinfo request fails', async () => {
-      // Mock successful getAccessToken
       const mockTokenAxiosResponse: Partial<AxiosResponse> = {
         data: mockTokenResponse,
         status: 200,
@@ -253,11 +355,8 @@ describe('WechatOAuthService', () => {
         headers: {},
         config: {} as any,
       };
-      mockHttpService.get.mockReturnValueOnce(
-        of(mockTokenAxiosResponse as AxiosResponse),
-      );
+      mockHttpService.get.mockReturnValueOnce(of(mockTokenAxiosResponse as AxiosResponse));
 
-      // Mock failed getUserInfo
       const errorResponse: Partial<AxiosResponse> = {
         data: {
           errcode: 40001,
@@ -270,9 +369,7 @@ describe('WechatOAuthService', () => {
       };
       mockHttpService.get.mockReturnValueOnce(of(errorResponse as AxiosResponse));
 
-      await expect(service.handleCallback('auth_code')).rejects.toThrow(
-        UnauthorizedException,
-      );
+      await expect(service.handleCallback('auth_code')).rejects.toThrow(UnauthorizedException);
     });
   });
 
@@ -296,7 +393,6 @@ describe('WechatOAuthService', () => {
         };
         mockHttpService.get.mockReturnValueOnce(of(mockAxiosResponse as AxiosResponse));
 
-        // Test via handleCallback
         mockUsersService.findSocialAccount.mockResolvedValue(null);
         mockUsersService.generateOAuthUsername.mockReturnValue('test_user');
         mockUsersService.createOAuthUser.mockResolvedValue(mockUser);
@@ -308,7 +404,6 @@ describe('WechatOAuthService', () => {
           expires_in: 900,
         });
 
-        // Mock getUserInfo
         const mockUserInfoResponse: Partial<AxiosResponse> = {
           data: {
             openid: 'openid123',
@@ -325,14 +420,12 @@ describe('WechatOAuthService', () => {
           headers: {},
           config: {} as any,
         };
-        mockHttpService.get.mockReturnValueOnce(
-          of(mockUserInfoResponse as AxiosResponse),
-        );
+        mockHttpService.get.mockReturnValueOnce(of(mockUserInfoResponse as AxiosResponse));
 
         await service.handleCallback('code');
 
         expect(mockHttpService.get).toHaveBeenCalledWith(
-          expect.stringContaining('https://api.weixin.qq.com/sns/oauth2/access_token'),
+          expect.stringContaining('https://api.weixin.qq.com/sns/oauth2/access_token')
         );
       });
     });

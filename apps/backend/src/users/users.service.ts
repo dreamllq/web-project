@@ -8,7 +8,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, ILike } from 'typeorm';
 import * as bcrypt from 'bcrypt';
-import { User, UserStatus } from '../entities/user.entity';
+import { User, UserStatus, UserAuthType } from '../entities/user.entity';
 import { SocialAccount, SocialProvider } from '../entities/social-account.entity';
 import { RegisterSubjectType } from '../policy/decorators/register-subject-type.decorator';
 import { SubjectValue } from '../policy/services/subject-type-registry.service';
@@ -28,6 +28,8 @@ export interface CreateOAuthUserData {
   avatarUrl?: string;
   email?: string;
   phone?: string;
+  authType?: UserAuthType;
+  authSource?: string;
 }
 
 // Admin user management interfaces
@@ -163,6 +165,8 @@ export class UsersService {
       email: data.email || null,
       phone: data.phone || null,
       status: UserStatus.ACTIVE, // OAuth users are active immediately
+      authType: data.authType || UserAuthType.OAUTH,
+      authSource: data.authSource || null,
     });
 
     return this.usersRepository.save(user);

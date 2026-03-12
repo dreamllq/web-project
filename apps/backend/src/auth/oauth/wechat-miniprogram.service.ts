@@ -5,10 +5,10 @@ import { firstValueFrom } from 'rxjs';
 import { AuthService, TokenResponse } from '../auth.service';
 import { UsersService } from '../../users/users.service';
 import { SocialProvider } from '../../entities/social-account.entity';
+import { UserAuthType } from '../../entities/user.entity';
+import { OAuthProviderCode } from '../../entities/oauth-provider-config.entity';
+import { OAuthProviderService } from '../../oauth/oauth-provider.service';
 
-/**
- * Response from WeChat miniprogram jscode2session API
- */
 interface WeChatMiniprogramSessionResponse {
   openid: string;
   session_key: string;
@@ -17,9 +17,6 @@ interface WeChatMiniprogramSessionResponse {
   errmsg?: string;
 }
 
-/**
- * DTO for WeChat miniprogram login
- */
 export interface WechatMiniprogramLoginDto {
   code: string;
   userInfo?: {
@@ -32,9 +29,6 @@ export interface WechatMiniprogramLoginDto {
   };
 }
 
-/**
- * WeChat miniprogram configuration
- */
 interface WechatMiniprogramConfig {
   appId: string;
   appSecret: string;
@@ -50,46 +44,68 @@ export class WechatMiniprogramService {
     private readonly httpService: HttpService,
     private readonly usersService: UsersService,
     private readonly authService: AuthService,
+    private readonly oauthProviderService: OAuthProviderService
   ) {}
 
-  /**
-   * Login with WeChat miniprogram code
-   * 1. Exchange code for session_key and openid
-   * 2. Find or create user by openid
-   * 3. Generate JWT tokens
-   */
-  async login(dto: WechatMiniprogramLoginDto, ip?: string): Promise<TokenResponse> {
+  private async getConfig(configId?: string): Promise<WechatMiniprogramConfig> {
+    let config = null;
+
+    if (configId) {
+      config = await this.oauthProviderService.getByConfigId(configId);
+    } else {
+      const configs = await this.oauthProviderService.listByCode(
+        OAuthProviderCode.WECHAT_MINIPROGRAM
+      );
+      config = configs.find((c) => c.isDefault) || configs.find((c) => c.enabled) || null;
+    }
+
+    if (config) {
+      return {
+        appId: config.appId,
+        appSecret: config.appSecret,
+      };
+    }
+
+    const envConfig = this.configService.get<WechatMiniprogramConfig>('wechatMiniprogram');
+    if (!envConfig?.appId || !envConfig?.appSecret) {
+      throw new UnauthorizedException('WeChat miniprogram configuration is missing');
+    }
+    return envConfig;
+  }
+
+  async login(
+    dto: WechatMiniprogramLoginDto,
+    ip?: string,
+    configId?: string
+  ): Promise<TokenResponse> {
     this.logger.log('Processing WeChat miniprogram login');
 
-    // 1. Exchange code for session
-    const sessionResponse = await this.code2Session(dto.code);
+    const sessionResponse = await this.code2Session(dto.code, configId);
     const { openid, unionid } = sessionResponse;
 
-    // 2. Find existing social account or create new user
     const socialAccount = await this.usersService.findSocialAccount(
       SocialProvider.WECHAT_MINIPROGRAM,
-      openid,
+      openid
     );
 
     let user;
     if (socialAccount) {
-      // User exists, get the associated user
       user = socialAccount.user;
       this.logger.log(`Found existing user for WeChat miniprogram openid: ${openid}`);
     } else {
-      // Create new user with WeChat info
       const username = this.usersService.generateOAuthUsername(
         SocialProvider.WECHAT_MINIPROGRAM,
-        openid,
+        openid
       );
 
       user = await this.usersService.createOAuthUser({
         username,
         nickname: dto.userInfo?.nickName,
         avatarUrl: dto.userInfo?.avatarUrl,
+        authType: UserAuthType.OAUTH,
+        authSource: 'wechat_miniprogram',
       });
 
-      // Create social account link
       await this.usersService.createSocialAccount(
         user.id,
         SocialProvider.WECHAT_MINIPROGRAM,
@@ -102,27 +118,22 @@ export class WechatMiniprogramService {
           city: dto.userInfo?.city,
           province: dto.userInfo?.province,
           country: dto.userInfo?.country,
-        },
+        }
       );
 
       this.logger.log(`Created new user for WeChat miniprogram openid: ${openid}`);
     }
 
-    // 3. Update last login
     await this.usersService.updateLastLogin(user.id, ip);
 
-    // 4. Generate JWT tokens
     return this.authService.generateTokens(user);
   }
 
-  /**
-   * Exchange code for session_key and openid
-   */
-  private async code2Session(code: string): Promise<WeChatMiniprogramSessionResponse> {
-    const config = this.configService.get<WechatMiniprogramConfig>('wechatMiniprogram');
-    if (!config?.appId || !config?.appSecret) {
-      throw new UnauthorizedException('WeChat miniprogram configuration is missing');
-    }
+  private async code2Session(
+    code: string,
+    configId?: string
+  ): Promise<WeChatMiniprogramSessionResponse> {
+    const config = await this.getConfig(configId);
 
     const params = new URLSearchParams({
       appid: config.appId,
@@ -135,12 +146,11 @@ export class WechatMiniprogramService {
 
     try {
       const response = await firstValueFrom(
-        this.httpService.get<WeChatMiniprogramSessionResponse>(url),
+        this.httpService.get<WeChatMiniprogramSessionResponse>(url)
       );
 
       const data = response.data;
 
-      // Check for error response
       if (data.errcode && data.errcode !== 0) {
         this.logger.error(`WeChat miniprogram API error: ${data.errcode} - ${data.errmsg}`);
         throw new UnauthorizedException(`WeChat miniprogram login failed: ${data.errmsg}`);

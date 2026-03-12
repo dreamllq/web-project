@@ -35,6 +35,8 @@ describe('OAuthProviderService', () => {
       findOne: jest.fn(),
       save: jest.fn(),
       update: jest.fn(),
+      create: jest.fn(),
+      delete: jest.fn(),
     } as any;
 
     const module: TestingModule = await Test.createTestingModule({
@@ -184,6 +186,219 @@ describe('OAuthProviderService', () => {
 
       expect(result.enabled).toBe(false);
       expect(mockRepository.save).toHaveBeenCalledWith(expect.objectContaining({ enabled: false }));
+    });
+  });
+
+  describe('create', () => {
+    it('should create a new provider configuration', async () => {
+      const createData = {
+        code: OAuthProviderCode.WECHAT,
+        configName: 'New WeChat Config',
+        appId: 'wx_new_app_id',
+        appSecret: 'new_secret',
+      };
+      const newConfig = {
+        ...mockConfig,
+        id: 'new-id',
+        configName: 'New WeChat Config',
+        appId: 'wx_new_app_id',
+        appSecret: 'new_secret',
+      };
+
+      mockRepository.create.mockReturnValue(newConfig);
+      mockRepository.save.mockResolvedValue(newConfig);
+
+      const result = await service.create(createData);
+
+      expect(result).toEqual(newConfig);
+      expect(mockRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          code: OAuthProviderCode.WECHAT,
+          configName: 'New WeChat Config',
+          appId: 'wx_new_app_id',
+          appSecret: 'new_secret',
+        })
+      );
+      expect(mockRepository.save).toHaveBeenCalled();
+    });
+
+    it('should clear cache for the provider code after creation', async () => {
+      const createData = {
+        code: OAuthProviderCode.WECHAT,
+        configName: 'New Config',
+        appId: 'wx_app_id',
+        appSecret: 'secret',
+      };
+
+      mockRepository.create.mockReturnValue(mockConfig);
+      mockRepository.save.mockResolvedValue(mockConfig);
+
+      // Cache the config first
+      mockRepository.findOne.mockResolvedValue(mockConfig);
+      await service.getByCode(OAuthProviderCode.WECHAT);
+      expect(mockRepository.findOne).toHaveBeenCalledTimes(1);
+
+      // Create new config
+      await service.create(createData);
+
+      // Cache should be cleared
+      mockRepository.findOne.mockClear();
+      mockRepository.findOne.mockResolvedValue(mockConfig);
+      await service.getByCode(OAuthProviderCode.WECHAT);
+      expect(mockRepository.findOne).toHaveBeenCalledTimes(1);
+    });
+
+    it('should set default values correctly', async () => {
+      const createData = {
+        code: OAuthProviderCode.WECHAT,
+        configName: 'Test Config',
+        appId: 'wx_app_id',
+        appSecret: 'secret',
+      };
+
+      mockRepository.create.mockImplementation((data) => data as any);
+      mockRepository.save.mockImplementation((data) => Promise.resolve(data as any));
+
+      await service.create(createData);
+
+      expect(mockRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          enabled: true,
+          isDefault: false,
+          redirectUri: null,
+          displayName: null,
+          icon: null,
+          color: null,
+          sortOrder: null,
+        })
+      );
+    });
+
+    it('should accept optional fields', async () => {
+      const createData = {
+        code: OAuthProviderCode.WECHAT,
+        configName: 'Custom Config',
+        appId: 'wx_app_id',
+        appSecret: 'secret',
+        redirectUri: 'https://example.com/callback',
+        displayName: '微信登录',
+        icon: 'ChatDotRound',
+        color: '#07C160',
+        sortOrder: 10,
+        isDefault: true,
+      };
+
+      mockRepository.create.mockImplementation((data) => data as any);
+      mockRepository.save.mockImplementation((data) => Promise.resolve(data as any));
+
+      await service.create(createData);
+
+      expect(mockRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          redirectUri: 'https://example.com/callback',
+          displayName: '微信登录',
+          icon: 'ChatDotRound',
+          color: '#07C160',
+          sortOrder: 10,
+          isDefault: true,
+        })
+      );
+    });
+  });
+
+  describe('delete', () => {
+    it('should delete provider configuration by ID', async () => {
+      mockRepository.findOne.mockResolvedValue(mockConfig);
+      mockRepository.delete.mockResolvedValue({ affected: 1 } as any);
+
+      await service.delete('test-id');
+
+      expect(mockRepository.delete).toHaveBeenCalledWith('test-id');
+    });
+
+    it('should throw NotFoundException if config not found', async () => {
+      mockRepository.findOne.mockResolvedValue(null);
+
+      await expect(service.delete('non-existent')).rejects.toThrow(NotFoundException);
+    });
+
+    it('should clear cache for the provider code after deletion', async () => {
+      mockRepository.findOne.mockResolvedValue(mockConfig);
+      mockRepository.delete.mockResolvedValue({ affected: 1 } as any);
+
+      // Cache the config first
+      mockRepository.findOne.mockResolvedValue(mockConfig);
+      await service.getByCode(OAuthProviderCode.WECHAT);
+      expect(mockRepository.findOne).toHaveBeenCalledTimes(1);
+
+      mockRepository.findOne.mockClear();
+      mockRepository.findOne.mockResolvedValue(mockConfig);
+      await service.delete('test-id');
+
+      // Cache should be cleared
+      mockRepository.findOne.mockClear();
+      mockRepository.findOne.mockResolvedValue(mockConfig);
+      await service.getByCode(OAuthProviderCode.WECHAT);
+      expect(mockRepository.findOne).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('getByConfigId', () => {
+    it('should return config by ID', async () => {
+      mockRepository.findOne.mockResolvedValue(mockConfig);
+
+      const result = await service.getByConfigId('test-id');
+
+      expect(result).toEqual(mockConfig);
+      expect(mockRepository.findOne).toHaveBeenCalledWith({ where: { id: 'test-id' } });
+    });
+
+    it('should return null if config not found', async () => {
+      mockRepository.findOne.mockResolvedValue(null);
+
+      const result = await service.getByConfigId('non-existent');
+
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('listByCode', () => {
+    it('should return all configs with the same code', async () => {
+      const configs = [
+        { ...mockConfig, id: 'id-1', configName: 'Default', isDefault: true },
+        { ...mockConfig, id: 'id-2', configName: 'Secondary', isDefault: false },
+      ];
+      mockRepository.find.mockResolvedValue(configs);
+
+      const result = await service.listByCode(OAuthProviderCode.WECHAT);
+
+      expect(result).toEqual(configs);
+      expect(mockRepository.find).toHaveBeenCalledWith({
+        where: { code: OAuthProviderCode.WECHAT },
+        order: { isDefault: 'DESC', createdAt: 'ASC' },
+      });
+    });
+
+    it('should return empty array when no configs exist for the code', async () => {
+      mockRepository.find.mockResolvedValue([]);
+
+      const result = await service.listByCode(OAuthProviderCode.WECHAT);
+
+      expect(result).toEqual([]);
+    });
+
+    it('should sort by isDefault DESC then createdAt ASC', async () => {
+      const config1 = { ...mockConfig, id: 'id-1', configName: 'Secondary', isDefault: false };
+      const config2 = { ...mockConfig, id: 'id-2', configName: 'Default', isDefault: true };
+
+      mockRepository.find.mockResolvedValue([config2, config1]);
+
+      await service.listByCode(OAuthProviderCode.WECHAT);
+
+      expect(mockRepository.find).toHaveBeenCalledWith({
+        where: { code: OAuthProviderCode.WECHAT },
+        order: { isDefault: 'DESC', createdAt: 'ASC' },
+      });
     });
   });
 

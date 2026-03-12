@@ -5,6 +5,9 @@ import { firstValueFrom } from 'rxjs';
 import { AuthService, TokenResponse } from '../auth.service';
 import { UsersService } from '../../users/users.service';
 import { SocialProvider } from '../../entities/social-account.entity';
+import { UserAuthType } from '../../entities/user.entity';
+import { OAuthProviderCode } from '../../entities/oauth-provider-config.entity';
+import { OAuthProviderService } from '../../oauth/oauth-provider.service';
 import { WeChatConfig } from '../../config/wechat.config';
 import {
   WeChatAccessTokenResponse,
@@ -12,6 +15,12 @@ import {
   WeChatAuthUrlResponse,
   WeChatErrorResponse,
 } from './wechat.dto';
+
+interface WechatOAuthConfig {
+  appId: string;
+  appSecret: string;
+  redirectUri: string;
+}
 
 @Injectable()
 export class WechatOAuthService {
@@ -25,13 +34,61 @@ export class WechatOAuthService {
     private readonly httpService: HttpService,
     private readonly usersService: UsersService,
     private readonly authService: AuthService,
+    private readonly oauthProviderService: OAuthProviderService
   ) {}
 
   /**
-   * Generate WeChat OAuth authorization URL
+   * Get OAuth config with fallback to environment variables
+   * Priority: 1. Database config (by configId or default) 2. Environment variables
    */
-  async getAuthorizationUrl(state?: string): Promise<WeChatAuthUrlResponse> {
-    const config = this.configService.get<WeChatConfig>('wechat');
+  private async getConfig(configId?: string): Promise<WechatOAuthConfig> {
+    // Try database config first
+    let config = null;
+
+    if (configId) {
+      // Get specific config by ID
+      config = await this.oauthProviderService.getByConfigId(configId);
+      if (!config) {
+        this.logger.warn(`Config with ID ${configId} not found, falling back to default`);
+      }
+    }
+
+    if (!config) {
+      // Get default config for wechat (isDefault=true or first enabled)
+      const configs = await this.oauthProviderService.listByCode(OAuthProviderCode.WECHAT);
+      config = configs.find((c) => c.isDefault && c.enabled) || configs.find((c) => c.enabled);
+    }
+
+    if (config) {
+      this.logger.log(`Using database config: ${config.configName} (${config.id})`);
+      return {
+        appId: config.appId,
+        appSecret: config.appSecret,
+        redirectUri: config.redirectUri || '',
+      };
+    }
+
+    // Fallback to environment variables
+    const envConfig = this.configService.get<WeChatConfig>('wechat');
+    if (!envConfig?.appId) {
+      throw new Error('WeChat OAuth configuration not found in database or environment');
+    }
+
+    this.logger.log('Using environment variable config for WeChat OAuth');
+    return {
+      appId: envConfig.appId,
+      appSecret: envConfig.appSecret,
+      redirectUri: envConfig.redirectUri,
+    };
+  }
+
+  /**
+   * Generate WeChat OAuth authorization URL
+   * @param state - Optional state parameter for CSRF protection
+   * @param configId - Optional config ID to use specific provider configuration
+   */
+  async getAuthorizationUrl(state?: string, configId?: string): Promise<WeChatAuthUrlResponse> {
+    const config = await this.getConfig(configId);
     if (!config?.appId || !config?.redirectUri) {
       throw new Error('WeChat OAuth configuration is missing');
     }
@@ -56,22 +113,23 @@ export class WechatOAuthService {
    * 2. Get user info
    * 3. Find or create user
    * 4. Generate JWT tokens
+   * @param code - Authorization code from WeChat
+   * @param ip - Optional client IP for login tracking
+   * @param configId - Optional config ID to use specific provider configuration
    */
-  async handleCallback(code: string, ip?: string): Promise<TokenResponse> {
+  async handleCallback(code: string, ip?: string, configId?: string): Promise<TokenResponse> {
     this.logger.log('Processing WeChat OAuth callback');
 
     // 1. Exchange code for access token
-    const tokenResponse = await this.getAccessToken(code);
+    const config = await this.getConfig(configId);
+    const tokenResponse = await this.getAccessToken(code, config);
     const { access_token, openid, unionid } = tokenResponse;
 
     // 2. Get user info from WeChat
     const userInfo = await this.getUserInfo(access_token, openid);
 
     // 3. Find existing social account or create new user
-    const socialAccount = await this.usersService.findSocialAccount(
-      SocialProvider.WECHAT,
-      openid,
-    );
+    const socialAccount = await this.usersService.findSocialAccount(SocialProvider.WECHAT, openid);
 
     let user;
     if (socialAccount) {
@@ -80,28 +138,22 @@ export class WechatOAuthService {
       this.logger.log(`Found existing user for WeChat openid: ${openid}`);
     } else {
       // Create new user with WeChat info
-      const username = this.usersService.generateOAuthUsername(
-        SocialProvider.WECHAT,
-        openid,
-      );
+      const username = this.usersService.generateOAuthUsername(SocialProvider.WECHAT, openid);
 
       user = await this.usersService.createOAuthUser({
         username,
         nickname: userInfo.nickname,
         avatarUrl: userInfo.headimgurl,
+        authType: UserAuthType.OAUTH,
+        authSource: 'wechat',
       });
 
       // Create social account link
-      await this.usersService.createSocialAccount(
-        user.id,
-        SocialProvider.WECHAT,
-        openid,
-        {
-          unionid,
-          nickname: userInfo.nickname,
-          headimgurl: userInfo.headimgurl,
-        },
-      );
+      await this.usersService.createSocialAccount(user.id, SocialProvider.WECHAT, openid, {
+        unionid,
+        nickname: userInfo.nickname,
+        headimgurl: userInfo.headimgurl,
+      });
 
       this.logger.log(`Created new user for WeChat openid: ${openid}`);
     }
@@ -116,8 +168,10 @@ export class WechatOAuthService {
   /**
    * Exchange authorization code for access token
    */
-  private async getAccessToken(code: string): Promise<WeChatAccessTokenResponse> {
-    const config = this.configService.get<WeChatConfig>('wechat');
+  private async getAccessToken(
+    code: string,
+    config: WechatOAuthConfig
+  ): Promise<WeChatAccessTokenResponse> {
     if (!config?.appId || !config?.appSecret) {
       throw new UnauthorizedException('WeChat OAuth configuration is missing');
     }
@@ -133,7 +187,7 @@ export class WechatOAuthService {
 
     try {
       const response = await firstValueFrom(
-        this.httpService.get<WeChatAccessTokenResponse | WeChatErrorResponse>(url),
+        this.httpService.get<WeChatAccessTokenResponse | WeChatErrorResponse>(url)
       );
 
       const data = response.data;
@@ -144,7 +198,9 @@ export class WechatOAuthService {
         throw new UnauthorizedException(`WeChat OAuth failed: ${data.errmsg}`);
       }
 
-      this.logger.log(`Successfully obtained access token for openid: ${(data as WeChatAccessTokenResponse).openid}`);
+      this.logger.log(
+        `Successfully obtained access token for openid: ${(data as WeChatAccessTokenResponse).openid}`
+      );
       return data as WeChatAccessTokenResponse;
     } catch (error) {
       this.logger.error('Failed to get WeChat access token', error);
@@ -155,10 +211,7 @@ export class WechatOAuthService {
   /**
    * Get user info from WeChat using access token
    */
-  private async getUserInfo(
-    accessToken: string,
-    openid: string,
-  ): Promise<WeChatUserInfo> {
+  private async getUserInfo(accessToken: string, openid: string): Promise<WeChatUserInfo> {
     const params = new URLSearchParams({
       access_token: accessToken,
       openid,
@@ -168,7 +221,7 @@ export class WechatOAuthService {
 
     try {
       const response = await firstValueFrom(
-        this.httpService.get<WeChatUserInfo | WeChatErrorResponse>(url),
+        this.httpService.get<WeChatUserInfo | WeChatErrorResponse>(url)
       );
 
       const data = response.data;
@@ -179,7 +232,9 @@ export class WechatOAuthService {
         throw new UnauthorizedException(`Failed to get WeChat user info: ${data.errmsg}`);
       }
 
-      this.logger.log(`Successfully retrieved user info for openid: ${(data as WeChatUserInfo).openid}`);
+      this.logger.log(
+        `Successfully retrieved user info for openid: ${(data as WeChatUserInfo).openid}`
+      );
       return data as WeChatUserInfo;
     } catch (error) {
       this.logger.error('Failed to get WeChat user info', error);

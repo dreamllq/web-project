@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Patch,
+  Delete,
   Body,
   Param,
   UseGuards,
@@ -17,6 +18,7 @@ import { AuditLog } from '../audit/decorators/audit-log.decorator';
 import { OAuthProviderService } from './oauth-provider.service';
 import {
   BatchProviderIdsDto,
+  CreateProviderDto,
   UpdateProviderMetadataDto,
   OAuthProviderResponse,
   ProviderMetadataResponse,
@@ -69,6 +71,21 @@ export class OAuthProviderController {
     };
   }
 
+  @Post()
+  @Version('1')
+  @RequirePermission('oauth-provider', 'create')
+  @AuditLog('create', 'oauth-provider')
+  @ApiOperation({ summary: 'Admin: Create a new OAuth provider configuration' })
+  @ApiResponse({ status: 201, description: 'Provider created successfully' })
+  @ApiResponse({ status: 400, description: 'Invalid input data' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden - Insufficient permissions' })
+  @ApiResponse({ status: 409, description: 'Provider with this code already exists' })
+  async createProvider(@Body() dto: CreateProviderDto): Promise<OAuthProviderResponse> {
+    const config = await this.oauthProviderService.create(dto);
+    return this.sanitizeProviderResponse(config);
+  }
+
   @Get('metadata')
   @Version('1')
   @RequirePermission('oauth-provider', 'read')
@@ -118,6 +135,21 @@ export class OAuthProviderController {
   ): Promise<OAuthProviderResponse> {
     const updatedConfig = await this.oauthProviderService.updateMetadata(id, dto);
     return this.sanitizeProviderResponse(updatedConfig);
+  }
+
+  @Delete(':id')
+  @Version('1')
+  @RequirePermission('oauth-provider', 'delete')
+  @AuditLog('delete', 'oauth-provider')
+  @ApiOperation({ summary: 'Admin: Delete an OAuth provider configuration' })
+  @ApiParam({ name: 'id', description: 'Provider ID', type: 'string' })
+  @ApiResponse({ status: 200, description: 'Provider deleted successfully' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden - Insufficient permissions' })
+  @ApiResponse({ status: 404, description: 'Provider not found' })
+  async deleteProvider(@Param('id') id: string): Promise<{ success: boolean }> {
+    await this.oauthProviderService.delete(id);
+    return { success: true };
   }
 
   @Post('batch/enable')

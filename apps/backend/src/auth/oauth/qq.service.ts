@@ -5,7 +5,9 @@ import { firstValueFrom } from 'rxjs';
 import { AuthService, TokenResponse } from '../auth.service';
 import { UsersService } from '../../users/users.service';
 import { SocialProvider } from '../../entities/social-account.entity';
-import { QQConfig } from '../../config/qq.config';
+import { UserAuthType } from '../../entities/user.entity';
+import { OAuthProviderCode } from '../../entities/oauth-provider-config.entity';
+import { OAuthProviderService } from '../../oauth/oauth-provider.service';
 import {
   QQAccessTokenResponse,
   QQUserInfo,
@@ -13,6 +15,12 @@ import {
   QQErrorResponse,
   QQOpenIdResponse,
 } from './dto/qq.dto';
+
+interface QQConfig {
+  appId: string;
+  appSecret: string;
+  redirectUri: string;
+}
 
 @Injectable()
 export class QQOAuthService {
@@ -26,14 +34,37 @@ export class QQOAuthService {
     private readonly configService: ConfigService,
     private readonly httpService: HttpService,
     private readonly usersService: UsersService,
-    private readonly authService: AuthService
+    private readonly authService: AuthService,
+    private readonly oauthProviderService: OAuthProviderService
   ) {}
 
-  /**
-   * Generate QQ OAuth authorization URL
-   */
-  async getAuthorizationUrl(state?: string): Promise<QQAuthUrlResponse> {
-    const config = this.configService.get<QQConfig>('qq');
+  private async getConfig(configId?: string): Promise<QQConfig> {
+    let config = null;
+
+    if (configId) {
+      config = await this.oauthProviderService.getByConfigId(configId);
+    } else {
+      const configs = await this.oauthProviderService.listByCode(OAuthProviderCode.QQ);
+      config = configs.find((c) => c.isDefault) || configs.find((c) => c.enabled) || null;
+    }
+
+    if (config) {
+      return {
+        appId: config.appId,
+        appSecret: config.appSecret,
+        redirectUri: config.redirectUri || '',
+      };
+    }
+
+    const envConfig = this.configService.get<QQConfig>('qq');
+    if (!envConfig?.appId || !envConfig?.appSecret || !envConfig?.redirectUri) {
+      throw new UnauthorizedException('QQ OAuth configuration is missing');
+    }
+    return envConfig;
+  }
+
+  async getAuthorizationUrl(state?: string, configId?: string): Promise<QQAuthUrlResponse> {
+    const config = await this.getConfig(configId);
     if (!config?.appId || !config?.redirectUri) {
       throw new Error('QQ OAuth configuration is missing');
     }
@@ -51,20 +82,17 @@ export class QQOAuthService {
     return { url };
   }
 
-  /**
-   * Handle QQ OAuth callback
-   * Exchanges code for token, gets userinfo via two-step process, creates/links user
-   */
-  async handleCallback(code: string, ip?: string): Promise<TokenResponse> {
+  async handleCallback(code: string, ip?: string, configId?: string): Promise<TokenResponse> {
     this.logger.log('Processing QQ OAuth callback');
 
-    const tokenResponse = await this.getAccessToken(code);
+    const tokenResponse = await this.getAccessToken(code, configId);
     const { access_token } = tokenResponse;
 
     const openIdResponse = await this.getOpenId(access_token);
     const { openid, unionid } = openIdResponse;
 
-    const userInfo = await this.getUserInfo(access_token, openid);
+    const config = await this.getConfig(configId);
+    const userInfo = await this.getUserInfo(access_token, openid, config.appId);
 
     const socialAccount = await this.usersService.findSocialAccount(SocialProvider.QQ, openid);
 
@@ -79,6 +107,8 @@ export class QQOAuthService {
         username,
         nickname: userInfo.nickname,
         avatarUrl: userInfo.figureurl_qq_1,
+        authType: UserAuthType.OAUTH,
+        authSource: 'qq',
       });
 
       await this.usersService.createSocialAccount(user.id, SocialProvider.QQ, openid, {
@@ -96,12 +126,8 @@ export class QQOAuthService {
     return this.authService.generateTokens(user);
   }
 
-  /**
-   * Exchange authorization code for access token
-   * CRITICAL: fmt=json is required - QQ defaults to JSONP without it
-   */
-  private async getAccessToken(code: string): Promise<QQAccessTokenResponse> {
-    const config = this.configService.get<QQConfig>('qq');
+  private async getAccessToken(code: string, configId?: string): Promise<QQAccessTokenResponse> {
+    const config = await this.getConfig(configId);
     if (!config?.appId || !config?.appSecret) {
       throw new UnauthorizedException('QQ OAuth configuration is missing');
     }
@@ -137,9 +163,6 @@ export class QQOAuthService {
     }
   }
 
-  /**
-   * Get openid from QQ - required step before fetching userinfo
-   */
   private async getOpenId(accessToken: string): Promise<QQOpenIdResponse> {
     const params = new URLSearchParams({
       access_token: accessToken,
@@ -168,18 +191,14 @@ export class QQOAuthService {
     }
   }
 
-  /**
-   * Get user info from QQ using access token and openid
-   */
-  private async getUserInfo(accessToken: string, openid: string): Promise<QQUserInfo> {
-    const config = this.configService.get<QQConfig>('qq');
-    if (!config?.appId) {
-      throw new UnauthorizedException('QQ OAuth configuration is missing');
-    }
-
+  private async getUserInfo(
+    accessToken: string,
+    openid: string,
+    appId: string
+  ): Promise<QQUserInfo> {
     const params = new URLSearchParams({
       access_token: accessToken,
-      oauth_consumer_key: config.appId,
+      oauth_consumer_key: appId,
       openid,
     });
 

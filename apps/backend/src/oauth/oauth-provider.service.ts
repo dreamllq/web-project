@@ -28,6 +28,19 @@ export interface ProviderMetadata {
   isEnabled: boolean;
 }
 
+export interface CreateProviderData {
+  code: OAuthProviderCode;
+  configName: string;
+  appId: string;
+  appSecret: string;
+  redirectUri?: string;
+  displayName?: string;
+  icon?: string;
+  color?: string;
+  sortOrder?: number;
+  isDefault?: boolean;
+}
+
 @Injectable()
 export class OAuthProviderService {
   private cache: Map<OAuthProviderCode, OAuthProviderConfig> = new Map();
@@ -79,6 +92,49 @@ export class OAuthProviderService {
 
   async disable(id: string): Promise<OAuthProviderConfig> {
     return this.update(id, { enabled: false });
+  }
+
+  async create(data: CreateProviderData): Promise<OAuthProviderConfig> {
+    const config = this.configRepository.create({
+      code: data.code,
+      configName: data.configName,
+      name: data.configName,
+      appId: data.appId,
+      appSecret: data.appSecret,
+      redirectUri: data.redirectUri || null,
+      displayName: data.displayName || null,
+      icon: data.icon || null,
+      color: data.color || null,
+      sortOrder: data.sortOrder ?? null,
+      isDefault: data.isDefault ?? false,
+      enabled: true,
+    });
+
+    const savedConfig = await this.configRepository.save(config);
+    this.clearCacheForProvider(data.code);
+
+    return savedConfig;
+  }
+
+  async delete(id: string): Promise<void> {
+    const config = await this.configRepository.findOne({ where: { id } });
+    if (!config) {
+      throw new NotFoundException('Provider configuration not found');
+    }
+
+    await this.configRepository.delete(id);
+    this.clearCacheForProvider(config.code);
+  }
+
+  async getByConfigId(id: string): Promise<OAuthProviderConfig | null> {
+    return this.configRepository.findOne({ where: { id } });
+  }
+
+  async listByCode(code: OAuthProviderCode): Promise<OAuthProviderConfig[]> {
+    return this.configRepository.find({
+      where: { code },
+      order: { isDefault: 'DESC', createdAt: 'ASC' },
+    });
   }
 
   clearCache(): void {

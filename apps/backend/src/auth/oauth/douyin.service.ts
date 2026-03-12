@@ -5,13 +5,21 @@ import { firstValueFrom } from 'rxjs';
 import { AuthService, TokenResponse } from '../auth.service';
 import { UsersService } from '../../users/users.service';
 import { SocialProvider } from '../../entities/social-account.entity';
-import { DouyinConfig } from '../../config/douyin.config';
+import { UserAuthType } from '../../entities/user.entity';
+import { OAuthProviderCode } from '../../entities/oauth-provider-config.entity';
+import { OAuthProviderService } from '../../oauth/oauth-provider.service';
 import {
   DouyinAccessTokenResponse,
   DouyinUserInfo,
   DouyinAuthUrlResponse,
   DouyinErrorResponse,
 } from './dto/douyin.dto';
+
+interface DouyinConfig {
+  appId: string;
+  appSecret: string;
+  redirectUri: string;
+}
 
 @Injectable()
 export class DouyinOAuthService {
@@ -24,16 +32,41 @@ export class DouyinOAuthService {
     private readonly configService: ConfigService,
     private readonly httpService: HttpService,
     private readonly usersService: UsersService,
-    private readonly authService: AuthService
+    private readonly authService: AuthService,
+    private readonly oauthProviderService: OAuthProviderService
   ) {}
 
-  async getAuthorizationUrl(state?: string): Promise<DouyinAuthUrlResponse> {
-    const config = this.configService.get<DouyinConfig>('douyin');
+  private async getConfig(configId?: string): Promise<DouyinConfig> {
+    let config = null;
+
+    if (configId) {
+      config = await this.oauthProviderService.getByConfigId(configId);
+    } else {
+      const configs = await this.oauthProviderService.listByCode(OAuthProviderCode.DOUYIN);
+      config = configs.find((c) => c.isDefault) || configs.find((c) => c.enabled) || null;
+    }
+
+    if (config) {
+      return {
+        appId: config.appId,
+        appSecret: config.appSecret,
+        redirectUri: config.redirectUri || '',
+      };
+    }
+
+    const envConfig = this.configService.get<DouyinConfig>('douyin');
+    if (!envConfig?.appId || !envConfig?.appSecret || !envConfig?.redirectUri) {
+      throw new UnauthorizedException('Douyin OAuth configuration is missing');
+    }
+    return envConfig;
+  }
+
+  async getAuthorizationUrl(state?: string, configId?: string): Promise<DouyinAuthUrlResponse> {
+    const config = await this.getConfig(configId);
     if (!config?.appId || !config?.redirectUri) {
       throw new Error('Douyin OAuth configuration is missing');
     }
 
-    // CRITICAL: Douyin requires HTTPS for redirect_uri
     if (!config.redirectUri.startsWith('https://')) {
       throw new Error('Douyin redirect_uri must use HTTPS');
     }
@@ -52,10 +85,10 @@ export class DouyinOAuthService {
     return { url };
   }
 
-  async handleCallback(code: string, ip?: string): Promise<TokenResponse> {
+  async handleCallback(code: string, ip?: string, configId?: string): Promise<TokenResponse> {
     this.logger.log('Processing Douyin OAuth callback');
 
-    const tokenResponse = await this.getAccessToken(code);
+    const tokenResponse = await this.getAccessToken(code, configId);
     const { access_token, open_id } = tokenResponse;
 
     const userInfo = await this.getUserInfo(access_token, open_id);
@@ -73,6 +106,8 @@ export class DouyinOAuthService {
         username,
         nickname: userInfo.nickname,
         avatarUrl: userInfo.avatar,
+        authType: UserAuthType.OAUTH,
+        authSource: 'douyin',
       });
 
       await this.usersService.createSocialAccount(user.id, SocialProvider.DOUYIN, open_id, {
@@ -92,8 +127,11 @@ export class DouyinOAuthService {
     return this.authService.generateTokens(user);
   }
 
-  private async getAccessToken(code: string): Promise<DouyinAccessTokenResponse> {
-    const config = this.configService.get<DouyinConfig>('douyin');
+  private async getAccessToken(
+    code: string,
+    configId?: string
+  ): Promise<DouyinAccessTokenResponse> {
+    const config = await this.getConfig(configId);
     if (!config?.appId || !config?.appSecret) {
       throw new UnauthorizedException('Douyin OAuth configuration is missing');
     }

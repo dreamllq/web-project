@@ -5,7 +5,9 @@ import { firstValueFrom } from 'rxjs';
 import { AuthService, TokenResponse } from '../auth.service';
 import { UsersService } from '../../users/users.service';
 import { SocialProvider } from '../../entities/social-account.entity';
-import { FeishuConfig } from '../../config/feishu.config';
+import { UserAuthType } from '../../entities/user.entity';
+import { OAuthProviderCode } from '../../entities/oauth-provider-config.entity';
+import { OAuthProviderService } from '../../oauth/oauth-provider.service';
 import { FeishuAccessTokenResponse, FeishuUserInfo } from './dto/feishu.dto';
 
 export interface FeishuAuthUrlResponse {
@@ -15,6 +17,12 @@ export interface FeishuAuthUrlResponse {
 export interface FeishuErrorResponse {
   error: string;
   error_description: string;
+}
+
+interface FeishuConfig {
+  appId: string;
+  appSecret: string;
+  redirectUri: string;
 }
 
 @Injectable()
@@ -29,11 +37,37 @@ export class FeishuOAuthService {
     private readonly configService: ConfigService,
     private readonly httpService: HttpService,
     private readonly usersService: UsersService,
-    private readonly authService: AuthService
+    private readonly authService: AuthService,
+    private readonly oauthProviderService: OAuthProviderService
   ) {}
 
-  async getAuthorizationUrl(state?: string): Promise<FeishuAuthUrlResponse> {
-    const config = this.configService.get<FeishuConfig>('feishu');
+  private async getConfig(configId?: string): Promise<FeishuConfig> {
+    let config = null;
+
+    if (configId) {
+      config = await this.oauthProviderService.getByConfigId(configId);
+    } else {
+      const configs = await this.oauthProviderService.listByCode(OAuthProviderCode.FEISHU);
+      config = configs.find((c) => c.isDefault) || configs.find((c) => c.enabled) || null;
+    }
+
+    if (config) {
+      return {
+        appId: config.appId,
+        appSecret: config.appSecret,
+        redirectUri: config.redirectUri || '',
+      };
+    }
+
+    const envConfig = this.configService.get<FeishuConfig>('feishu');
+    if (!envConfig?.appId || !envConfig?.appSecret || !envConfig?.redirectUri) {
+      throw new UnauthorizedException('Feishu OAuth configuration is missing');
+    }
+    return envConfig;
+  }
+
+  async getAuthorizationUrl(state?: string, configId?: string): Promise<FeishuAuthUrlResponse> {
+    const config = await this.getConfig(configId);
     if (!config?.appId || !config?.redirectUri) {
       throw new Error('Feishu OAuth configuration is missing');
     }
@@ -51,10 +85,10 @@ export class FeishuOAuthService {
     return { url };
   }
 
-  async handleCallback(code: string, ip?: string): Promise<TokenResponse> {
+  async handleCallback(code: string, ip?: string, configId?: string): Promise<TokenResponse> {
     this.logger.log('Processing Feishu OAuth callback');
 
-    const tokenResponse = await this.getAccessToken(code);
+    const tokenResponse = await this.getAccessToken(code, configId);
     const { access_token } = tokenResponse;
 
     const userInfo = await this.getUserInfo(access_token);
@@ -80,6 +114,8 @@ export class FeishuOAuthService {
         avatarUrl: userInfo.avatar_url,
         email: userInfo.email,
         phone: userInfo.mobile,
+        authType: UserAuthType.OAUTH,
+        authSource: 'feishu',
       });
 
       await this.usersService.createSocialAccount(
@@ -103,8 +139,11 @@ export class FeishuOAuthService {
     return this.authService.generateTokens(user);
   }
 
-  private async getAccessToken(code: string): Promise<FeishuAccessTokenResponse> {
-    const config = this.configService.get<FeishuConfig>('feishu');
+  private async getAccessToken(
+    code: string,
+    configId?: string
+  ): Promise<FeishuAccessTokenResponse> {
+    const config = await this.getConfig(configId);
     if (!config?.appId || !config?.appSecret) {
       throw new UnauthorizedException('Feishu OAuth configuration is missing');
     }
