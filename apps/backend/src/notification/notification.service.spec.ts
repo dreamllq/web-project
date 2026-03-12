@@ -3,7 +3,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { NotFoundException } from '@nestjs/common';
 import { NotificationService } from './notification.service';
 import { Notification, NotificationType } from '../entities/notification.entity';
-import { User, UserStatus } from '../entities/user.entity';
+import { User, UserStatus, UserAuthType } from '../entities/user.entity';
 
 describe('NotificationService', () => {
   let service: NotificationService;
@@ -17,6 +17,8 @@ describe('NotificationService', () => {
     nickname: null,
     avatarUrl: null,
     status: UserStatus.ACTIVE,
+    authType: UserAuthType.PASSWORD,
+    authSource: null,
     locale: 'zh-CN',
     lastLoginAt: null,
     lastLoginIp: null,
@@ -150,7 +152,7 @@ describe('NotificationService', () => {
       expect(mockRepository.findAndCount).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { userId: 'user-uuid', type: NotificationType.SYSTEM },
-        }),
+        })
       );
     });
 
@@ -165,7 +167,7 @@ describe('NotificationService', () => {
             userId: 'user-uuid',
             readAt: expect.anything(),
           }),
-        }),
+        })
       );
     });
 
@@ -199,9 +201,7 @@ describe('NotificationService', () => {
     it('should throw NotFoundException if notification not found', async () => {
       mockRepository.findOne.mockResolvedValue(null);
 
-      await expect(service.findOne('user-uuid', 'non-existent')).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(service.findOne('user-uuid', 'non-existent')).rejects.toThrow(NotFoundException);
     });
   });
 
@@ -233,9 +233,9 @@ describe('NotificationService', () => {
     it('should throw NotFoundException if notification not found', async () => {
       mockRepository.findOne.mockResolvedValue(null);
 
-      await expect(
-        service.markAsRead('user-uuid', 'non-existent'),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.markAsRead('user-uuid', 'non-existent')).rejects.toThrow(
+        NotFoundException
+      );
     });
   });
 
@@ -247,7 +247,7 @@ describe('NotificationService', () => {
 
       expect(mockRepository.update).toHaveBeenCalledWith(
         { userId: 'user-uuid', readAt: expect.anything() },
-        { readAt: expect.any(Date) },
+        { readAt: expect.any(Date) }
       );
     });
   });
@@ -278,9 +278,7 @@ describe('NotificationService', () => {
     it('should throw NotFoundException if notification not found', async () => {
       mockRepository.findOne.mockResolvedValue(null);
 
-      await expect(
-        service.remove('user-uuid', 'non-existent'),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.remove('user-uuid', 'non-existent')).rejects.toThrow(NotFoundException);
     });
   });
 });

@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { PolicyEvaluatorService, UserAttributes } from './policy-evaluator.service';
 import { PolicyService } from './policy.service';
 import { Policy, PolicyEffect } from '../entities/policy.entity';
-import { User, UserStatus } from '../entities/user.entity';
+import { User, UserStatus, UserAuthType } from '../entities/user.entity';
 import type { PolicySubject, ConditionExpression } from './types/policy.types';
 
 describe('PolicyEvaluatorService', () => {
@@ -17,6 +17,8 @@ describe('PolicyEvaluatorService', () => {
     nickname: 'Test User',
     avatarUrl: null,
     status: UserStatus.ACTIVE,
+    authType: UserAuthType.PASSWORD,
+    authSource: null,
     locale: 'en-US',
     lastLoginAt: null,
     lastLoginIp: null,

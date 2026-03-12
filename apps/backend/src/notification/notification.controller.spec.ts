@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { NotificationController } from './notification.controller';
 import { NotificationService } from './notification.service';
 import { Notification, NotificationType } from '../entities/notification.entity';
-import { User, UserStatus } from '../entities/user.entity';
+import { User, UserStatus, UserAuthType } from '../entities/user.entity';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 describe('NotificationController', () => {
@@ -17,6 +17,8 @@ describe('NotificationController', () => {
     nickname: null,
     avatarUrl: null,
     status: UserStatus.ACTIVE,
+    authType: UserAuthType.PASSWORD,
+    authSource: null,
     locale: 'zh-CN',
     lastLoginAt: null,
     lastLoginIp: null,
@@ -167,19 +169,15 @@ describe('NotificationController', () => {
       expect(result).toEqual(mockNotification);
       expect(mockNotificationService.findOne).toHaveBeenCalledWith(
         'user-uuid',
-        'notification-uuid',
+        'notification-uuid'
       );
     });
 
     it('should propagate NotFoundException from service', async () => {
       const { NotFoundException } = await import('@nestjs/common');
-      mockNotificationService.findOne.mockRejectedValue(
-        new NotFoundException('Not found'),
-      );
+      mockNotificationService.findOne.mockRejectedValue(new NotFoundException('Not found'));
 
-      await expect(
-        controller.findOne(mockUser, 'non-existent'),
-      ).rejects.toThrow(NotFoundException);
+      await expect(controller.findOne(mockUser, 'non-existent')).rejects.toThrow(NotFoundException);
     });
   });
 
@@ -193,7 +191,7 @@ describe('NotificationController', () => {
       expect(result).toEqual(readNotification);
       expect(mockNotificationService.markAsRead).toHaveBeenCalledWith(
         'user-uuid',
-        'notification-uuid',
+        'notification-uuid'
       );
     });
   });

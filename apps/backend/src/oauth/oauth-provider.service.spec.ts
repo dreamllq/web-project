@@ -12,6 +12,8 @@ describe('OAuthProviderService', () => {
   const mockConfig: OAuthProviderConfig = {
     id: 'test-id',
     code: OAuthProviderCode.WECHAT,
+    configName: 'default',
+    isDefault: true,
     name: 'WeChat',
     appId: 'wx123456',
     appSecret: 'secret123',

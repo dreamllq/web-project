@@ -58,6 +58,8 @@ describe('AuthController', () => {
     nickname: null,
     avatarUrl: null,
     status: UserStatus.ACTIVE,
+    authType: 'password' as any,
+    authSource: null,
     locale: 'zh-CN',
     lastLoginAt: null,
     lastLoginIp: null,

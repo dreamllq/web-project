@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { DeviceController, DeviceResponse } from './device.controller';
 import { UserDeviceService, DeviceInfo } from '../services/user-device.service';
-import { User, UserStatus } from '../../entities/user.entity';
+import { User, UserStatus, UserAuthType } from '../../entities/user.entity';
 import { NotFoundException } from '@nestjs/common';
 import { TrustDeviceDto } from '../dto/trust-device.dto';
 import { RemoveDeviceDto } from '../dto/remove-device.dto';
@@ -19,6 +19,8 @@ describe('DeviceController', () => {
     nickname: 'Test User',
     avatarUrl: 'http://example.com/avatar.jpg',
     status: UserStatus.ACTIVE,
+    authType: UserAuthType.PASSWORD,
+    authSource: null,
     locale: 'zh-CN',
     lastLoginAt: new Date(),
     lastLoginIp: '192.168.1.1',

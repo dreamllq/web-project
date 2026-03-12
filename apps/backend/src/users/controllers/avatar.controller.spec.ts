@@ -4,7 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { AvatarController } from './avatar.controller';
 import { StorageService } from '../../storage/storage.service';
 import { UsersService } from '../users.service';
-import { User, UserStatus } from '../../entities/user.entity';
+import { User, UserStatus, UserAuthType } from '../../entities/user.entity';
 
 // Mock sharp module
 jest.mock('sharp', () => {
@@ -29,6 +29,8 @@ describe('AvatarController', () => {
     nickname: 'Test User',
     avatarUrl: null,
     status: UserStatus.ACTIVE,
+    authType: UserAuthType.PASSWORD,
+    authSource: null,
     locale: 'zh-CN',
     lastLoginAt: new Date(),
     lastLoginIp: '192.168.1.1',

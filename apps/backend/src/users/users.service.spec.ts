@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { ConflictException, BadRequestException, UnauthorizedException } from '@nestjs/common';
-import { User, UserStatus } from '../entities/user.entity';
+import { User, UserStatus, UserAuthType } from '../entities/user.entity';
 import { SocialAccount, SocialProvider } from '../entities/social-account.entity';
 import { UsersService, CreateUserData, CreateOAuthUserData } from './users.service';
 
@@ -21,6 +21,8 @@ describe('UsersService', () => {
     nickname: null,
     avatarUrl: null,
     status: UserStatus.ACTIVE,
+    authType: UserAuthType.PASSWORD,
+    authSource: null,
     locale: 'zh-CN',
     lastLoginAt: null,
     lastLoginIp: null,

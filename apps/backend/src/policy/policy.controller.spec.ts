@@ -5,7 +5,7 @@ import { PolicyService } from './policy.service';
 import { PolicyEvaluatorService } from './policy-evaluator.service';
 import { Policy, PolicyEffect } from '../entities/policy.entity';
 import { PolicySubject } from './types/policy.types';
-import { User, UserStatus } from '../entities/user.entity';
+import { User, UserStatus, UserAuthType } from '../entities/user.entity';
 import { RoleService } from '../rbac/role.service';
 
 describe('PolicyController', () => {
@@ -20,6 +20,8 @@ describe('PolicyController', () => {
     nickname: null,
     avatarUrl: null,
     status: UserStatus.ACTIVE,
+    authType: UserAuthType.PASSWORD,
+    authSource: null,
     locale: 'en-US',
     lastLoginAt: null,
     lastLoginIp: null,

@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { UsersController, UserProfileResponse } from './users.controller';
 import { UsersService } from './users.service';
-import { User, UserStatus } from '../entities/user.entity';
+import { User, UserStatus, UserAuthType } from '../entities/user.entity';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { BadRequestException, UnauthorizedException } from '@nestjs/common';
@@ -20,6 +20,8 @@ describe('UsersController', () => {
     nickname: 'Test User',
     avatarUrl: 'http://example.com/avatar.jpg',
     status: UserStatus.ACTIVE,
+    authType: UserAuthType.PASSWORD,
+    authSource: null,
     locale: 'zh-CN',
     lastLoginAt: new Date(),
     lastLoginIp: '192.168.1.1',

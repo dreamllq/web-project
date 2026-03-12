@@ -10,11 +10,7 @@ jest.mock('fs/promises', () => ({
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
-import {
-  NotFoundException,
-  ForbiddenException,
-  BadRequestException,
-} from '@nestjs/common';
+import { NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { FileService } from './file.service';
 import { File, StorageProvider } from '../entities/file.entity';
 import { User, UserStatus } from '../entities/user.entity';
@@ -31,6 +27,8 @@ describe('FileService', () => {
     nickname: null,
     avatarUrl: null,
     status: UserStatus.ACTIVE,
+    authType: 'password' as any,
+    authSource: null,
     locale: 'zh-CN',
     lastLoginAt: null,
     lastLoginIp: null,
@@ -68,13 +66,7 @@ describe('FileService', () => {
   const mockStorageConfig = {
     uploadDir: '/uploads',
     maxFileSize: 10 * 1024 * 1024, // 10MB
-    allowedMimeTypes: [
-      'image/jpeg',
-      'image/png',
-      'image/gif',
-      'image/webp',
-      'application/pdf',
-    ],
+    allowedMimeTypes: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf'],
   };
 
   const mockRepository = {
@@ -143,9 +135,7 @@ describe('FileService', () => {
         size: 20 * 1024 * 1024, // 20MB
       };
 
-      await expect(service.upload('user-uuid', largeFile)).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(service.upload('user-uuid', largeFile)).rejects.toThrow(BadRequestException);
     });
 
     it('should throw BadRequestException for invalid MIME type', async () => {
@@ -154,9 +144,7 @@ describe('FileService', () => {
         mimetype: 'application/exe',
       };
 
-      await expect(service.upload('user-uuid', invalidFile)).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(service.upload('user-uuid', invalidFile)).rejects.toThrow(BadRequestException);
     });
   });
 
@@ -185,7 +173,7 @@ describe('FileService', () => {
           where: expect.objectContaining({
             mimeType: expect.anything(),
           }),
-        }),
+        })
       );
     });
 
@@ -219,9 +207,7 @@ describe('FileService', () => {
     it('should throw NotFoundException if file not found', async () => {
       mockRepository.findOne.mockResolvedValue(null);
 
-      await expect(
-        service.findOne('user-uuid', 'non-existent'),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.findOne('user-uuid', 'non-existent')).rejects.toThrow(NotFoundException);
     });
   });
 
@@ -240,9 +226,7 @@ describe('FileService', () => {
     it('should throw NotFoundException if file not found', async () => {
       mockRepository.findOne.mockResolvedValue(null);
 
-      await expect(
-        service.findByStoredName('non-existent.png'),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.findByStoredName('non-existent.png')).rejects.toThrow(NotFoundException);
     });
   });
 
@@ -259,18 +243,14 @@ describe('FileService', () => {
     it('should throw NotFoundException if file not found', async () => {
       mockRepository.findOne.mockResolvedValue(null);
 
-      await expect(
-        service.delete('user-uuid', 'non-existent'),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.delete('user-uuid', 'non-existent')).rejects.toThrow(NotFoundException);
     });
 
     it('should throw ForbiddenException if user does not own the file', async () => {
       const otherUserFile = { ...mockFile, userId: 'other-user-uuid' };
       mockRepository.findOne.mockResolvedValue(otherUserFile);
 
-      await expect(
-        service.delete('user-uuid', 'file-uuid'),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(service.delete('user-uuid', 'file-uuid')).rejects.toThrow(ForbiddenException);
     });
   });
 
