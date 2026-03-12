@@ -15,7 +15,7 @@ export default defineConfig({
         port: 3002,
         proxy: {
             '/api': {
-                target: "http://localhost:".concat(process.env.PORT||3000),
+                target: "http://localhost:".concat(process.env.PORT || 3000),
                 changeOrigin: true,
             },
         },

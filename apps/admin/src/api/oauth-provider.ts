@@ -30,6 +30,7 @@ export interface OAuthProvider {
   id: string;
   code: string;
   name: string;
+  configName: string;
   appId: string;
   redirectUri: string | null;
   enabled: boolean;
@@ -140,4 +141,123 @@ export function batchEnable(ids: string[]): Promise<{ success: boolean }> {
  */
 export function batchDisable(ids: string[]): Promise<{ success: boolean }> {
   return api.post('/v1/oauth/providers/batch/disable', { ids });
+}
+
+// ============================================
+// Create Provider DTO
+// ============================================
+
+/**
+ * DTO for creating a new OAuth provider configuration
+ * Matches backend CreateProviderDto
+ */
+export interface CreateProviderDto {
+  code: OAuthProviderCode | string;
+  configName: string;
+  appId: string;
+  appSecret: string;
+  redirectUri?: string;
+  displayName?: string;
+  icon?: string;
+  color?: string;
+  sortOrder?: number;
+  isDefault?: boolean;
+}
+
+/**
+ * Create a new OAuth provider configuration
+ * POST /v1/oauth/providers
+ * @param data - Provider configuration data
+ * @returns Created provider
+ */
+export function createProvider(data: CreateProviderDto): Promise<OAuthProvider> {
+  return api.post('/v1/oauth/providers', data);
+}
+
+/**
+ * Delete an OAuth provider configuration
+ * DELETE /v1/oauth/providers/:id
+ * @param id - Provider UUID
+ * @returns void
+ */
+export function deleteProvider(id: string): Promise<void> {
+  return api.delete(`/v1/oauth/providers/${id}`);
+}
+
+// ============================================
+// Login Options (Public API)
+// ============================================
+
+/**
+ * Response interface for login option
+ * Matches backend LoginOptionResponse
+ */
+export interface LoginOption {
+  code: string;
+  displayName: string;
+  icon: string;
+  color: string;
+  enabled: boolean;
+  sortOrder: number;
+}
+
+/**
+ * Get available OAuth login options (public endpoint)
+ * GET /v1/oauth/login-options
+ * @returns Array of login options
+ */
+export async function getLoginOptions(): Promise<LoginOption[]> {
+  const response = await api.get<{ data: LoginOption[] }>('/v1/oauth/login-options');
+  return response.data.data;
+}
+
+// ============================================
+// Test Login Types
+// ============================================
+
+/**
+ * Response for starting test login
+ */
+export interface TestLoginUrlResponse {
+  url: string;
+  configId: string;
+  provider: string;
+}
+
+/**
+ * Response for test login result
+ */
+export interface TestLoginResponse {
+  providerUserId: string;
+  nickname: string | null;
+  avatarUrl: string | null;
+  provider: string;
+  rawUserInfo: Record<string, unknown>;
+}
+
+// ============================================
+// Test Login API Functions
+// ============================================
+
+/**
+ * Start test login - get OAuth authorization URL
+ * POST /v1/oauth/providers/test-login/:configId
+ * @param configId - Provider configuration UUID
+ * @returns Authorization URL and config info
+ */
+export function startTestLogin(configId: string): Promise<TestLoginUrlResponse> {
+  return api.post(`/v1/oauth/providers/test-login/${configId}`);
+}
+
+/**
+ * Get test login result after OAuth callback
+ * GET /v1/oauth/providers/test-login/:configId/callback
+ * @param configId - Provider configuration UUID
+ * @param code - OAuth authorization code
+ * @returns Test user info from OAuth provider
+ */
+export function getTestLoginResult(configId: string, code: string): Promise<TestLoginResponse> {
+  return api.get(`/v1/oauth/providers/test-login/${configId}/callback`, {
+    params: { code },
+  });
 }

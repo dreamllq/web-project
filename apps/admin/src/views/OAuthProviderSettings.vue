@@ -2,21 +2,26 @@
 import { ref, computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Edit } from '@element-plus/icons-vue';
+import { Edit, Plus, Delete, Connection } from '@element-plus/icons-vue';
 import {
   listProviders,
   getMetadata,
   updateProvider,
   batchEnable,
   batchDisable,
+  createProvider,
+  deleteProvider,
 } from '@/api/oauth-provider';
 import { extractApiError } from '@/api';
 import type {
   OAuthProvider,
   ProviderMetadata,
   UpdateProviderMetadataDto,
+  CreateProviderDto,
 } from '@/api/oauth-provider';
 import OAuthProviderForm from '@/components/OAuthProviderForm.vue';
+import OAuthProviderCreateForm from '@/components/OAuthProviderCreateForm.vue';
+import TestLoginDialog from '@/components/TestLoginDialog.vue';
 
 // ============================================
 // State
@@ -31,6 +36,13 @@ const selectedIds = ref<string[]>([]);
 // Dialog state
 const dialogVisible = ref(false);
 const currentProvider = ref<OAuthProvider | null>(null);
+
+// Create dialog state
+const createDialogVisible = ref(false);
+
+// Test login dialog state
+const testLoginDialogVisible = ref(false);
+const testLoginConfig = ref<{ id: string; name: string } | null>(null);
 
 // ============================================
 // Computed
@@ -175,6 +187,52 @@ async function handleBatchDisable() {
   }
 }
 
+function openCreateDialog() {
+  createDialogVisible.value = true;
+}
+
+async function handleCreateSubmit(data: CreateProviderDto) {
+  try {
+    await createProvider(data);
+    ElMessage.success(t('oauth.providers.createSuccess'));
+    createDialogVisible.value = false;
+    await fetchProviders();
+  } catch (error: unknown) {
+    const apiError = extractApiError(error);
+    ElMessage.error(apiError.displayMessage);
+  }
+}
+
+async function handleDelete(provider: OAuthProvider) {
+  try {
+    await ElMessageBox.confirm(
+      t('oauth.providers.deleteConfirm', { name: provider.configName || provider.name }),
+      t('oauth.providers.delete'),
+      {
+        type: 'warning',
+        confirmButtonText: t('common.confirm'),
+        cancelButtonText: t('common.cancel'),
+      }
+    );
+
+    await deleteProvider(provider.id);
+    ElMessage.success(t('oauth.providers.deleteSuccess'));
+    await fetchProviders();
+  } catch (error: unknown) {
+    if (error === 'cancel') return;
+    const apiError = extractApiError(error);
+    ElMessage.error(apiError.displayMessage);
+  }
+}
+
+function openTestLogin(provider: OAuthProvider) {
+  testLoginConfig.value = {
+    id: provider.id,
+    name: provider.configName || provider.displayName || provider.name,
+  };
+  testLoginDialogVisible.value = true;
+}
+
 // ============================================
 // Lifecycle
 // ============================================
@@ -194,6 +252,9 @@ onMounted(() => {
             <p class="subtitle">{{ t('oauth.providers.subtitle') }}</p>
           </div>
           <div class="header-actions">
+            <el-button type="primary" :icon="Plus" @click="openCreateDialog">
+              {{ t('oauth.providers.create') }}
+            </el-button>
             <span v-if="hasSelection" class="selection-info">
               {{ t('oauth.providers.selectedCount', { count: selectedIds.length }) }}
             </span>
@@ -226,6 +287,12 @@ onMounted(() => {
 
         <el-table-column prop="name" :label="t('oauth.providers.name')" width="140" />
 
+        <el-table-column prop="configName" :label="t('oauth.providers.configName')" min-width="140">
+          <template #default="{ row }">
+            <span>{{ row.configName || '-' }}</span>
+          </template>
+        </el-table-column>
+
         <el-table-column
           prop="displayName"
           :label="t('oauth.providers.displayName')"
@@ -254,11 +321,34 @@ onMounted(() => {
           </template>
         </el-table-column>
 
-        <el-table-column :label="t('common.actions')" width="100" fixed="right">
+        <el-table-column :label="t('common.actions')" width="220" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" size="small" :icon="Edit" link @click="openEditDialog(row)">
-              {{ t('common.edit') }}
-            </el-button>
+            <div class="action-buttons">
+              <el-button
+                type="warning"
+                size="small"
+                :icon="Connection"
+                link
+                @click="openTestLogin(row)"
+              >
+                {{ t('oauth.providers.testLogin.button') }}
+              </el-button>
+              <el-button type="primary" size="small" :icon="Edit" link @click="openEditDialog(row)">
+                {{ t('common.edit') }}
+              </el-button>
+              <el-popconfirm
+                :title="t('oauth.providers.deleteConfirm', { name: row.configName || row.name })"
+                :confirm-button-text="t('common.confirm')"
+                :cancel-button-text="t('common.cancel')"
+                @confirm="handleDelete(row)"
+              >
+                <template #reference>
+                  <el-button type="danger" size="small" :icon="Delete" link>
+                    {{ t('common.delete') }}
+                  </el-button>
+                </template>
+              </el-popconfirm>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -276,6 +366,20 @@ onMounted(() => {
       v-model:visible="dialogVisible"
       @submit="handleFormSubmit"
       @cancel="dialogVisible = false"
+    />
+
+    <!-- Test Login Dialog -->
+    <TestLoginDialog
+      v-model:visible="testLoginDialogVisible"
+      :config-id="testLoginConfig?.id || ''"
+      :provider-name="testLoginConfig?.name || ''"
+    />
+
+    <!-- Create Provider Dialog -->
+    <OAuthProviderCreateForm
+      v-model:visible="createDialogVisible"
+      @submit="handleCreateSubmit"
+      @cancel="createDialogVisible = false"
     />
   </div>
 </template>
@@ -343,6 +447,13 @@ onMounted(() => {
 
 .text-muted {
   color: #909399;
+}
+
+.action-buttons {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
 }
 
 /* Table Styles */
