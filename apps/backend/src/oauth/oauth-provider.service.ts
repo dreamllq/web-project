@@ -167,7 +167,9 @@ export class OAuthProviderService {
       throw new NotFoundException('Provider configuration not found');
     }
 
-    const updatePayload: any = {};
+    const updatePayload: Partial<
+      Pick<OAuthProviderConfig, 'displayName' | 'icon' | 'color' | 'sortOrder'>
+    > = {};
     if (dto.displayName !== undefined) updatePayload.displayName = dto.displayName;
     if (dto.icon !== undefined) updatePayload.icon = dto.icon;
     if (dto.color !== undefined) updatePayload.color = dto.color;
