@@ -1,5 +1,5 @@
 // User entities
-export { User, UserStatus } from './user.entity';
+export { User, UserStatus, UserAuthType } from './user.entity';
 export { SocialAccount, SocialProvider, SocialAccountStatus } from './social-account.entity';
 
 // ABAC entities

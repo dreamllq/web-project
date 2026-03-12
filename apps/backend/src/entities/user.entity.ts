@@ -18,6 +18,12 @@ export enum UserStatus {
   PENDING = 'pending',
 }
 
+export enum UserAuthType {
+  PASSWORD = 'password',
+  OAUTH = 'oauth',
+  HYBRID = 'hybrid',
+}
+
 @Entity('users')
 export class User {
   @PrimaryGeneratedColumn('uuid')
@@ -50,6 +56,17 @@ export class User {
     default: UserStatus.PENDING,
   })
   status: UserStatus;
+
+  @Column({
+    name: 'auth_type',
+    type: 'enum',
+    enum: UserAuthType,
+    default: UserAuthType.PASSWORD,
+  })
+  authType: UserAuthType;
+
+  @Column({ name: 'auth_source', type: 'varchar', length: 50, nullable: true })
+  authSource: string | null;
 
   @Column({ type: 'varchar', length: 10, default: 'zh-CN' })
   locale: string;

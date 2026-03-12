@@ -19,7 +19,7 @@ export enum OAuthProviderCode {
 }
 
 @Entity('oauth_provider_configs')
-@Index(['code'], { unique: true })
+@Index(['code'])
 export class OAuthProviderConfig {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -27,9 +27,14 @@ export class OAuthProviderConfig {
   @Column({
     type: 'enum',
     enum: OAuthProviderCode,
-    unique: true,
   })
   code: OAuthProviderCode;
+
+  @Column({ name: 'config_name', type: 'varchar', length: 100 })
+  configName: string;
+
+  @Column({ name: 'is_default', type: 'boolean', default: false })
+  isDefault: boolean;
 
   @Column({ type: 'varchar', length: 100 })
   name: string;
