@@ -32,25 +32,52 @@ function logout() {
         text-color="rgba(255, 255, 255, 0.85)"
         active-text-color="#fff"
       >
+        <!-- 首页 -->
         <el-menu-item index="/admin">
           <el-icon><HomeFilled /></el-icon>
           <span>{{ t('menu.dashboard') }}</span>
         </el-menu-item>
-        <el-sub-menu index="user-center">
+
+        <!-- 用户管理 -->
+        <el-sub-menu index="user-management">
           <template #title>
             <el-icon><UserFilled /></el-icon>
-            <span>{{ t('menu.userCenter') }}</span>
+            <span>{{ t('menu.userManagement') }}</span>
           </template>
           <el-menu-item index="/admin/users">
             <el-icon><User /></el-icon>
             <span>{{ t('menu.users') }}</span>
           </el-menu-item>
+        </el-sub-menu>
+
+        <!-- 权限控制 -->
+        <el-sub-menu index="access-control">
+          <template #title>
+            <el-icon><Lock /></el-icon>
+            <span>{{ t('menu.accessControl') }}</span>
+          </template>
           <el-menu-item index="/admin/roles">
             <el-icon><Avatar /></el-icon>
             <span>{{ t('menu.roles') }}</span>
           </el-menu-item>
-          <el-menu-item index="/admin/oauth-clients">
+          <el-menu-item index="/admin/permissions">
             <el-icon><Key /></el-icon>
+            <span>{{ t('menu.permissions') }}</span>
+          </el-menu-item>
+          <el-menu-item index="/admin/policies">
+            <el-icon><Document /></el-icon>
+            <span>{{ t('menu.policies') }}</span>
+          </el-menu-item>
+        </el-sub-menu>
+
+        <!-- OAuth 管理 -->
+        <el-sub-menu index="oauth-management">
+          <template #title>
+            <el-icon><Connection /></el-icon>
+            <span>{{ t('menu.oauthManagement') }}</span>
+          </template>
+          <el-menu-item index="/admin/oauth-clients">
+            <el-icon><Monitor /></el-icon>
             <span>{{ t('menu.oauthClients') }}</span>
           </el-menu-item>
           <el-menu-item index="/admin/oauth-tokens">
@@ -65,11 +92,33 @@ function logout() {
             <el-icon><Setting /></el-icon>
             <span>{{ t('menu.oauthProviders') }}</span>
           </el-menu-item>
+        </el-sub-menu>
+
+        <!-- 安全中心 -->
+        <el-sub-menu index="security-center">
+          <template #title>
+            <el-icon><Shield /></el-icon>
+            <span>{{ t('menu.securityCenter') }}</span>
+          </template>
           <el-menu-item index="/admin/api-keys">
             <el-icon><Unlock /></el-icon>
             <span>{{ t('menu.apiKeys') }}</span>
           </el-menu-item>
+          <el-menu-item index="/admin/devices">
+            <el-icon><Iphone /></el-icon>
+            <span>{{ t('menu.devices') }}</span>
+          </el-menu-item>
+          <el-menu-item index="/admin/login-history">
+            <el-icon><Clock /></el-icon>
+            <span>{{ t('menu.loginHistory') }}</span>
+          </el-menu-item>
         </el-sub-menu>
+
+        <!-- 审计日志 -->
+        <el-menu-item index="/admin/audit-logs">
+          <el-icon><List /></el-icon>
+          <span>{{ t('menu.auditLogs') }}</span>
+        </el-menu-item>
       </el-menu>
     </el-aside>
 

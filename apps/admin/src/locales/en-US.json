@@ -32,6 +32,7 @@
   "menu": {
     "dashboard": "Dashboard",
     "users": "Users",
+    "userManagement": "User Management",
     "auditLogs": "Audit Logs",
     "devices": "Device Management",
     "loginHistory": "Login History",
@@ -47,7 +48,10 @@
     "oauthTokens": "OAuth Tokens",
     "socialAccounts": "Social Accounts",
     "oauthProviders": "OAuth Providers",
-    "apiKeys": "API Keys"
+    "apiKeys": "API Keys",
+    "accessControl": "Access Control",
+    "oauthManagement": "OAuth Management",
+    "securityCenter": "Security Center"
   },
   "dashboard": {
     "title": "Dashboard",
