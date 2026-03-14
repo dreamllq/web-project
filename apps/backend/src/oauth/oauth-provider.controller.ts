@@ -19,6 +19,7 @@ import {
   ApiParam,
   ApiQuery,
 } from '@nestjs/swagger';
+import { ConfigService } from '@nestjs/config';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionGuard } from '../policy/guards/permission.guard';
 import { RequirePermission } from '../policy/decorators/require-permission.decorator';
@@ -62,7 +63,8 @@ export interface ProviderMetadataListResponse {
 export class OAuthProviderController {
   constructor(
     private readonly oauthProviderService: OAuthProviderService,
-    private readonly oauthTestLoginService: OAuthTestLoginService
+    private readonly oauthTestLoginService: OAuthTestLoginService,
+    private readonly configService: ConfigService
   ) {}
 
   @Get()
@@ -225,6 +227,19 @@ export class OAuthProviderController {
 
   private sanitizeProviderResponse(config: OAuthProviderConfig): OAuthProviderResponse {
     const { appSecret: _appSecret, ...rest } = config;
-    return rest;
+
+    // Generate callback URL based on backend URL
+    const backendUrl = this.configService.get<string>('backendUrl') || process.env.BACKEND_URL;
+    const generatedCallbackUrl =
+      backendUrl && !config.code.endsWith('_miniprogram')
+        ? `${backendUrl}/api/auth/oauth/${config.code}/callback`
+        : null;
+
+    return {
+      ...rest,
+      generatedCallbackUrl,
+      createdAt: config.createdAt.toISOString(),
+      updatedAt: config.updatedAt.toISOString(),
+    };
   }
 }

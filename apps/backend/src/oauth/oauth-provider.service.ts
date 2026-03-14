@@ -8,6 +8,7 @@ export interface UpdateProviderData {
   appId?: string;
   appSecret?: string;
   redirectUri?: string | null;
+  frontendRedirectUrl?: string | null;
   enabled?: boolean;
   config?: Record<string, unknown> | null;
 }
@@ -17,6 +18,7 @@ export interface UpdateProviderMetadataDto {
   icon?: string;
   color?: string;
   sortOrder?: number;
+  frontendRedirectUrl?: string | null;
 }
 
 export interface ProviderMetadata {
@@ -34,6 +36,7 @@ export interface CreateProviderData {
   appId: string;
   appSecret: string;
   redirectUri?: string;
+  frontendRedirectUrl?: string;
   displayName?: string;
   icon?: string;
   color?: string;
@@ -102,6 +105,7 @@ export class OAuthProviderService {
       appId: data.appId,
       appSecret: data.appSecret,
       redirectUri: data.redirectUri || null,
+      frontendRedirectUrl: data.frontendRedirectUrl || null,
       displayName: data.displayName || null,
       icon: data.icon || null,
       color: data.color || null,
@@ -168,12 +172,18 @@ export class OAuthProviderService {
     }
 
     const updatePayload: Partial<
-      Pick<OAuthProviderConfig, 'displayName' | 'icon' | 'color' | 'sortOrder'>
+      Pick<
+        OAuthProviderConfig,
+        'displayName' | 'icon' | 'color' | 'sortOrder' | 'frontendRedirectUrl'
+      >
     > = {};
     if (dto.displayName !== undefined) updatePayload.displayName = dto.displayName;
     if (dto.icon !== undefined) updatePayload.icon = dto.icon;
     if (dto.color !== undefined) updatePayload.color = dto.color;
     if (dto.sortOrder !== undefined) updatePayload.sortOrder = dto.sortOrder;
+    if (dto.frontendRedirectUrl !== undefined) {
+      updatePayload.frontendRedirectUrl = dto.frontendRedirectUrl || null;
+    }
 
     if (Object.keys(updatePayload).length > 0) {
       await this.configRepository.update(id, updatePayload);

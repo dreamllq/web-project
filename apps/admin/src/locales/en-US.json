@@ -15,7 +15,9 @@
     "warning": "Warning",
     "noData": "No data available",
     "actions": "Actions",
-    "close": "Close"
+    "close": "Close",
+    "copied": "Copied to clipboard",
+    "copyFailed": "Failed to copy"
   },
   "login": {
     "title": "Admin Login",
@@ -493,7 +495,14 @@
       "redirectUri": "Redirect URI",
       "redirectUriPlaceholder": "Enter OAuth redirect URI",
       "redirectUriHint": "Callback URL after OAuth authentication",
+      "redirectUriHintNew": "This URL must be configured in the third-party OAuth platform (e.g., WeChat Open Platform)",
       "redirectUriMaxLength": "Redirect URI cannot exceed 500 characters",
+      "callbackUrl": "Callback URL",
+      "callbackUrlHint": "Configure this URL in the third-party OAuth platform (e.g., WeChat Open Platform)",
+      "callbackExample": "Callback URL Example",
+      "frontendRedirectUrl": "Frontend Redirect URL",
+      "frontendRedirectUrlPlaceholder": "e.g., https://portal.example.com",
+      "frontendRedirectUrlHint": "The frontend page URL to redirect after OAuth authentication, leave empty for default",
       "displaySettings": "Display Settings",
       "isDefault": "Set as Default",
       "isDefaultHint": "Default configuration will be used when no specific config is specified",

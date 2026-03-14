@@ -2,7 +2,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Edit, Plus, Delete, Connection } from '@element-plus/icons-vue';
+import { Edit, Plus, Delete, Connection, CopyDocument } from '@element-plus/icons-vue';
 import {
   listProviders,
   getMetadata,
@@ -233,6 +233,15 @@ function openTestLogin(provider: OAuthProvider) {
   testLoginDialogVisible.value = true;
 }
 
+async function copyToClipboard(text: string) {
+  try {
+    await navigator.clipboard.writeText(text);
+    ElMessage.success(t('common.copied'));
+  } catch {
+    ElMessage.error(t('common.copyFailed'));
+  }
+}
+
 // ============================================
 // Lifecycle
 // ============================================
@@ -317,6 +326,25 @@ onMounted(() => {
             <el-tag v-if="row.providerType" type="info" size="small">
               {{ row.providerType }}
             </el-tag>
+            <span v-else class="text-muted">-</span>
+          </template>
+        </el-table-column>
+
+        <el-table-column
+          prop="redirectUri"
+          :label="t('oauth.providers.redirectUri')"
+          min-width="280"
+        >
+          <template #default="{ row }">
+            <div v-if="row.redirectUri" class="redirect-uri-cell">
+              <span class="mono-text" :title="row.redirectUri">{{ row.redirectUri }}</span>
+              <el-button
+                size="small"
+                link
+                :icon="CopyDocument"
+                @click="copyToClipboard(row.redirectUri)"
+              />
+            </div>
             <span v-else class="text-muted">-</span>
           </template>
         </el-table-column>
@@ -447,6 +475,24 @@ onMounted(() => {
 
 .text-muted {
   color: #909399;
+}
+
+.redirect-uri-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.redirect-uri-cell .mono-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 240px;
+}
+
+.mono-text {
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Mono', monospace;
+  font-size: 12px;
 }
 
 .action-buttons {

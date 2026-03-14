@@ -27,3 +27,9 @@ export { ApiKey } from './api-key.entity';
 // Device & Login entities
 export { UserDevice } from './user-device.entity';
 export { LoginHistory, LoginMethod } from './login-history.entity';
+
+// Chat entities
+export { Room, RoomType } from './room.entity';
+export { RoomMember, RoomMemberRole } from './room-member.entity';
+export { Message, MessageType } from './message.entity';
+export { MessageRead } from './message-read.entity';

@@ -43,25 +43,51 @@ export class UpdateProviderMetadataDto {
   @Min(0)
   @Max(999)
   sortOrder?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500, { message: 'Frontend redirect URL must not exceed 500 characters' })
+  frontendRedirectUrl?: string;
 }
 
 /**
- * Response interface for OAuth provider (without sensitive data)
+ * Response interface for OAuth provider configuration
+ * Matches backend OAuthProviderResponse
  */
 export interface OAuthProviderResponse {
   id: string;
   code: string;
   name: string;
+  configName: string;
   appId: string;
   redirectUri: string | null;
+  generatedCallbackUrl: string | null;
+  frontendRedirectUrl: string | null;
   enabled: boolean;
   displayName: string | null;
   icon: string | null;
   color: string | null;
   providerType: string | null;
   sortOrder: number | null;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Response for callback URL format
+ */
+export interface CallbackUrlFormatResponse {
+  backendUrl: string;
+  format: string;
+  providers: Record<string, string>;
+}
+
+/**
+ * Response for callback URL info
+ */
+export interface CallbackUrlInfoResponse {
+  backendUrl: string | null;
+  callbackUrlTemplate: string;
 }
 
 /**
@@ -100,6 +126,11 @@ export class CreateProviderDto {
   @IsOptional()
   @IsString()
   redirectUri?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500, { message: 'Frontend redirect URL must not exceed 500 characters' })
+  frontendRedirectUrl?: string;
 
   @IsOptional()
   @IsString()

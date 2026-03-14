@@ -7,6 +7,7 @@ import { AppModule } from './app.module';
 // import { InitService } from './init/init.service';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { NestExpressApplication } from '@nestjs/platform-express';
+import { RedisIoAdapter } from './adapters/redis-io.adapter';
 
 /**
  * Check if the application has been initialized
@@ -59,6 +60,10 @@ async function bootstrap() {
   app.useStaticAssets(uploadDir, {
     prefix: '/uploads/',
   });
+
+  // Register Redis WebSocket adapter for multi-instance support
+  const redisIoAdapter = new RedisIoAdapter(app);
+  app.useWebSocketAdapter(redisIoAdapter);
 
   // Register global exception filter
   app.useGlobalFilters(new AllExceptionsFilter());

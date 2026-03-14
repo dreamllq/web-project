@@ -15,7 +15,9 @@
     "warning": "Warning",
     "noData": "暂无数据",
     "actions": "操作",
-    "close": "关闭"
+    "close": "关闭",
+    "copied": "已复制到剪贴板",
+    "copyFailed": "复制失败"
   },
   "login": {
     "title": "Admin Login",
@@ -493,7 +495,14 @@
       "redirectUri": "回调地址",
       "redirectUriPlaceholder": "请输入 OAuth 回调地址",
       "redirectUriHint": "OAuth 认证完成后的回调地址",
+      "redirectUriHintNew": "此地址需要配置到第三方 OAuth 平台（如微信开放平台）的授权回调域中",
       "redirectUriMaxLength": "回调地址不能超过 500 个字符",
+      "callbackUrl": "回调地址",
+      "callbackUrlHint": "请将此地址配置到第三方 OAuth 平台（如微信开放平台）的授权回调域中",
+      "callbackExample": "回调地址示例",
+      "frontendRedirectUrl": "前端重定向地址",
+      "frontendRedirectUrlPlaceholder": "例如: https://portal.example.com",
+      "frontendRedirectUrlHint": "OAuth 认证完成后重定向到的前端页面地址，留空则使用默认地址",
       "displaySettings": "显示设置",
       "isDefault": "设为默认配置",
       "isDefaultHint": "默认配置将在未指定配置时使用",

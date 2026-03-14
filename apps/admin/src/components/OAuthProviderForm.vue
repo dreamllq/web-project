@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { ElMessage } from 'element-plus';
+import { CopyDocument } from '@element-plus/icons-vue';
 import type { FormInstance, FormRules } from 'element-plus';
 import type { OAuthProvider, UpdateProviderMetadataDto } from '@/api/oauth-provider';
 
@@ -134,6 +136,15 @@ function handleColorInput(value: string) {
     formData.value.color = `#${value}`;
   }
 }
+
+async function copyToClipboard(text: string) {
+  try {
+    await navigator.clipboard.writeText(text);
+    ElMessage.success(t('common.copied'));
+  } catch {
+    ElMessage.error(t('common.copyFailed'));
+  }
+}
 </script>
 
 <template>
@@ -147,7 +158,7 @@ function handleColorInput(value: string) {
     <!-- Provider Info Section (Readonly) -->
     <div v-if="provider" class="provider-info">
       <div class="info-title">{{ t('oauth.providers.basicInfo') }}</div>
-      <el-descriptions :column="2" border size="small">
+      <el-descriptions :column="1" border size="small">
         <el-descriptions-item :label="t('oauth.providers.code')">
           <el-tag size="small">{{ provider.code }}</el-tag>
         </el-descriptions-item>
@@ -159,6 +170,18 @@ function handleColorInput(value: string) {
         </el-descriptions-item>
         <el-descriptions-item :label="t('oauth.providers.providerType')">
           <el-tag type="info" size="small">{{ provider.providerType || '-' }}</el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item :label="t('oauth.providers.redirectUri')">
+          <div v-if="provider.redirectUri" class="redirect-uri-display">
+            <span class="mono-text">{{ provider.redirectUri }}</span>
+            <el-button
+              size="small"
+              link
+              :icon="CopyDocument"
+              @click="copyToClipboard(provider.redirectUri)"
+            />
+          </div>
+          <span v-else class="text-muted">-</span>
         </el-descriptions-item>
       </el-descriptions>
     </div>
@@ -247,6 +270,20 @@ function handleColorInput(value: string) {
 .mono-text {
   font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Mono', monospace;
   font-size: 12px;
+}
+
+.redirect-uri-display {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.redirect-uri-display .mono-text {
+  word-break: break-all;
+}
+
+.text-muted {
+  color: #909399;
 }
 
 .color-input-wrapper {

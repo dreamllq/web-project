@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { ElMessage } from 'element-plus';
+import { CopyDocument } from '@element-plus/icons-vue';
 import type { FormInstance, FormRules } from 'element-plus';
 import type { CreateProviderDto, OAuthProviderCode } from '@/api/oauth-provider';
 
@@ -24,6 +26,7 @@ const formData = ref<CreateProviderDto>({
   appId: '',
   appSecret: '',
   redirectUri: '',
+  frontendRedirectUrl: '',
   displayName: '',
   icon: '',
   color: '',
@@ -36,6 +39,22 @@ const dialogVisible = computed({
   set: (value: boolean) => emit('update:visible', value),
 });
 
+// Get backend URL from current location (admin runs on same origin as API via proxy)
+const backendUrl = ref(typeof window !== 'undefined' ? window.location.origin : '');
+
+// Compute callback URL based on selected provider
+const generatedCallbackUrl = computed(() => {
+  if (!formData.value.code || !backendUrl.value) return '';
+
+  // Miniprogram providers don't need redirect URI
+  if (formData.value.code.endsWith('_miniprogram')) {
+    return '';
+  }
+
+  return `${backendUrl.value}/api/auth/oauth/${formData.value.code}/callback`;
+});
+
+// Provider type options
 const providerCodeOptions = [
   { value: 'wechat', label: '微信' },
   { value: 'wechat_miniprogram', label: '微信小程序' },
@@ -46,6 +65,13 @@ const providerCodeOptions = [
   { value: 'qq', label: 'QQ' },
   { value: 'baidu', label: '百度' },
 ];
+
+// Auto-fill redirect URI when provider or backend URL changes
+watch([() => formData.value.code, backendUrl], ([newCode, newUrl]) => {
+  if (newCode && newUrl && !newCode.endsWith('_miniprogram')) {
+    formData.value.redirectUri = `${newUrl}/api/auth/oauth/${newCode}/callback`;
+  }
+});
 
 const rules: FormRules<CreateProviderDto> = {
   code: [{ required: true, message: t('oauth.providers.codeRequired'), trigger: 'change' }],
@@ -107,10 +133,19 @@ function resetForm() {
     displayName: '',
     icon: '',
     color: '',
-    sortOrder: 0,
+    sortOrder: 1,
     isDefault: false,
   };
   formRef.value?.resetFields();
+}
+
+async function copyToClipboard(text: string) {
+  try {
+    await navigator.clipboard.writeText(text);
+    ElMessage.success(t('common.copied'));
+  } catch {
+    ElMessage.error(t('common.copyFailed'));
+  }
 }
 </script>
 
@@ -184,14 +219,33 @@ function resetForm() {
         </el-col>
       </el-row>
 
-      <el-form-item :label="t('oauth.providers.redirectUri')" prop="redirectUri">
+      <el-form-item v-if="generatedCallbackUrl" :label="t('oauth.providers.callbackUrl')">
+        <div class="callback-url-display">
+          <code class="url">{{ generatedCallbackUrl }}</code>
+          <el-button
+            type="primary"
+            link
+            :icon="CopyDocument"
+            @click="copyToClipboard(generatedCallbackUrl)"
+          >
+            {{ t('common.copy') }}
+          </el-button>
+        </div>
+        <div class="form-hint">{{ t('oauth.providers.callbackUrlHint') }}</div>
+      </el-form-item>
+
+      <el-form-item
+        v-if="!formData.code.endsWith('_miniprogram')"
+        :label="t('oauth.providers.frontendRedirectUrl')"
+        prop="frontendRedirectUrl"
+      >
         <el-input
-          v-model="formData.redirectUri"
-          :placeholder="t('oauth.providers.redirectUriPlaceholder')"
+          v-model="formData.frontendRedirectUrl"
+          :placeholder="t('oauth.providers.frontendRedirectUrlPlaceholder')"
           maxlength="500"
           clearable
         />
-        <div class="form-hint">{{ t('oauth.providers.redirectUriHint') }}</div>
+        <div class="form-hint">{{ t('oauth.providers.frontendRedirectUrlHint') }}</div>
       </el-form-item>
 
       <el-divider>{{ t('oauth.providers.displaySettings') }}</el-divider>
@@ -281,6 +335,53 @@ function resetForm() {
 
 .color-input-wrapper .el-input {
   flex: 1;
+}
+
+.callback-url-display {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background-color: #f5f7fa;
+  border-radius: 6px;
+  border: 1px solid #e4e7ed;
+}
+
+.callback-url-display .url {
+  flex: 1;
+  color: #409eff;
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Mono', monospace;
+  font-size: 13px;
+  word-break: break-all;
+}
+
+.redirect-uri-wrapper {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.redirect-uri-wrapper .redirect-uri-input {
+  flex: 1;
+}
+
+.callback-example {
+  margin-top: 8px;
+  padding: 8px 12px;
+  background-color: #f5f7fa;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.callback-example .label {
+  color: #606266;
+  margin-right: 8px;
+}
+
+.callback-example .url {
+  color: #409eff;
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Mono', monospace;
+  word-break: break-all;
 }
 
 .form-hint {

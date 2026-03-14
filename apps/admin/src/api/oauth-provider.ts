@@ -33,6 +33,8 @@ export interface OAuthProvider {
   configName: string;
   appId: string;
   redirectUri: string | null;
+  generatedCallbackUrl: string | null;
+  frontendRedirectUrl: string | null;
   enabled: boolean;
   displayName: string | null;
   icon: string | null;
@@ -157,6 +159,7 @@ export interface CreateProviderDto {
   appId: string;
   appSecret: string;
   redirectUri?: string;
+  frontendRedirectUrl?: string;
   displayName?: string;
   icon?: string;
   color?: string;

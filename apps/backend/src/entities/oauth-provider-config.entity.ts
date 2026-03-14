@@ -48,6 +48,9 @@ export class OAuthProviderConfig {
   @Column({ name: 'redirect_uri', type: 'varchar', length: 500, nullable: true })
   redirectUri: string | null;
 
+  @Column({ name: 'frontend_redirect_url', type: 'varchar', length: 500, nullable: true })
+  frontendRedirectUrl: string | null;
+
   @Column({ type: 'boolean', default: true })
   enabled: boolean;
 

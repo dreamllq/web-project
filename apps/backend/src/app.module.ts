@@ -23,6 +23,7 @@ import { OAuthModule } from './oauth/oauth.module';
 import { ApiKeyModule } from './api-key/api-key.module';
 import { InitModule } from './init/init.module';
 import { MailModule } from './mail/mail.module';
+import { ChatModule } from './chat/chat.module';
 import { storageConfig } from './config/storage.config';
 import { permissionConfig } from './config/permission.config';
 
@@ -78,6 +79,7 @@ import { permissionConfig } from './config/permission.config';
     ApiKeyModule,
     InitModule,
     MailModule,
+    ChatModule,
   ],
   controllers: [],
   providers: [
