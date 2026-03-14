@@ -19,6 +19,8 @@ export interface ChatJobData {
   roomId?: string;
   /** 发送者/操作者ID */
   userId?: string;
+  /** 用户名 (用于广播时显示) */
+  username?: string;
   /** 消息内容 */
   content?: string;
   /** 消息类型 */
@@ -85,13 +87,18 @@ export class ChatService {
    * 流程:
    * 1. 验证用户是房间成员
    * 2. 创建消息记录
-   * 3. 加入 Bull 队列异步处理
+   * 3. 加入 Bull 队列异步处理 (广播 + 离线通知)
    * 4. 更新房间最后消息时间
    *
    * @param userId 发送者ID
    * @param request 消息请求
+   * @param username 发送者用户名 (用于广播)
    */
-  async sendMessage(userId: string, request: SendMessageRequest): Promise<Message> {
+  async sendMessage(
+    userId: string,
+    request: SendMessageRequest,
+    username?: string
+  ): Promise<Message> {
     // 1. 验证用户是房间成员
     const isMember = await this.roomService.isMember(request.roomId, userId);
     if (!isMember) {
@@ -104,18 +111,18 @@ export class ChatService {
       senderId: userId,
       type: request.type ?? MessageType.TEXT,
       content: request.content,
-      metadata: request.metadata ?? null,
-      replyToId: request.replyToId ?? null,
+      metadata: request.metadata,
+      replyToId: request.replyToId,
     };
-
     const message = await this.messageService.create(messageData);
 
-    // 3. 加入 Bull 队列异步处理
+    // 3. 加入 Bull 队列异步处理 (广播 + 离线通知)
     const jobData: ChatJobData = {
       type: 'send_message',
       messageId: message.id,
       roomId: request.roomId,
       userId,
+      username,
       content: request.content,
       messageType: message.type,
       metadata: request.metadata,
@@ -125,12 +132,12 @@ export class ChatService {
 
     await this.messageQueue.add(jobData);
 
+    // 4. 更新房间最后消息时间
+    await this.roomService.updateLastMessageAt(request.roomId);
+
     this.logger.debug(
       `Message sent: messageId=${message.id}, roomId=${request.roomId}, userId=${userId}`
     );
-
-    // 4. 更新房间最后消息时间
-    await this.roomService.updateLastMessageAt(request.roomId);
 
     return message;
   }
@@ -141,17 +148,19 @@ export class ChatService {
    * 流程:
    * 1. 验证用户是房间成员
    * 2. 调用 MessageService.edit() (内部验证所有权)
-   * 3. 加入队列通知其他用户
+   * 3. 加入队列广播给其他用户
    * 4. 更新房间最后消息时间
    *
    * @param messageId 消息ID
    * @param userId 操作者ID
    * @param request 编辑请求
+   * @param username 操作者用户名 (用于广播)
    */
   async editMessage(
     messageId: string,
     userId: string,
-    request: EditMessageRequest
+    request: EditMessageRequest,
+    username?: string
   ): Promise<Message> {
     // 1. 获取消息以确定房间
     const existingMessage = await this.messageService.findById(messageId, false);
@@ -170,12 +179,13 @@ export class ChatService {
       content: request.content,
     } as EditMessageData);
 
-    // 4. 加入队列通知房间成员
+    // 4. 加入队列广播给房间成员
     const jobData: ChatJobData = {
       type: 'edit_message',
       messageId,
       roomId: message.roomId,
       userId,
+      username,
       content: request.content,
       timestamp: Date.now(),
     };
@@ -196,12 +206,13 @@ export class ChatService {
    * 2. 验证是消息发送者
    * 3. 检查5分钟时间限制
    * 4. 调用 MessageService.softDelete()
-   * 5. 加入队列通知其他用户
+   * 5. 加入队列广播给其他用户
    *
    * @param messageId 消息ID
    * @param userId 操作者ID
+   * @param username 操作者用户名 (用于广播)
    */
-  async recallMessage(messageId: string, userId: string): Promise<Message> {
+  async recallMessage(messageId: string, userId: string, username?: string): Promise<Message> {
     // 获取消息检查时间限制
     const message = await this.messageService.findById(messageId, false);
 
@@ -231,12 +242,13 @@ export class ChatService {
     // 调用 MessageService 软删除
     const deletedMessage = await this.messageService.softDelete(messageId, userId);
 
-    // 加入队列通知房间成员
+    // 加入队列广播给房间成员
     const jobData: ChatJobData = {
       type: 'recall_message',
       messageId,
       roomId: deletedMessage.roomId,
       userId,
+      username,
       timestamp: Date.now(),
     };
 
@@ -255,8 +267,9 @@ export class ChatService {
    *
    * @param roomId 房间ID
    * @param userId 用户ID
+   * @param username 用户名 (用于广播)
    */
-  async markAsRead(roomId: string, userId: string): Promise<void> {
+  async markAsRead(roomId: string, userId: string, username?: string): Promise<void> {
     // 验证用户是房间成员
     const isMember = await this.roomService.isMember(roomId, userId);
     if (!isMember) {
@@ -266,11 +279,12 @@ export class ChatService {
     // 更新成员的最后阅读时间
     await this.roomService.updateLastRead(roomId, userId);
 
-    // 加入队列处理已读回执
+    // 加入队列广播已读回执
     const jobData: ChatJobData = {
       type: 'mark_read',
       roomId,
       userId,
+      username,
       timestamp: Date.now(),
     };
 

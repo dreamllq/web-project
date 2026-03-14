@@ -2196,7 +2196,7 @@ socket.on('userTyping', (data) => {
 
 **方向**: Server → Room (房间内其他成员)
 
-**触发时机**: 用户发送 `markRead` 事件后
+**触发时机**: 用户发送 `markRead` 事件后，通过 Bull 队列异步广播
 
 **Payload**
 
@@ -2205,7 +2205,7 @@ socket.on('userTyping', (data) => {
   "userId": "550e8400-e29b-41d4-a716-446655440002",
   "username": "john_doe",
   "roomId": "550e8400-e29b-41d4-a716-446655440000",
-  "timestamp": "2026-03-14T10:30:00.000Z"
+  "readAt": "2026-03-14T10:30:00.000Z"
 }
 ```
 
@@ -2215,6 +2215,107 @@ socket.on('userTyping', (data) => {
 socket.on('messagesRead', (data) => {
   console.log(`${data.username} read messages in room ${data.roomId}`);
   // 更新已读状态显示
+});
+```
+
+---
+
+#### newMessage - 新消息 (队列广播)
+
+**方向**: Server → Room (房间内所有成员，包括发送者)
+
+**触发时机**: 用户发送 `sendMessage` 事件后，消息通过 Bull 队列处理时广播
+
+**处理流程**:
+
+1. 用户 A 发送 `sendMessage` 事件
+2. ChatService 保存消息到数据库
+3. 消息加入 Bull 队列
+4. MessageProcessor 处理队列任务
+5. 广播 `newMessage` 给房间所有成员
+6. 为离线用户创建推送通知
+
+**Payload**
+
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440010",
+  "roomId": "550e8400-e29b-41d4-a716-446655440000",
+  "senderId": "550e8400-e29b-41d4-a716-446655440002",
+  "type": "text",
+  "content": "Hello, World!",
+  "metadata": null,
+  "replyToId": null,
+  "createdAt": "2026-03-14T10:30:00.000Z"
+}
+```
+
+**监听示例**
+
+```javascript
+socket.on('newMessage', (message) => {
+  console.log(`New message in room ${message.roomId}: ${message.content}`);
+  // 将消息添加到聊天列表
+  appendMessageToChat(message);
+});
+```
+
+---
+
+#### messageEdited - 消息已编辑 (队列广播)
+
+**方向**: Server → Room (房间内所有成员)
+
+**触发时机**: 用户发送 `editMessage` 事件后，通过 Bull 队列异步广播
+
+**Payload**
+
+```json
+{
+  "messageId": "550e8400-e29b-41d4-a716-446655440010",
+  "roomId": "550e8400-e29b-41d4-a716-446655440000",
+  "editorId": "550e8400-e29b-41d4-a716-446655440002",
+  "content": "Hello, World! (edited)",
+  "editedAt": "2026-03-14T10:35:00.000Z"
+}
+```
+
+**监听示例**
+
+```javascript
+socket.on('messageEdited', (data) => {
+  console.log(`Message ${data.messageId} was edited`);
+  // 更新 UI 中的消息内容
+  updateMessageContent(data.messageId, data.content);
+});
+```
+
+---
+
+#### messageRecalled - 消息已撤回 (队列广播)
+
+**方向**: Server → Room (房间内所有成员)
+
+**触发时机**: 用户撤回消息后，通过 Bull 队列异步广播
+
+**Payload**
+
+```json
+{
+  "messageId": "550e8400-e29b-41d4-a716-446655440010",
+  "roomId": "550e8400-e29b-41d4-a716-446655440000",
+  "recalledBy": "550e8400-e29b-41d4-a716-446655440002",
+  "deletedAt": "2026-03-14T10:40:00.000Z"
+}
+```
+
+**监听示例**
+
+```javascript
+socket.on('messageRecalled', (data) => {
+  console.log(`Message ${data.messageId} was recalled`);
+  // 从 UI 中移除或标记消息为已撤回
+  removeOrMarkMessageAsRecalled(data.messageId);
 });
 ```
 
@@ -2554,14 +2655,20 @@ enum MemberRole {
 
 #### 服务端事件 (Server → Client)
 
-| 事件           | 方向            | 说明          |
-| -------------- | --------------- | ------------- |
-| `connection`   | Server → Client | 连接成功      |
-| `error`        | Server → Client | 认证失败/错误 |
-| `userJoined`   | Server → Room   | 用户加入房间  |
-| `userLeft`     | Server → Room   | 用户离开房间  |
-| `userTyping`   | Server → Room   | 输入状态变化  |
-| `messagesRead` | Server → Room   | 消息已读      |
+| 事件              | 方向            | 说明          | 触发方式     |
+| ----------------- | --------------- | ------------- | ------------ |
+| `connection`      | Server → Client | 连接成功      | Gateway 实时 |
+| `error`           | Server → Client | 认证失败/错误 | Gateway 实时 |
+| `userJoined`      | Server → Room   | 用户加入房间  | Gateway 实时 |
+| `userLeft`        | Server → Room   | 用户离开房间  | Gateway 实时 |
+| `userTyping`      | Server → Room   | 输入状态变化  | Gateway 实时 |
+| `newMessage`      | Server → Room   | 新消息        | Bull 队列    |
+| `messageEdited`   | Server → Room   | 消息已编辑    | Bull 队列    |
+| `messageRecalled` | Server → Room   | 消息已撤回    | Bull 队列    |
+| `messagesRead`    | Server → Room   | 消息已读      | Bull 队列    |
+
+> **注意**: `newMessage`、`messageEdited`、`messageRecalled`、`messagesRead` 事件通过 Bull 队列异步广播，
+> 相比 Gateway 实时广播有轻微延迟，但可以解耦消息处理逻辑并为离线用户创建推送通知。
 
 ---
 
@@ -2610,7 +2717,24 @@ socket.emit('joinRoom', { roomId: 'room-uuid' }, (response) => {
   }
 });
 
-// 3. 监听其他用户的消息
+// 3. 监听新消息 (通过 Bull 队列广播，有轻微延迟)
+socket.on('newMessage', (message) => {
+  console.log(`New message from ${message.senderId}: ${message.content}`);
+  // 将消息添加到聊天列表
+  appendMessageToChat(message);
+});
+
+// 4. 监听消息编辑
+socket.on('messageEdited', (data) => {
+  updateMessageContent(data.messageId, data.content);
+});
+
+// 5. 监听消息撤回
+socket.on('messageRecalled', (data) => {
+  removeOrMarkMessageAsRecalled(data.messageId);
+});
+
+// 6. 监听用户加入
 socket.on('userJoined', (data) => {
   console.log(`${data.username} joined`);
 });

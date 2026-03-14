@@ -234,7 +234,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   /**
    * 发送消息
-   * 消息通过 ChatService 处理，加入 Bull 队列异步分发
+   * 消息通过 ChatService 处理，加入 Bull 队列异步分发和广播
    */
   @SubscribeMessage('sendMessage')
   async handleSendMessage(
@@ -254,8 +254,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       replyToId: payload.replyToId,
     };
 
-    // 通过 ChatService 发送消息 (内部会加入队列)
-    const message = await this.chatService.sendMessage(user.id, request);
+    // 通过 ChatService 发送消息 (内部会加入队列广播)
+    const message = await this.chatService.sendMessage(user.id, request, user.username);
 
     this.logger.debug(`Message sent: ${message.id} by user ${user.username}`);
 
@@ -279,8 +279,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       content: payload.content,
     };
 
-    // 通过 ChatService 编辑消息 (内部会加入队列)
-    const message = await this.chatService.editMessage(payload.messageId, user.id, request);
+    // 通过 ChatService 编辑消息 (内部会加入队列广播)
+    const message = await this.chatService.editMessage(
+      payload.messageId,
+      user.id,
+      request,
+      user.username
+    );
 
     this.logger.debug(`Message edited: ${message.id} by user ${user.username}`);
 
@@ -328,16 +333,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     const { roomId } = payload;
 
-    // 通过 ChatService 标记已读
-    await this.chatService.markAsRead(roomId, user.id);
-
-    // 通知房间其他成员用户已读
-    client.to(`room:${roomId}`).emit('messagesRead', {
-      userId: user.id,
-      username: user.username,
-      roomId,
-      timestamp: new Date().toISOString(),
-    });
+    // 通过 ChatService 标记已读 (内部会加入队列广播)
+    await this.chatService.markAsRead(roomId, user.id, user.username);
 
     this.logger.debug(`Room ${roomId} marked as read by user ${user.username}`);
 
