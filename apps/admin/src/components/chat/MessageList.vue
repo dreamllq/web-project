@@ -309,6 +309,18 @@ watch(
   background-color: #e6f0ff;
 }
 
+.message-item.my-message .message-header {
+  flex-direction: row-reverse;
+}
+
+.message-item.my-message .message-content {
+  text-align: right;
+}
+
+.message-item.my-message .text-content {
+  text-align: right;
+}
+
 .message-item.system-message {
   margin-left: auto;
   margin-right: auto;
