@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { computed, ref, watch, nextTick } from 'vue';
+import { computed, ref, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useChatStore } from '@/stores/chat';
 import { useAuthStore } from '@/stores/auth';
-import { Document, Picture, ChatDotRound, WarningFilled } from '@element-plus/icons-vue';
+import { Document, Picture, ChatDotRound, WarningFilled, ArrowDown } from '@element-plus/icons-vue';
 import type { MessageResponse } from '@/types/chat';
 
 // ============================================
@@ -17,6 +17,9 @@ const authStore = useAuthStore();
 // Refs
 // ============================================
 const scrollerRef = ref<InstanceType<typeof import('vue-virtual-scroller').DynamicScroller>>();
+const isAtBottom = ref(true);
+const showScrollButton = ref(false);
+const isInitialLoad = ref(true);
 
 // ============================================
 // Computed
@@ -145,23 +148,97 @@ function getFileSize(message: MessageResponse): string {
  */
 function scrollToBottom(): void {
   nextTick(() => {
-    if (scrollerRef.value) {
+    if (scrollerRef.value && messages.value.length > 0) {
       scrollerRef.value.scrollToItem(messages.value.length - 1);
+      isAtBottom.value = true;
+      showScrollButton.value = false;
     }
   });
+}
+
+/**
+ * Handle scroll event to detect if user is at bottom
+ */
+function handleScroll(): void {
+  if (!scrollerRef.value) return;
+
+  const scrollerEl = scrollerRef.value.$el;
+  if (!scrollerEl) return;
+
+  const { scrollTop, scrollHeight, clientHeight } = scrollerEl;
+  const isBottom = scrollHeight - scrollTop - clientHeight < 50;
+
+  isAtBottom.value = isBottom;
+  showScrollButton.value = !isBottom && !isInitialLoad.value;
+}
+
+/**
+ * Check if should auto-scroll to bottom
+ */
+function shouldAutoScroll(): boolean {
+  return isAtBottom.value;
 }
 
 // ============================================
 // Watchers
 // ============================================
 
-// Auto-scroll to bottom when new messages arrive
+// Auto-scroll to bottom when new messages arrive (only if user is at bottom)
 watch(
   () => chatStore.currentMessages.length,
-  () => {
-    scrollToBottom();
+  (newLength, oldLength) => {
+    // Initial load - always scroll to bottom
+    if (isInitialLoad.value && newLength > 0) {
+      nextTick(() => {
+        scrollToBottom();
+        isInitialLoad.value = false;
+      });
+      return;
+    }
+
+    // New message arrived - only scroll if user is at bottom
+    if (newLength > (oldLength ?? 0) && shouldAutoScroll()) {
+      scrollToBottom();
+    }
   }
 );
+
+// Reset state when room changes
+watch(
+  () => chatStore.currentRoomId,
+  () => {
+    isInitialLoad.value = true;
+    showScrollButton.value = false;
+    isAtBottom.value = true;
+  }
+);
+
+// ============================================
+// Lifecycle
+// ============================================
+onMounted(() => {
+  // Scroll to bottom on initial mount if messages exist
+  if (messages.value.length > 0) {
+    nextTick(() => {
+      scrollToBottom();
+      isInitialLoad.value = false;
+    });
+  }
+
+  // Add scroll event listener to scroller element
+  nextTick(() => {
+    if (scrollerRef.value?.$el) {
+      scrollerRef.value.$el.addEventListener('scroll', handleScroll);
+    }
+  });
+});
+
+// Cleanup scroll listener on unmount
+onUnmounted(() => {
+  if (scrollerRef.value?.$el) {
+    scrollerRef.value.$el.removeEventListener('scroll', handleScroll);
+  }
+});
 </script>
 
 <template>
@@ -270,6 +347,19 @@ watch(
         </DynamicScrollerItem>
       </template>
     </DynamicScroller>
+
+    <!-- Scroll to Bottom Button -->
+    <transition name="fade">
+      <button
+        v-if="showScrollButton"
+        class="scroll-to-bottom-btn"
+        @click="scrollToBottom"
+        :title="t('chat.scrollToBottom')"
+      >
+        <el-icon :size="20"><ArrowDown /></el-icon>
+        <span class="new-message-badge">新消息</span>
+      </button>
+    </transition>
   </div>
 </template>
 
@@ -279,6 +369,7 @@ watch(
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  position: relative;
 }
 
 .scroller {
@@ -452,5 +543,59 @@ watch(
 
 :deep(.el-empty__description) {
   margin-top: 12px;
+}
+
+/* Scroll to Bottom Button */
+.scroll-to-bottom-btn {
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background-color: #fff;
+  border: 1px solid #dcdfe6;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #606266;
+  transition: all 0.3s ease;
+  z-index: 10;
+}
+
+.scroll-to-bottom-btn:hover {
+  background-color: #409eff;
+  border-color: #409eff;
+  color: #fff;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(64, 158, 255, 0.3);
+}
+
+.new-message-badge {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  background-color: #f56c6c;
+  color: #fff;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+
+/* Fade Transition */
+.fade-enter-active,
+.fade-leave-active {
+  transition:
+    opacity 0.3s ease,
+    transform 0.3s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+  transform: translateY(10px);
 }
 </style>
