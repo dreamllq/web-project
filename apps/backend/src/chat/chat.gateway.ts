@@ -4,6 +4,7 @@ import {
   SubscribeMessage,
   OnGatewayConnection,
   OnGatewayDisconnect,
+  OnGatewayInit,
   ConnectedSocket,
   MessageBody,
 } from '@nestjs/websockets';
@@ -85,11 +86,12 @@ interface MarkReadPayload {
   namespace: '/chat',
   cors: { origin: '*' },
 })
-export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
   server: Server;
 
   private readonly logger = new Logger(ChatGateway.name);
+  private isServerReady = false;
 
   constructor(
     private readonly authService: AuthService,
@@ -98,15 +100,30 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ) {}
 
   /**
+   * WebSocket 服务器初始化完成
+   */
+  afterInit(): void {
+    this.isServerReady = true;
+    this.logger.log('ChatGateway initialized, WebSocket server ready');
+  }
+
+  /**
    * 处理新 WebSocket 连接
    * 验证 JWT token 并附加用户信息到 socket
    */
   async handleConnection(client: Socket): Promise<void> {
     try {
-      // 从 query 或 auth header 提取 token
-      const token =
-        (client.handshake.query.token as string) ||
-        this.extractTokenFromAuthHeader(client.handshake.headers.authorization);
+      // 从 auth、query 或 auth header 提取 token
+      // 调试: 打印所有可能的 token 来源
+      const authToken = client.handshake.auth?.token as string | undefined;
+      const queryToken = client.handshake.query.token as string | undefined;
+      const headerToken = this.extractTokenFromAuthHeader(client.handshake.headers.authorization);
+
+      this.logger.debug(
+        `Token sources for client ${client.id}: auth=${!!authToken}, query=${!!queryToken}, header=${!!headerToken}`
+      );
+
+      const token = authToken || queryToken || headerToken;
 
       if (!token) {
         this.logger.warn(`Connection rejected: No token provided for client ${client.id}`);
@@ -235,6 +252,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   /**
    * 发送消息
    * 消息通过 ChatService 处理，加入 Bull 队列异步分发和广播
+   * 同时直接广播以确保实时性（队列作为 fallback）
    */
   @SubscribeMessage('sendMessage')
   async handleSendMessage(
@@ -256,6 +274,18 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     // 通过 ChatService 发送消息 (内部会加入队列广播)
     const message = await this.chatService.sendMessage(user.id, request, user.username);
+
+    // 立即广播消息（不依赖队列）确保实时性
+    this.broadcastToRoom(payload.roomId, 'newMessage', {
+      id: message.id,
+      roomId: payload.roomId,
+      senderId: user.id,
+      type: message.type,
+      content: message.content,
+      metadata: message.metadata,
+      replyToId: message.replyToId,
+      createdAt: message.createdAt,
+    });
 
     this.logger.debug(`Message sent: ${message.id} by user ${user.username}`);
 
@@ -346,8 +376,14 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
    * 供外部服务调用 (如 MessageProcessor)
    */
   broadcastToRoom(roomId: string, event: string, data: unknown): void {
-    this.server.to(`room:${roomId}`).emit(event, data);
+    if (!this.isServerReady || !this.server) {
+      this.logger.warn(`Cannot broadcast to room ${roomId}: WebSocket server not ready`);
+      return;
+    }
+
+    const roomName = `room:${roomId}`;
     this.logger.debug(`Broadcast to room ${roomId}: event=${event}`);
+    this.server.to(roomName).emit(event, data);
   }
 
   /**

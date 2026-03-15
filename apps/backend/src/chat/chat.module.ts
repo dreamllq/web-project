@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { BullModule } from '@nestjs/bull';
+import { BullModule } from '@nestjs/bullmq';
 import { ChatController } from './chat.controller';
 import { ChatService } from './chat.service';
 import { RoomService } from './services/room.service';
@@ -14,6 +14,8 @@ import { RoomMember } from '../entities/room-member.entity';
 import { Message } from '../entities/message.entity';
 import { MessageRead } from '../entities/message-read.entity';
 import { MESSAGE_QUEUE } from '../queue/queue.module';
+import { AuthModule } from '../auth/auth.module';
+import { NotificationModule } from '../notification/notification.module';
 
 @Module({
   imports: [
@@ -21,6 +23,8 @@ import { MESSAGE_QUEUE } from '../queue/queue.module';
     BullModule.registerQueue({
       name: MESSAGE_QUEUE,
     }),
+    AuthModule,
+    NotificationModule,
   ],
   controllers: [ChatController],
   providers: [

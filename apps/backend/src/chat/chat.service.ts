@@ -1,6 +1,6 @@
 import { Injectable, ForbiddenException, BadRequestException, Logger } from '@nestjs/common';
-import { InjectQueue } from '@nestjs/bull';
-import { Queue } from 'bull';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 import { MessageService, CreateMessageData, EditMessageData } from './services/message.service';
 import { RoomService } from './services/room.service';
 import { PresenceService, PresenceStatus } from './services/presence.service';
@@ -117,20 +117,34 @@ export class ChatService {
     const message = await this.messageService.create(messageData);
 
     // 3. 加入 Bull 队列异步处理 (广播 + 离线通知)
-    const jobData: ChatJobData = {
-      type: 'send_message',
-      messageId: message.id,
-      roomId: request.roomId,
-      userId,
-      username,
-      content: request.content,
-      messageType: message.type,
-      metadata: request.metadata,
-      replyToId: request.replyToId,
-      timestamp: Date.now(),
-    };
-
-    await this.messageQueue.add(jobData);
+    // 注意: 如果 Redis 不可用，队列操作会失败，但不影响消息已保存
+    try {
+      this.logger.debug(`Before Message job added to queue: messageId=${message.id}`);
+      const jobData: ChatJobData = {
+        type: 'send_message',
+        messageId: message.id,
+        roomId: request.roomId,
+        userId,
+        username,
+        content: request.content,
+        messageType: request.type ?? MessageType.TEXT,
+        metadata: request.metadata,
+        replyToId: request.replyToId,
+        timestamp: Date.now(),
+      };
+      // 添加超时控制，避免 Redis 连接问题导致无限阻塞
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('Queue add timeout')), 5000);
+      });
+      await Promise.race([this.messageQueue.add('send_message', jobData), timeoutPromise]);
+      this.logger.debug(`Message job added to queue: messageId=${message.id}`);
+    } catch (error) {
+      // 队列不可用时，消息已保存，只是离线通知会延迟
+      this.logger.warn(
+        `Failed to add message to queue (Redis may be unavailable): ${error instanceof Error ? error.message : 'Unknown error'}. ` +
+          `Message is saved but offline notifications may be delayed.`
+      );
+    }
 
     // 4. 更新房间最后消息时间
     await this.roomService.updateLastMessageAt(request.roomId);
@@ -189,12 +203,24 @@ export class ChatService {
       content: request.content,
       timestamp: Date.now(),
     };
-    await this.messageQueue.add(jobData);
+
+    // 注意: 如果 Redis 不可用，队列操作会失败，但不影响消息已编辑
+    try {
+      await this.messageQueue.add('edit_message', jobData);
+      this.logger.debug(`Message edit job added to queue: messageId=${messageId}`);
+    } catch (error) {
+      // 韟列不可用时，消息已编辑，只是广播会延迟
+      this.logger.warn(
+        `Failed to add edit job to queue (Redis may be unavailable): ${error instanceof Error ? error.message : 'Unknown error'}. ` +
+          `Message is edited but broadcast to may be delayed.`
+      );
+    }
 
     // 5. 更新房间最后消息时间
     await this.roomService.updateLastMessageAt(message.roomId);
 
-    this.logger.debug(`Message edited: messageId=${messageId}, userId=${userId}`);
+    this.logger.debug(`Message edited: ${message.id} by user ${userId}`);
+
     return message;
   }
 
@@ -252,7 +278,15 @@ export class ChatService {
       timestamp: Date.now(),
     };
 
-    await this.messageQueue.add(jobData);
+    try {
+      await this.messageQueue.add('recall_message', jobData);
+      this.logger.debug(`Recall job added to queue: messageId=${messageId}`);
+    } catch (error) {
+      this.logger.warn(
+        `Failed to add recall job to queue: ${error instanceof Error ? error.message : 'Unknown error'}. ` +
+          `Message is recalled but broadcast may be delayed.`
+      );
+    }
 
     this.logger.debug(`Message recalled: messageId=${messageId}, userId=${userId}`);
 
@@ -288,7 +322,15 @@ export class ChatService {
       timestamp: Date.now(),
     };
 
-    await this.messageQueue.add(jobData);
+    try {
+      await this.messageQueue.add('mark_read', jobData);
+      this.logger.debug(`Mark read job added to queue: roomId=${roomId}`);
+    } catch (error) {
+      this.logger.warn(
+        `Failed to add mark_read job to queue (Redis may be unavailable): ${error instanceof Error ? error.message : 'Unknown error'}. ` +
+          `Read status is updated but broadcast may be delayed.`
+      );
+    }
 
     this.logger.debug(`Room marked as read: roomId=${roomId}, userId=${userId}`);
   }
