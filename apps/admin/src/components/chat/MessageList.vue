@@ -215,7 +215,7 @@ watch(
               <!-- Message Header -->
               <div class="message-header">
                 <span class="sender-id">{{
-                  isMyMessage(message) ? '我' : message.senderId.slice(0, 8)
+                  isMyMessage(message) ? '我' : message.senderName || message.senderId.slice(0, 8)
                 }}</span>
                 <span class="message-time">{{ formatTime(message.createdAt) }}</span>
               </div>
@@ -293,6 +293,10 @@ watch(
   max-width: 70%;
   word-break: break-word;
   margin-bottom: 12px;
+}
+
+.message-item:not(.my-message):not(.system-message) {
+  align-self: flex-start;
 }
 
 .message-item.my-message {

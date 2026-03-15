@@ -250,6 +250,8 @@ export interface MessageResponse {
   roomId: string;
   /** 发送者 ID */
   senderId: string;
+  /** 发送者名称 */
+  senderName?: string;
   /** 消息类型 */
   type: MessageType;
   /** 消息内容 (撤回后为 null) */

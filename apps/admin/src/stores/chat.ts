@@ -34,6 +34,7 @@ interface NewMessageEvent {
   id: string;
   roomId: string;
   senderId: string;
+  senderName?: string;
   type: string;
   content: string;
   metadata: Record<string, unknown> | null;
@@ -280,6 +281,7 @@ export const useChatStore = defineStore('chat', () => {
       id: data.id,
       roomId: data.roomId,
       senderId: data.senderId,
+      senderName: data.senderName,
       type: data.type as MessageResponse['type'],
       content: data.content,
       metadata: data.metadata,
