@@ -292,7 +292,8 @@ watch(
   border-radius: 8px;
   max-width: 70%;
   word-break: break-word;
-  margin-bottom: 12px;
+  margin-bottom: 16px;
+  margin-top: 4px;
 }
 
 .message-item:not(.my-message):not(.system-message) {
