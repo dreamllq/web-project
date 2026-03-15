@@ -1,6 +1,7 @@
-import { Processor, Process, OnQueueCompleted, OnQueueFailed } from '@nestjs/bull';
+import { Processor, OnWorkerEvent } from '@nestjs/bullmq';
 import { Logger, Inject, forwardRef } from '@nestjs/common';
-import { Job } from 'bull';
+import { Job } from 'bullmq';
+import { WorkerHost } from '@nestjs/bullmq';
 import { NotificationService } from '../../notification/notification.service';
 import { NotificationType } from '../../entities/notification.entity';
 import { MESSAGE_QUEUE } from '../../queue/queue.module';
@@ -60,7 +61,7 @@ export interface ServerPushEvents {
  * 失败重试配置: 3次 (在 QueueModule 中配置)
  */
 @Processor(MESSAGE_QUEUE)
-export class MessageProcessor {
+export class MessageProcessor extends WorkerHost {
   private readonly logger = new Logger(MessageProcessor.name);
 
   constructor(
@@ -69,18 +70,44 @@ export class MessageProcessor {
     private readonly roomService: RoomService,
     @Inject(forwardRef(() => ChatGateway))
     private readonly chatGateway: ChatGateway
-  ) {}
+  ) {
+    super();
+  }
+
+  /**
+   * 处理任务入口 - 必须实现的抽象方法
+   */
+  async process(job: Job<ChatJobData>): Promise<void> {
+    const { type } = job.data;
+
+    this.logger.debug(`Processing job: id=${job.id}, type=${type}`);
+
+    switch (type) {
+      case 'send_message':
+        await this.handleSendMessage(job);
+        break;
+      case 'edit_message':
+        await this.handleEditMessage(job);
+        break;
+      case 'recall_message':
+        await this.handleRecallMessage(job);
+        break;
+      case 'mark_read':
+        await this.handleMarkRead(job);
+        break;
+      default:
+        this.logger.warn(`Unknown job type: ${type}`);
+    }
+  }
 
   /**
    * 处理发送消息任务
    *
-   * 1. 广播新消息给房间所有成员 (通过 WebSocket)
-   * 2. 为离线成员创建推送通知
+   * 注意: 消息广播已在 ChatGateway.handleSendMessage 中直接完成，确保实时性
+   * 本处理器只负责: 为离线成员创建推送通知
    */
-  @Process('send_message')
-  async handleSendMessage(job: Job<ChatJobData>): Promise<void> {
-    const { messageId, roomId, userId, content, messageType, metadata, replyToId, timestamp } =
-      job.data;
+  private async handleSendMessage(job: Job<ChatJobData>): Promise<void> {
+    const { messageId, roomId, userId, content } = job.data;
 
     this.logger.debug(
       `Processing send_message: messageId=${messageId}, roomId=${roomId}, senderId=${userId}`
@@ -92,21 +119,7 @@ export class MessageProcessor {
       return;
     }
 
-    // 1. 广播新消息给房间所有成员 (包括发送者，确保消息一致性)
-    this.chatGateway.broadcastToRoom(roomId, 'newMessage', {
-      id: messageId,
-      roomId,
-      senderId: userId,
-      type: messageType ?? 'text',
-      content: content ?? null,
-      metadata: metadata ?? null,
-      replyToId: replyToId ?? null,
-      createdAt: timestamp ? new Date(timestamp) : new Date(),
-    } as ServerPushEvents['newMessage']);
-
-    this.logger.debug(`Broadcast newMessage to room ${roomId}`);
-
-    // 2. 获取房间所有成员
+    // 获取房间所有成员
     const members = await this.roomService.getMembers(roomId);
     const memberIds = members.map((m) => m.userId);
 
@@ -118,11 +131,11 @@ export class MessageProcessor {
       return;
     }
 
-    // 3. 检查哪些用户离线
+    // 检查哪些用户离线
     const onlineStatuses = await this.presenceService.getOnlineUsers(recipientIds);
     const onlineUserIds = new Set(onlineStatuses.filter((s) => s.isOnline).map((s) => s.userId));
 
-    // 4. 为离线用户创建通知
+    // 为离线用户创建通知
     const offlineUserIds = recipientIds.filter((id) => !onlineUserIds.has(id));
 
     if (offlineUserIds.length === 0) {
@@ -141,7 +154,6 @@ export class MessageProcessor {
           messageId,
           roomId,
           senderId: userId,
-          messageType,
         },
       })
     );
@@ -156,8 +168,7 @@ export class MessageProcessor {
    *
    * 广播消息编辑事件给房间所有成员
    */
-  @Process('edit_message')
-  async handleEditMessage(job: Job<ChatJobData>): Promise<void> {
+  private async handleEditMessage(job: Job<ChatJobData>): Promise<void> {
     const { messageId, roomId, userId, content, timestamp } = job.data;
 
     this.logger.debug(
@@ -186,8 +197,7 @@ export class MessageProcessor {
    *
    * 广播消息撤回事件给房间所有成员
    */
-  @Process('recall_message')
-  async handleRecallMessage(job: Job<ChatJobData>): Promise<void> {
+  private async handleRecallMessage(job: Job<ChatJobData>): Promise<void> {
     const { messageId, roomId, userId, timestamp } = job.data;
 
     this.logger.debug(
@@ -215,8 +225,7 @@ export class MessageProcessor {
    *
    * 广播已读事件给房间所有成员
    */
-  @Process('mark_read')
-  async handleMarkRead(job: Job<ChatJobData>): Promise<void> {
+  private async handleMarkRead(job: Job<ChatJobData>): Promise<void> {
     const { roomId, userId, username, timestamp } = job.data;
 
     this.logger.debug(`Processing mark_read: roomId=${roomId}, userId=${userId}`);
@@ -240,7 +249,7 @@ export class MessageProcessor {
   /**
    * 任务完成时的回调
    */
-  @OnQueueCompleted()
+  @OnWorkerEvent('completed')
   onCompleted(job: Job<ChatJobData>): void {
     this.logger.debug(
       `Job completed: id=${job.id}, type=${job.data.type}, attemptsMade=${job.attemptsMade}`
@@ -250,7 +259,7 @@ export class MessageProcessor {
   /**
    * 任务失败时的回调
    */
-  @OnQueueFailed()
+  @OnWorkerEvent('failed')
   onFailed(job: Job<ChatJobData>, error: Error): void {
     this.logger.error(
       `Job failed: id=${job.id}, type=${job.data.type}, attemptsMade=${job.attemptsMade}, error=${error.message}`

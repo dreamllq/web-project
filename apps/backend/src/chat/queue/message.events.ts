@@ -1,6 +1,6 @@
-import { OnQueueActive, OnQueueCompleted, OnQueueFailed } from '@nestjs/bull';
+import { OnQueueEvent } from '@nestjs/bullmq';
 import { Logger, Injectable } from '@nestjs/common';
-import { Job } from 'bull';
+import { Job } from 'bullmq';
 import { ChatJobData } from '../chat.service';
 
 /**
@@ -81,7 +81,7 @@ export class MessageEvents {
    *
    * 记录日志，不阻塞处理
    */
-  @OnQueueActive()
+  @OnQueueEvent('active')
   onActive(job: Job<ChatJobData>): void {
     const { type, messageId, roomId, userId } = job.data;
 
@@ -98,7 +98,7 @@ export class MessageEvents {
    *
    * 通过 WebSocket 通知相关用户
    */
-  @OnQueueCompleted()
+  @OnQueueEvent('completed')
   onCompleted(job: Job<ChatJobData>): void {
     const { type, messageId, roomId, userId, timestamp } = job.data;
 
@@ -127,7 +127,7 @@ export class MessageEvents {
    *
    * 记录错误并通过 WebSocket 通知
    */
-  @OnQueueFailed()
+  @OnQueueEvent('failed')
   onFailed(job: Job<ChatJobData>, error: Error): void {
     const { type, messageId, roomId, userId, timestamp } = job.data;
 

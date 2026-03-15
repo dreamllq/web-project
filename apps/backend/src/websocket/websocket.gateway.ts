@@ -29,8 +29,9 @@ export class WebsocketGateway implements OnGatewayConnection, OnGatewayDisconnec
    */
   async handleConnection(client: Socket): Promise<void> {
     try {
-      // Extract token from query or auth header
+      // Extract token from auth, query or auth header
       const token =
+        (client.handshake.auth?.token as string) ||
         (client.handshake.query.token as string) ||
         this.extractTokenFromAuthHeader(client.handshake.headers.authorization);
 
@@ -64,7 +65,9 @@ export class WebsocketGateway implements OnGatewayConnection, OnGatewayDisconnec
       });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      this.logger.warn(`Connection rejected: Invalid token for client ${client.id} - ${errorMessage}`);
+      this.logger.warn(
+        `Connection rejected: Invalid token for client ${client.id} - ${errorMessage}`
+      );
       client.emit('error', { message: 'Invalid or expired token' });
       client.disconnect(true);
     }
