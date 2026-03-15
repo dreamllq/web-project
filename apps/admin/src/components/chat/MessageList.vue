@@ -297,16 +297,17 @@ watch(
 }
 
 .message-item:not(.my-message):not(.system-message) {
-  align-self: flex-start;
+  margin-right: auto;
 }
 
 .message-item.my-message {
-  align-self: flex-end;
+  margin-left: auto;
   background-color: #e6f0ff;
 }
 
 .message-item.system-message {
-  align-self: center;
+  margin-left: auto;
+  margin-right: auto;
   max-width: 90%;
   background-color: transparent;
   padding: 8px 16px;
