@@ -184,86 +184,88 @@ watch(
           :active="active"
           :size-dependencies="[message.content, message.type, message.deletedAt]"
         >
-          <div
-            class="message-item"
-            :class="{
-              'my-message': isMyMessage(message),
-              'system-message': isSystemMessage(message),
-              'deleted-message': isDeleted(message),
-            }"
-          >
-            <!-- System Message -->
-            <template v-if="isSystemMessage(message)">
-              <div class="system-message-content">
-                <el-icon class="system-icon"><WarningFilled /></el-icon>
-                <span>{{ message.content }}</span>
-              </div>
-              <span class="message-time">{{ formatTime(message.createdAt) }}</span>
-            </template>
-
-            <!-- Deleted Message -->
-            <template v-else-if="isDeleted(message)">
-              <div class="deleted-content">
-                <el-icon><WarningFilled /></el-icon>
-                <span>{{ t('chat.deleteMessage') }}</span>
-              </div>
-              <span class="message-time">{{ formatTime(message.createdAt) }}</span>
-            </template>
-
-            <!-- Normal Message -->
-            <template v-else>
-              <!-- Message Header -->
-              <div class="message-header">
-                <span class="sender-id">{{
-                  isMyMessage(message) ? '我' : message.senderName || message.senderId.slice(0, 8)
-                }}</span>
+          <div class="message-wrapper">
+            <div
+              class="message-item"
+              :class="{
+                'my-message': isMyMessage(message),
+                'system-message': isSystemMessage(message),
+                'deleted-message': isDeleted(message),
+              }"
+            >
+              <!-- System Message -->
+              <template v-if="isSystemMessage(message)">
+                <div class="system-message-content">
+                  <el-icon class="system-icon"><WarningFilled /></el-icon>
+                  <span>{{ message.content }}</span>
+                </div>
                 <span class="message-time">{{ formatTime(message.createdAt) }}</span>
-              </div>
+              </template>
 
-              <!-- Message Content -->
-              <div class="message-content">
-                <!-- Text Message -->
-                <template v-if="message.type === 'text' || message.type === 'emoji'">
-                  <span class="text-content">{{ message.content }}</span>
-                </template>
+              <!-- Deleted Message -->
+              <template v-else-if="isDeleted(message)">
+                <div class="deleted-content">
+                  <el-icon><WarningFilled /></el-icon>
+                  <span>{{ t('chat.deleteMessage') }}</span>
+                </div>
+                <span class="message-time">{{ formatTime(message.createdAt) }}</span>
+              </template>
 
-                <!-- Image Message -->
-                <template v-else-if="message.type === 'image'">
-                  <div class="image-message">
-                    <el-icon class="type-icon"><Picture /></el-icon>
-                    <span>{{ message.content || t('chat.image') }}</span>
-                  </div>
-                </template>
+              <!-- Normal Message -->
+              <template v-else>
+                <!-- Message Header -->
+                <div class="message-header">
+                  <span class="sender-id">{{
+                    isMyMessage(message) ? '我' : message.senderName || message.senderId.slice(0, 8)
+                  }}</span>
+                  <span class="message-time">{{ formatTime(message.createdAt) }}</span>
+                </div>
 
-                <!-- File Message -->
-                <template v-else-if="message.type === 'file'">
-                  <div class="file-message">
-                    <el-icon class="type-icon"><Document /></el-icon>
-                    <div class="file-info">
-                      <span class="file-name">{{ getFileName(message) }}</span>
-                      <span v-if="getFileSize(message)" class="file-size">{{
-                        getFileSize(message)
-                      }}</span>
+                <!-- Message Content -->
+                <div class="message-content">
+                  <!-- Text Message -->
+                  <template v-if="message.type === 'text' || message.type === 'emoji'">
+                    <span class="text-content">{{ message.content }}</span>
+                  </template>
+
+                  <!-- Image Message -->
+                  <template v-else-if="message.type === 'image'">
+                    <div class="image-message">
+                      <el-icon class="type-icon"><Picture /></el-icon>
+                      <span>{{ message.content || t('chat.image') }}</span>
                     </div>
-                  </div>
-                </template>
+                  </template>
 
-                <!-- Unknown Message Type -->
-                <template v-else>
-                  <div class="unknown-message">
-                    <el-icon class="type-icon"
-                      ><component :is="getMessageTypeIcon(message.type)"
-                    /></el-icon>
-                    <span>[{{ getMessageTypeLabel(message.type) }}]</span>
-                  </div>
-                </template>
+                  <!-- File Message -->
+                  <template v-else-if="message.type === 'file'">
+                    <div class="file-message">
+                      <el-icon class="type-icon"><Document /></el-icon>
+                      <div class="file-info">
+                        <span class="file-name">{{ getFileName(message) }}</span>
+                        <span v-if="getFileSize(message)" class="file-size">{{
+                          getFileSize(message)
+                        }}</span>
+                      </div>
+                    </div>
+                  </template>
 
-                <!-- Edited Indicator -->
-                <span v-if="isEdited(message)" class="edited-indicator">{{
-                  t('chat.editMessage')
-                }}</span>
-              </div>
-            </template>
+                  <!-- Unknown Message Type -->
+                  <template v-else>
+                    <div class="unknown-message">
+                      <el-icon class="type-icon"
+                        ><component :is="getMessageTypeIcon(message.type)"
+                      /></el-icon>
+                      <span>[{{ getMessageTypeLabel(message.type) }}]</span>
+                    </div>
+                  </template>
+
+                  <!-- Edited Indicator -->
+                  <span v-if="isEdited(message)" class="edited-indicator">{{
+                    t('chat.editMessage')
+                  }}</span>
+                </div>
+              </template>
+            </div>
           </div>
         </DynamicScrollerItem>
       </template>
@@ -284,16 +286,18 @@ watch(
   padding: 16px 20px;
 }
 
+.message-wrapper {
+  padding: 6px 0;
+}
+
 .message-item {
   display: flex;
   flex-direction: column;
-  padding: 10px 14px;
+  padding: 12px 14px;
   background-color: #f5f7fa;
   border-radius: 8px;
   max-width: 70%;
   word-break: break-word;
-  margin-bottom: 16px;
-  margin-top: 4px;
 }
 
 .message-item:not(.my-message):not(.system-message) {
