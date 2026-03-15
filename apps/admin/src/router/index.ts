@@ -94,6 +94,11 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/OAuthProviderSettings.vue'),
       },
       {
+        path: 'chat',
+        name: 'Chat',
+        component: () => import('@/views/Chat.vue'),
+      },
+      {
         path: 'api-keys',
         name: 'APIKeys',
         component: () => import('@/views/APIKeys.vue'),

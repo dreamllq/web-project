@@ -3,11 +3,13 @@ import { computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useAuthStore } from '@/stores/auth';
+import { useChatStore } from '@/stores/chat';
 
 const route = useRoute();
 const router = useRouter();
 const { t } = useI18n();
 const authStore = useAuthStore();
+const chatStore = useChatStore();
 
 const currentRoute = computed(() => route.path);
 
@@ -97,7 +99,7 @@ function logout() {
         <!-- 安全中心 -->
         <el-sub-menu index="security-center">
           <template #title>
-            <el-icon><Shield /></el-icon>
+            <el-icon><Operation /></el-icon>
             <span>{{ t('menu.securityCenter') }}</span>
           </template>
           <el-menu-item index="/admin/api-keys">
@@ -118,6 +120,19 @@ function logout() {
         <el-menu-item index="/admin/audit-logs">
           <el-icon><List /></el-icon>
           <span>{{ t('menu.auditLogs') }}</span>
+        </el-menu-item>
+
+        <!-- 聊天 -->
+        <el-menu-item index="/admin/chat">
+          <el-badge
+            :value="chatStore.totalUnreadCount > 99 ? '99+' : chatStore.totalUnreadCount"
+            :hidden="chatStore.totalUnreadCount === 0"
+            :max="99"
+            class="chat-badge"
+          >
+            <el-icon><ChatDotRound /></el-icon>
+          </el-badge>
+          <span>{{ t('menu.chat') }}</span>
         </el-menu-item>
       </el-menu>
     </el-aside>
@@ -304,5 +319,19 @@ function logout() {
 .sidebar-menu .el-sub-menu .el-menu-item.is-active {
   background: linear-gradient(90deg, #667eea 0%, #764ba4 100%) !important;
   color: #fff !important;
+}
+
+/* Chat badge styles */
+.chat-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chat-badge :deep(.el-badge__content) {
+  font-size: 10px;
+  height: 14px;
+  line-height: 14px;
+  padding: 0 4px;
 }
 </style>
