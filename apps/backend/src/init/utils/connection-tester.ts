@@ -1,6 +1,5 @@
 import { DataSource } from 'typeorm';
 import Redis from 'ioredis';
-import { parseRedisUrl } from '../../config/redis.config';
 
 /**
  * Configuration for database connection testing
@@ -117,14 +116,8 @@ export async function testRedisConnection(config: RedisTestConfig): Promise<bool
   let redis: Redis | null = null;
 
   try {
-    const options = parseRedisUrl(config.url);
 
-    redis = new Redis({
-      ...options,
-      maxRetriesPerRequest: 1,
-      retryStrategy: () => null, // Don't retry on failure
-      connectTimeout: TIMEOUT_MS,
-    });
+    redis = new Redis(config.url);
 
     const pingPromise = redis.ping();
 

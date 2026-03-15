@@ -3,7 +3,7 @@ import { ServerOptions } from 'socket.io';
 import { createAdapter } from '@socket.io/redis-adapter';
 import Redis from 'ioredis';
 import { Logger } from '@nestjs/common';
-import { parseRedisUrl, getRedisUrl } from '../config/redis.config';
+import { getRedisUrl } from '../config/redis.config';
 
 /**
  * Redis Socket.IO Adapter
@@ -24,13 +24,8 @@ export class RedisIoAdapter extends IoAdapter {
   createIOServer(port: number, options?: ServerOptions): any {
     const server = super.createIOServer(port, options);
 
-    const redisUrl = getRedisUrl();
-    const redisOptions = parseRedisUrl(redisUrl);
-
-    this.logger.log(`Connecting to Redis at ${redisOptions.host}:${redisOptions.port}`);
-
     // Create pub/sub clients for Redis adapter
-    const pubClient = new Redis(redisOptions);
+    const pubClient = new Redis(getRedisUrl());
     const subClient = pubClient.duplicate();
 
     // Handle connection events

@@ -21,8 +21,7 @@ export const parseRedisUrl = (url: string): RedisOptions => {
         return null;
       }
       return Math.min(times * 200, 2000);
-    },
-    maxRetriesPerRequest: 3,
+    }
   };
 
   if (!url) {
@@ -54,9 +53,11 @@ export const parseRedisUrl = (url: string): RedisOptions => {
       }
     }
 
-    // Enable TLS for rediss:// protocol
+    // Enable TLS for rediss:// protocol (Upstash, Redis Cloud, etc.)
     if (parsed.protocol === 'rediss:') {
-      options.tls = {};
+      options.tls = {
+        rejectUnauthorized: false, // 允许自签名证书，Upstash 可能需要
+      };
     }
 
     return options;
@@ -72,6 +73,7 @@ export const redisConfig = (): RedisOptions => {
 };
 
 export const getRedisUrl = (): string => {
+  console.log(1111, process.env.REDIS_URL || 'redis://localhost:6379')
   return process.env.REDIS_URL || 'redis://localhost:6379';
 };
 
