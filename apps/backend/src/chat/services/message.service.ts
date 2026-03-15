@@ -121,6 +121,7 @@ export class MessageService {
 
     const query = this.messageRepo
       .createQueryBuilder('message')
+      .leftJoinAndSelect('message.sender', 'sender')
       .where('message.roomId = :roomId', { roomId })
       .andWhere('message.deletedAt IS NULL');
 

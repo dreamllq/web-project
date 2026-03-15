@@ -280,6 +280,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
       id: message.id,
       roomId: payload.roomId,
       senderId: user.id,
+      senderName: user.username,
       type: message.type,
       content: message.content,
       metadata: message.metadata,

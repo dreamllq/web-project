@@ -221,6 +221,7 @@ export class ChatController {
       id: message.id,
       roomId: message.roomId,
       senderId: message.senderId,
+      senderName: message.sender?.username,
       type: message.type,
       content: message.content,
       metadata: message.metadata,
@@ -271,6 +272,7 @@ export interface MessageResponse {
   id: string;
   roomId: string;
   senderId: string;
+  senderName?: string;
   type: string;
   content: string | null;
   metadata: Record<string, unknown> | null;
