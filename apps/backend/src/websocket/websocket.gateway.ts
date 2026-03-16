@@ -9,6 +9,12 @@ import { Server, Socket } from 'socket.io';
 import { AuthService } from '../auth/auth.service';
 import { WsUser, NotificationPayload, SystemMessagePayload } from './dto/ws-auth.dto';
 
+/**
+ * User-specific room name prefix for Socket.IO rooms
+ * Users automatically join 'user:{userId}' room on connection
+ */
+export const USER_ROOM_PREFIX = 'user:';
+
 @Injectable()
 @WebSocketGateway({
   path: '/ws',
@@ -22,6 +28,13 @@ export class WebsocketGateway implements OnGatewayConnection, OnGatewayDisconnec
   private userSockets: Map<string, Socket[]> = new Map();
 
   constructor(private readonly authService: AuthService) {}
+
+  /**
+   * Get the user-specific room name for a user ID
+   */
+  static getUserRoom(userId: string): string {
+    return `${USER_ROOM_PREFIX}${userId}`;
+  }
 
   /**
    * Handle new WebSocket connection
@@ -54,6 +67,11 @@ export class WebsocketGateway implements OnGatewayConnection, OnGatewayDisconnec
 
       // Store socket in user map
       this.addSocketToUser(user.id, client);
+
+      // 🔑 Auto-join user-specific room for global events (e.g., roomUpdated)
+      const userRoom = WebsocketGateway.getUserRoom(user.id);
+      client.join(userRoom);
+      this.logger.log(`Client ${client.id} joined user room: ${userRoom}`);
 
       this.logger.log(`Client connected: ${client.id}, User: ${user.username} (${user.id})`);
 
@@ -92,33 +110,40 @@ export class WebsocketGateway implements OnGatewayConnection, OnGatewayDisconnec
    * Push notification to specific user
    */
   pushNotification(userId: string, notification: NotificationPayload): void {
-    const sockets = this.userSockets.get(userId);
-    if (sockets && sockets.length > 0) {
-      sockets.forEach((socket) => {
-        socket.emit('notification', notification);
-      });
-      this.logger.debug(`Pushed notification to user ${userId}: ${notification.title}`);
-    } else {
-      this.logger.debug(`No active sockets for user ${userId}, notification not delivered`);
-    }
+    const userRoom = WebsocketGateway.getUserRoom(userId);
+    this.server.to(userRoom).emit('notification', notification);
+    this.logger.debug(`Pushed notification to user ${userId} via room: ${notification.title}`);
   }
 
   /**
-   * Send custom event to specific user
+   * Send custom event to specific user via user room (recommended)
+   * Uses Socket.IO room mechanism - more reliable than socket iteration
    */
   sendToUser(userId: string, event: string, data: unknown): void {
+    const userRoom = WebsocketGateway.getUserRoom(userId);
+    this.logger.log(`[sendToUser] Sending '${event}' to room ${userRoom}`);
+
+    this.server.to(userRoom).emit(event, data);
+    this.logger.log(`[sendToUser] ✅ Sent event '${event}' to user room ${userRoom}`);
+  }
+
+  /**
+   * Send custom event to specific user via direct socket (fallback)
+   * Use sendToUser() instead for better reliability
+   */
+  sendToUserDirect(userId: string, event: string, data: unknown): void {
     const sockets = this.userSockets.get(userId);
-    this.logger.log(`[sendToUser] Attempting to send '${event}' to user ${userId}`);
+    this.logger.log(`[sendToUserDirect] Attempting to send '${event}' to user ${userId}`);
 
     if (sockets && sockets.length > 0) {
-      this.logger.log(`[sendToUser] Found ${sockets.length} socket(s) for user ${userId}`);
+      this.logger.log(`[sendToUserDirect] Found ${sockets.length} socket(s) for user ${userId}`);
       sockets.forEach((socket) => {
         socket.emit(event, data);
       });
-      this.logger.log(`[sendToUser] ✅ Sent event '${event}' to user ${userId}`);
+      this.logger.log(`[sendToUserDirect] ✅ Sent event '${event}' to user ${userId}`);
     } else {
       this.logger.warn(
-        `[sendToUser] ⚠️ No active sockets for user ${userId}, event '${event}' not delivered`
+        `[sendToUserDirect] ⚠️ No active sockets for user ${userId}, event '${event}' not delivered`
       );
     }
   }
@@ -127,15 +152,9 @@ export class WebsocketGateway implements OnGatewayConnection, OnGatewayDisconnec
    * Push system message to specific user
    */
   pushSystemMessage(userId: string, message: SystemMessagePayload): void {
-    const sockets = this.userSockets.get(userId);
-    if (sockets && sockets.length > 0) {
-      sockets.forEach((socket) => {
-        socket.emit('system', message);
-      });
-      this.logger.debug(`Pushed system message to user ${userId}: ${message.message}`);
-    } else {
-      this.logger.debug(`No active sockets for user ${userId}, system message not delivered`);
-    }
+    const userRoom = WebsocketGateway.getUserRoom(userId);
+    this.server.to(userRoom).emit('system', message);
+    this.logger.debug(`Pushed system message to user ${userId}: ${message.message}`);
   }
 
   /**
