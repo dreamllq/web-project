@@ -6,6 +6,6 @@ import { AuthModule } from '../auth/auth.module';
 @Module({
   imports: [AuthModule],
   providers: [WebsocketGateway, WebsocketService],
-  exports: [WebsocketService],
+  exports: [WebsocketService, WebsocketGateway],
 })
 export class WebsocketModule {}
