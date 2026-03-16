@@ -172,15 +172,24 @@ function getFileSize(message: MessageResponse): string {
  * Scroll to bottom of message list
  */
 function scrollToBottom(): void {
-  // 使用 setTimeout 确保 DynamicScroller 完成渲染
+  // 使用多次 nextTick + setTimeout 确保 DynamicScroller 完成渲染
   nextTick(() => {
     setTimeout(() => {
       if (scrollerRef.value && displayMessages.value.length > 0) {
-        scrollerRef.value.scrollToItem(displayMessages.value.length - 1);
+        const scrollerEl = scrollerRef.value.$el as HTMLElement;
+        if (scrollerEl) {
+          // 直接设置 scrollTop 到最大值
+          scrollerEl.scrollTop = scrollerEl.scrollHeight;
+          console.log('[MessageList] scrollToBottom:', {
+            scrollHeight: scrollerEl.scrollHeight,
+            clientHeight: scrollerEl.clientHeight,
+            scrollTop: scrollerEl.scrollTop,
+          });
+        }
         isAtBottom.value = true;
         showScrollButton.value = false;
       }
-    }, 100);
+    }, 150);
   });
 }
 
@@ -196,8 +205,18 @@ function handleScroll(): void {
   const { scrollTop, scrollHeight, clientHeight } = scrollerEl;
 
   // 检测是否在顶部（触发加载更多）
-  if (scrollTop < 100 && hasMore.value && !isLoadingOlder.value && nextCursor.value) {
-    loadOlderMessages();
+  if (scrollTop < 100) {
+    console.log('[MessageList] Near top:', {
+      scrollTop,
+      hasMore: hasMore.value,
+      isLoadingOlder: isLoadingOlder.value,
+      nextCursor: nextCursor.value,
+      currentRoomId: chatStore.currentRoomId,
+    });
+    if (hasMore.value && !isLoadingOlder.value && nextCursor.value) {
+      console.log('[MessageList] Triggering loadOlderMessages');
+      loadOlderMessages();
+    }
   }
 
   // 检测是否在底部
@@ -218,6 +237,14 @@ function shouldAutoScroll(): boolean {
  * 用于无限滚动加载历史消息时保持视觉位置
  */
 async function loadOlderMessages(): Promise<void> {
+  console.log('[MessageList] loadOlderMessages called', {
+    isLoadingOlder: isLoadingOlder.value,
+    hasMore: hasMore.value,
+    currentRoomId: chatStore.currentRoomId,
+    nextCursor: nextCursor.value,
+    displayMessagesLength: displayMessages.value.length,
+  });
+
   if (isLoadingOlder.value || !hasMore.value) return;
   if (!chatStore.currentRoomId || !nextCursor.value) return;
   if (displayMessages.value.length === 0) return; // 空房间不触发
@@ -225,9 +252,13 @@ async function loadOlderMessages(): Promise<void> {
   const scrollerEl = scrollerRef.value?.$el as HTMLElement | undefined;
   const oldScrollHeight = scrollerEl?.scrollHeight ?? 0;
 
+  console.log('[MessageList] Fetching older messages with cursor:', nextCursor.value);
   isLoadingOlder.value = true;
   try {
     await chatStore.fetchMessages(chatStore.currentRoomId, nextCursor.value);
+    console.log('[MessageList] Fetch completed');
+  } catch (error) {
+    console.error('[MessageList] Fetch error:', error);
   } finally {
     isLoadingOlder.value = false;
   }
@@ -236,6 +267,7 @@ async function loadOlderMessages(): Promise<void> {
   await nextTick();
   if (scrollerEl) {
     const addedHeight = scrollerEl.scrollHeight - oldScrollHeight;
+    console.log('[MessageList] Anchoring scroll. Added height:', addedHeight);
     scrollerEl.scrollTop = addedHeight;
   }
 }
