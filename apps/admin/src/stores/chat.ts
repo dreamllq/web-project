@@ -17,6 +17,7 @@ import {
   setOnTokenRefresh,
 } from '@/socket';
 import { getRooms, getRoomMessages } from '@/api/chat';
+import { refreshAccessToken } from '@/api';
 import { useAuthStore } from '@/stores/auth';
 import type {
   SendMessagePayload,
@@ -570,8 +571,7 @@ export const useChatStore = defineStore('chat', () => {
 
     // Set up token refresh callback for re-authentication
     setOnTokenRefresh(async () => {
-      const authStore = useAuthStore();
-      return authStore.accessToken;
+      return refreshAccessToken();
     });
 
     try {

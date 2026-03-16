@@ -5,6 +5,7 @@
  * Requires explicit connect() call - does NOT auto-connect on module load.
  */
 import { io, Socket } from 'socket.io-client';
+import { refreshAccessToken, redirectToLogin } from '@/api';
 
 // Token key must match the one used in auth store
 const ACCESS_TOKEN_KEY = 'admin-access-token';
@@ -18,6 +19,7 @@ const MAX_RECONNECT_DELAY = 10000; // 10 seconds
 let socket: Socket | null = null;
 let retryCount = 0;
 let isConnecting = false;
+let isRefreshingToken = false;
 
 // Reconnect callback - called when socket reconnects successfully
 let onReconnectCallback: (() => void) | null = null;
@@ -211,9 +213,50 @@ export function connect(): Promise<Socket> {
     });
 
     // Handle errors from server
-    socket.on('error', (error: { message: string }) => {
+    socket.on('error', async (error: { message: string }) => {
       console.error('[Socket] Server error:', error.message);
       console.error('[Socket] Error details:', error);
+
+      // Check for token expiry error
+      if (error.message?.includes('Invalid or expired token')) {
+        // Prevent concurrent refresh attempts
+        if (isRefreshingToken) {
+          console.log('[Socket] Token refresh already in progress, skipping');
+          return;
+        }
+
+        isRefreshingToken = true;
+        console.log('[Socket] Token expired, attempting to refresh...');
+
+        try {
+          const newToken = await refreshAccessToken();
+
+          if (newToken) {
+            // Update localStorage with new token
+            localStorage.setItem(ACCESS_TOKEN_KEY, newToken);
+            console.log('[Socket] Token refreshed successfully');
+
+            // Disconnect current socket
+            if (socket) {
+              socket.disconnect();
+              socket = null;
+            }
+
+            // Reconnect with new token
+            isRefreshingToken = false;
+            await connect();
+          } else {
+            // Refresh failed, redirect to login
+            console.error('[Socket] Token refresh failed, redirecting to login');
+            isRefreshingToken = false;
+            redirectToLogin();
+          }
+        } catch (err) {
+          console.error('[Socket] Token refresh error:', err);
+          isRefreshingToken = false;
+          redirectToLogin();
+        }
+      }
     });
   });
 }
