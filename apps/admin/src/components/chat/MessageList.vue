@@ -172,17 +172,20 @@ function getFileSize(message: MessageResponse): string {
  * Scroll to bottom of message list
  */
 function scrollToBottom(): void {
+  // 使用 setTimeout 确保 DynamicScroller 完成渲染
   nextTick(() => {
-    if (scrollerRef.value && displayMessages.value.length > 0) {
-      scrollerRef.value.scrollToItem(displayMessages.value.length - 1);
-      isAtBottom.value = true;
-      showScrollButton.value = false;
-    }
+    setTimeout(() => {
+      if (scrollerRef.value && displayMessages.value.length > 0) {
+        scrollerRef.value.scrollToItem(displayMessages.value.length - 1);
+        isAtBottom.value = true;
+        showScrollButton.value = false;
+      }
+    }, 100);
   });
 }
 
 /**
- * Handle scroll event to detect if user is at bottom
+ * Handle scroll event to detect if user is at bottom or top
  */
 function handleScroll(): void {
   if (!scrollerRef.value) return;
@@ -191,8 +194,14 @@ function handleScroll(): void {
   if (!scrollerEl) return;
 
   const { scrollTop, scrollHeight, clientHeight } = scrollerEl;
-  const isBottom = scrollHeight - scrollTop - clientHeight < 50;
 
+  // 检测是否在顶部（触发加载更多）
+  if (scrollTop < 100 && hasMore.value && !isLoadingOlder.value && nextCursor.value) {
+    loadOlderMessages();
+  }
+
+  // 检测是否在底部
+  const isBottom = scrollHeight - scrollTop - clientHeight < 50;
   isAtBottom.value = isBottom;
   showScrollButton.value = !isBottom && !isInitialLoad.value;
 }
@@ -279,10 +288,7 @@ watch(hasMore, (newHasMore) => {
 onMounted(() => {
   // Scroll to bottom on initial mount if messages exist
   if (displayMessages.value.length > 0) {
-    nextTick(() => {
-      scrollToBottom();
-      isInitialLoad.value = false;
-    });
+    scrollToBottom();
   }
 
   // Add scroll event listener to scroller element
@@ -293,22 +299,23 @@ onMounted(() => {
   });
 
   // Create IntersectionObserver for infinite scroll
-  scrollObserver = new IntersectionObserver(
-    (entries) => {
-      const entry = entries[0];
-      if (entry.isIntersecting) {
-        loadOlderMessages();
-      }
-    },
-    {
-      rootMargin: '100px',
-      threshold: 0.1,
-    }
-  );
-
-  // Start observing the sentinel element
+  // 设置 root 为 scroller 的滚动容器
   nextTick(() => {
-    if (topSentinelRef.value && scrollObserver) {
+    const scrollerEl = scrollerRef.value?.$el as HTMLElement | undefined;
+    if (scrollerEl && topSentinelRef.value) {
+      scrollObserver = new IntersectionObserver(
+        (entries) => {
+          const entry = entries[0];
+          if (entry.isIntersecting) {
+            loadOlderMessages();
+          }
+        },
+        {
+          root: scrollerEl,
+          rootMargin: '100px',
+          threshold: 0.1,
+        }
+      );
       scrollObserver.observe(topSentinelRef.value);
     }
   });
