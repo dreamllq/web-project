@@ -169,33 +169,6 @@ function getFileSize(message: MessageResponse): string {
 }
 
 /**
- * Scroll to bottom of message list
- */
-function scrollToBottom(): void {
-  // 使用多次 nextTick + setTimeout 确保 DynamicScroller 完成渲染
-  nextTick(() => {
-    setTimeout(() => {
-      if (scrollerRef.value && displayMessages.value.length > 0) {
-        const scrollerEl = scrollerRef.value.$el as HTMLElement;
-        if (scrollerEl) {
-          // 直接设置 scrollTop 到最大值
-          scrollerEl.scrollTop = scrollerEl.scrollHeight;
-          console.log('[MessageList] scrollToBottom:', {
-            scrollHeight: scrollerEl.scrollHeight,
-            clientHeight: scrollerEl.clientHeight,
-            scrollTop: scrollerEl.scrollTop,
-          });
-        }
-        isAtBottom.value = true;
-        showScrollButton.value = false;
-      }
-    }, 150);
-  });
-}
-
-/**
- * Handle scroll event to detect if user is at bottom or top
- */
 function handleScroll(): void {
   if (!scrollerRef.value) return;
 
@@ -226,10 +199,37 @@ function handleScroll(): void {
 }
 
 /**
- * Check if should auto-scroll to bottom
+ * Scroll to bottom of message list
+ * 使用多次延迟尝试确保虚拟列表高度计算完成
  */
-function shouldAutoScroll(): boolean {
-  return isAtBottom.value;
+function scrollToBottom(): void {
+  if (!scrollerRef.value || displayMessages.value.length === 0) return;
+
+  // 多次延迟尝试，虚拟列表需要时间计算高度
+  const attemptScroll = () => {
+    if (!scrollerRef.value || displayMessages.value.length === 0) return;
+
+    const scrollerEl = scrollerRef.value.$el as HTMLElement;
+    if (scrollerEl) {
+      scrollerEl.scrollTop = scrollerEl.scrollHeight;
+      console.log('[MessageList] scrollToBottom attempt:', {
+        scrollHeight: scrollerEl.scrollHeight,
+        clientHeight: scrollerEl.clientHeight,
+        scrollTop: scrollerEl.scrollTop,
+        messagesCount: displayMessages.value.length,
+      });
+    }
+    isAtBottom.value = true;
+    showScrollButton.value = false;
+  };
+
+  // 多次延迟尝试
+  nextTick(() => {
+    attemptScroll();
+    setTimeout(attemptScroll, 100);
+    setTimeout(attemptScroll, 300);
+    setTimeout(attemptScroll, 500);
+  });
 }
 
 /**
