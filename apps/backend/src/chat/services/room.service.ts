@@ -496,14 +496,23 @@ export class RoomService {
     userId: string,
     settings: { isHidden?: boolean }
   ): Promise<RoomMember> {
+    this.logger.log(
+      `[updateMemberSettings] START - roomId=${roomId}, userId=${userId}, settings=${JSON.stringify(settings)}`
+    );
+
     // Verify user is a member of the room
     const member = await this.memberRepo.findOne({
       where: { roomId, userId },
     });
 
     if (!member) {
+      this.logger.warn(
+        `[updateMemberSettings] Member not found: roomId=${roomId}, userId=${userId}`
+      );
       throw new NotFoundException('Member not found in this room');
     }
+
+    this.logger.log(`[updateMemberSettings] Current state: isHidden=${member.isHidden}`);
 
     // Update settings
     if (settings.isHidden !== undefined) {
@@ -512,8 +521,8 @@ export class RoomService {
 
     const updatedMember = await this.memberRepo.save(member);
 
-    this.logger.debug(
-      `Member settings updated: roomId=${roomId}, userId=${userId}, isHidden=${settings.isHidden}`
+    this.logger.log(
+      `[updateMemberSettings] ✅ Updated: roomId=${roomId}, userId=${userId}, isHidden=${updatedMember.isHidden}`
     );
 
     return updatedMember;
