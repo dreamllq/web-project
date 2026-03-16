@@ -38,7 +38,7 @@ export const clearRefreshQueue = () => {
  * Refresh the access token using the refresh token
  * Uses raw axios instance to avoid interceptor loop
  */
-const refreshAccessToken = async (): Promise<string | null> => {
+export const refreshAccessToken = async (): Promise<string | null> => {
   const authStore = useAuthStore();
   if (!authStore.refreshToken) {
     return null;
@@ -68,7 +68,7 @@ const refreshAccessToken = async (): Promise<string | null> => {
 /**
  * Redirect to login page with current path as redirect parameter
  */
-const redirectToLogin = () => {
+export const redirectToLogin = () => {
   const authStore = useAuthStore();
   authStore.logout();
   const currentPath = window.location.pathname + window.location.search;
