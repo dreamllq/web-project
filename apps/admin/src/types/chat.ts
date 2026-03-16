@@ -70,6 +70,8 @@ export interface RoomMember {
   joinedAt: string;
   /** 最后已读时间 */
   lastReadAt: string;
+  /** 是否隐藏 (仅对私聊房间有效) */
+  isHidden?: boolean;
 }
 
 /**
@@ -312,6 +314,8 @@ export interface MemberResponse {
   joinedAt: string;
   /** 最后已读时间 */
   lastReadAt: string;
+  /** 是否隐藏 (仅对私聊房间有效) */
+  isHidden?: boolean;
 }
 
 /**
@@ -330,6 +334,8 @@ export interface MemberWithUserResponse {
   joinedAt: string;
   /** 最后已读时间 */
   lastReadAt: string;
+  /** 是否隐藏 (仅对私聊房间有效) */
+  isHidden?: boolean;
   /** 用户信息 */
   user?: OtherUserResponse;
 }

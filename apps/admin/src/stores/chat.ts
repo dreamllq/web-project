@@ -22,6 +22,7 @@ import {
   leaveRoom as leaveRoomApi,
   getRoomMembers as getRoomMembersApi,
   removeRoomMember as removeRoomMemberApi,
+  updateMemberSettings,
 } from '@/api/chat';
 import { refreshAccessToken, extractApiError } from '@/api';
 import { useAuthStore } from '@/stores/auth';
@@ -131,29 +132,6 @@ export const useChatStore = defineStore('chat', () => {
   /** All rooms with membership info */
   const rooms = ref<UserRoomResponse[]>([]);
 
-  /** Hidden room IDs (for private rooms that user wants to hide locally) - persisted in localStorage */
-  const HIDDEN_ROOMS_KEY = 'chat_hidden_room_ids';
-
-  function loadHiddenRoomIds(): Set<string> {
-    try {
-      const stored = localStorage.getItem(HIDDEN_ROOMS_KEY);
-      return stored ? new Set(JSON.parse(stored)) : new Set();
-    } catch {
-      return new Set();
-    }
-  }
-
-  const hiddenRoomIds = ref<Set<string>>(loadHiddenRoomIds());
-
-  /** Save hiddenRoomIds to localStorage */
-  function saveHiddenRoomIds(): void {
-    try {
-      localStorage.setItem(HIDDEN_ROOMS_KEY, JSON.stringify([...hiddenRoomIds.value]));
-    } catch {
-      // Ignore localStorage errors
-    }
-  }
-
   /** Current active room ID */
   const currentRoomId = ref<string | null>(null);
 
@@ -235,12 +213,6 @@ export const useChatStore = defineStore('chat', () => {
       total += count;
     });
     return total;
-  });
-
-  /** Visible rooms (excludes hidden private rooms) */
-  const visibleRooms = computed<UserRoomResponse[]>(() => {
-    const hidden = hiddenRoomIds.value;
-    return rooms.value.filter((r) => !hidden.has(r.room.id));
   });
 
   // ============================================
@@ -661,9 +633,8 @@ export const useChatStore = defineStore('chat', () => {
 
     try {
       const response = await getRooms();
-      // Filter out hidden private rooms
-      const hidden = hiddenRoomIds.value;
-      rooms.value = response.data.data.filter((room) => !hidden.has(room.room.id));
+      // 后端已过滤隐藏的房间，直接使用返回的数据
+      rooms.value = response.data.data;
 
       // Initialize unread counts from room data
       rooms.value.forEach((room) => {
@@ -713,12 +684,16 @@ export const useChatStore = defineStore('chat', () => {
     const isPrivate = roomData.room.type === 'private';
 
     if (isPrivate) {
-      // Private room: just hide from local view
-      hiddenRoomIds.value.add(roomId);
-      hiddenRoomIds.value = new Set(hiddenRoomIds.value);
-      saveHiddenRoomIds();
-      // Also remove from rooms array so UI updates immediately
-      rooms.value.splice(roomIndex, 1);
+      // Private room: call API to hide from view (sets isHidden=true on server)
+      try {
+        await updateMemberSettings(roomId, { isHidden: true });
+        // Remove from rooms array so UI updates immediately
+        rooms.value.splice(roomIndex, 1);
+      } catch (error) {
+        const apiError = extractApiError(error);
+        ElMessage.error(apiError.displayMessage);
+        throw error;
+      }
     } else {
       // Group room: call REST API to actually leave
       try {
@@ -1017,7 +992,6 @@ export const useChatStore = defineStore('chat', () => {
   return {
     // State
     rooms,
-    hiddenRoomIds,
     currentRoomId,
     messagesByRoom,
     onlineUsersByRoom,
@@ -1040,7 +1014,6 @@ export const useChatStore = defineStore('chat', () => {
     currentTypingUsers,
     currentOnlineUsers,
     totalUnreadCount,
-    visibleRooms,
 
     // Actions
     connectSocket,

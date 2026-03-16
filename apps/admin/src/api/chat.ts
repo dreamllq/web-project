@@ -139,6 +139,32 @@ export function leaveRoom(roomId: string): Promise<{ data: { success: boolean } 
 }
 
 /**
+ * Update current user's member settings for a room
+ * PATCH /v1/chat/rooms/:id/members/me
+ * Used to hide/show private rooms without leaving them
+ */
+export interface UpdateMemberSettingsDto {
+  isHidden?: boolean;
+}
+
+export interface MemberSettingsResponse {
+  id: string;
+  roomId: string;
+  userId: string;
+  role: RoomMemberRole;
+  joinedAt: string;
+  lastReadAt: string;
+  isHidden: boolean;
+}
+
+export function updateMemberSettings(
+  roomId: string,
+  data: UpdateMemberSettingsDto
+): Promise<{ data: MemberSettingsResponse }> {
+  return api.patch(`/v1/chat/rooms/${roomId}/members/me`, data);
+}
+
+/**
  * Get members of a room
  * GET /v1/chat/rooms/:id/members
  */
