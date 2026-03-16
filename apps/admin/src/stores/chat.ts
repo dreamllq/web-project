@@ -99,6 +99,35 @@ interface RoomDeletedEvent {
   deletedAt: string;
 }
 
+// Real-time room event types (from backend)
+interface RoomCreatedPayload {
+  id: string;
+  name: string | null;
+  type: 'private' | 'group';
+  members: Array<{ userId: string; username: string; avatar?: string }>;
+}
+
+interface RoomUpdatedPayload {
+  id: string;
+  name?: string;
+  isHidden?: boolean;
+  lastMessage?: { content: string; senderId: string; senderName: string; createdAt: number };
+}
+
+interface MemberAddedPayload {
+  roomId: string;
+  member: { userId: string; username: string; avatar?: string };
+}
+
+interface MemberRemovedPayload {
+  roomId: string;
+}
+
+interface UnreadUpdatedPayload {
+  roomId: string;
+  count: number;
+}
+
 // ============================================
 // Message Queue Types
 // ============================================
@@ -164,6 +193,9 @@ export const useChatStore = defineStore('chat', () => {
 
   /** Registered event handlers for cleanup */
   let registeredEventHandlers = false;
+
+  /** Set of room IDs that have been joined via socket (prevents duplicate joins) */
+  const joinedRooms = ref<Set<string>>(new Set());
 
   // ============================================
   // Message Queue State (Edge Case Handling)
@@ -443,6 +475,7 @@ export const useChatStore = defineStore('chat', () => {
     unreadCounts.value.delete(roomId);
     pendingMessages.value.delete(roomId);
     failedMessages.value.delete(roomId);
+    joinedRooms.value.delete(roomId);
 
     // Trigger reactivity
     messagesByRoom.value = new Map(messagesByRoom.value);
@@ -451,6 +484,127 @@ export const useChatStore = defineStore('chat', () => {
     unreadCounts.value = new Map(unreadCounts.value);
     pendingMessages.value = new Map(pendingMessages.value);
     failedMessages.value = new Map(failedMessages.value);
+    joinedRooms.value = new Set(joinedRooms.value);
+  }
+
+  /**
+   * Handle room created event - add to rooms list and join socket room
+   */
+  function handleRoomCreated(data: RoomCreatedPayload): void {
+    console.log('[Chat] Received roomCreated event:', data);
+
+    // Check if room already exists
+    const existingIndex = rooms.value.findIndex((r) => r.room.id === data.id);
+    if (existingIndex !== -1) return; // Already in list
+
+    // Add room to list (convert to UserRoomResponse format)
+    const newRoom: UserRoomResponse = {
+      room: {
+        id: data.id,
+        name: data.name,
+        type: data.type,
+        avatar: null,
+        ownerId: null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        lastMessageAt: new Date().toISOString(),
+      },
+      role: 'member',
+      unreadCount: 0,
+      lastReadAt: new Date().toISOString(),
+    };
+    rooms.value.unshift(newRoom);
+
+    // Join socket room (with duplicate check)
+    if (!joinedRooms.value.has(data.id)) {
+      const socket = getSocket();
+      if (socket && isConnected()) {
+        socket.emit('joinRoom', { roomId: data.id });
+        joinedRooms.value = new Set(joinedRooms.value);
+        joinedRooms.value.add(data.id);
+      }
+    }
+  }
+
+  /**
+   * Handle room updated event - update room in list
+   */
+  function handleRoomUpdated(data: RoomUpdatedPayload): void {
+    console.log('[Chat] Received roomUpdated event:', data);
+
+    const index = rooms.value.findIndex((r) => r.room.id === data.id);
+    if (index === -1) {
+      // Room not in list - check if it was unhidden
+      if (data.isHidden === false) {
+        // Room was unhidden, fetch fresh room list to include it
+        console.log('[Chat] Room unhidden, refreshing room list:', data.id);
+        fetchRooms();
+      } else {
+        console.log('[Chat] Room not in list, may need to fetch:', data.id);
+      }
+      return;
+    }
+
+    // Update room data
+    if (data.name !== undefined) {
+      rooms.value[index].room.name = data.name;
+    }
+    if (data.lastMessage !== undefined) {
+      rooms.value[index].room.lastMessageAt = new Date(data.lastMessage.createdAt).toISOString();
+    }
+  }
+
+  /**
+   * Handle member added event - update room member list
+   */
+  function handleMemberAdded(data: MemberAddedPayload): void {
+    console.log('[Chat] Received memberAdded event:', data);
+    // Member list is fetched on-demand, so just log for now
+  }
+
+  /**
+   * Handle member removed event - remove room if it's current user
+   */
+  function handleMemberRemoved(data: MemberRemovedPayload): void {
+    console.log('[Chat] Received memberRemoved event:', data);
+
+    // This event is sent to the user who was removed, so clean up
+    const roomIndex = rooms.value.findIndex((r) => r.room.id === data.roomId);
+    if (roomIndex !== -1) {
+      // Remove from rooms list
+      const removedRoom = rooms.value[roomIndex];
+      rooms.value.splice(roomIndex, 1);
+
+      // Cleanup
+      messagesByRoom.value.delete(data.roomId);
+      onlineUsersByRoom.value.delete(data.roomId);
+      typingUsersByRoom.value.delete(data.roomId);
+      unreadCounts.value.delete(data.roomId);
+      joinedRooms.value.delete(data.roomId);
+
+      // Trigger reactivity
+      messagesByRoom.value = new Map(messagesByRoom.value);
+      onlineUsersByRoom.value = new Map(onlineUsersByRoom.value);
+      typingUsersByRoom.value = new Map(typingUsersByRoom.value);
+      unreadCounts.value = new Map(unreadCounts.value);
+      joinedRooms.value = new Set(joinedRooms.value);
+
+      // Show notification
+      ElMessage.warning(`你已被移出聊天室 "${removedRoom.room.name ?? '私聊'}"`);
+
+      // Clear current room if viewing
+      if (currentRoomId.value === data.roomId) {
+        currentRoomId.value = null;
+      }
+    }
+  }
+
+  /**
+   * Handle unread count updated event
+   */
+  function handleUnreadUpdated(data: UnreadUpdatedPayload): void {
+    console.log('[Chat] Received unreadUpdated event:', data);
+    updateUnreadCount(data.roomId, data.count);
   }
 
   /**
@@ -467,6 +621,11 @@ export const useChatStore = defineStore('chat', () => {
     socket.on('userTyping', handleUserTyping);
     socket.on('messagesRead', handleMessagesRead);
     socket.on('roomDeleted', handleRoomDeleted);
+    socket.on('roomCreated', handleRoomCreated);
+    socket.on('roomUpdated', handleRoomUpdated);
+    socket.on('memberAdded', handleMemberAdded);
+    socket.on('memberRemoved', handleMemberRemoved);
+    socket.on('unreadUpdated', handleUnreadUpdated);
 
     registeredEventHandlers = true;
   }
@@ -483,6 +642,11 @@ export const useChatStore = defineStore('chat', () => {
     socket.off('userTyping', handleUserTyping);
     socket.off('messagesRead', handleMessagesRead);
     socket.off('roomDeleted', handleRoomDeleted);
+    socket.off('roomCreated', handleRoomCreated);
+    socket.off('roomUpdated', handleRoomUpdated);
+    socket.off('memberAdded', handleMemberAdded);
+    socket.off('memberRemoved', handleMemberRemoved);
+    socket.off('unreadUpdated', handleUnreadUpdated);
 
     registeredEventHandlers = false;
   }
@@ -661,6 +825,7 @@ export const useChatStore = defineStore('chat', () => {
     }
 
     socket.emit('joinRoom', { roomId });
+    joinedRooms.value.add(roomId);
     currentRoomId.value = roomId;
     initRoomData(roomId);
 
@@ -983,6 +1148,7 @@ export const useChatStore = defineStore('chat', () => {
     messageStatus.value = new Map();
     hasMoreByRoom.value = new Map();
     nextCursorByRoom.value = new Map();
+    joinedRooms.value = new Set();
     isLoadingMore.value = false;
     error.value = null;
     isLoadingRooms.value = false;
@@ -1007,6 +1173,7 @@ export const useChatStore = defineStore('chat', () => {
     pendingMessages,
     failedMessages,
     messageStatus,
+    joinedRooms,
 
     // Computed
     currentRoom,

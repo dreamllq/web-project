@@ -104,6 +104,19 @@ export class WebsocketGateway implements OnGatewayConnection, OnGatewayDisconnec
   }
 
   /**
+   * Send custom event to specific user
+   */
+  sendToUser(userId: string, event: string, data: unknown): void {
+    const sockets = this.userSockets.get(userId);
+    if (sockets && sockets.length > 0) {
+      sockets.forEach((socket) => {
+        socket.emit(event, data);
+      });
+      this.logger.debug(`Sent event '${event}' to user ${userId}`);
+    }
+  }
+
+  /**
    * Push system message to specific user
    */
   pushSystemMessage(userId: string, message: SystemMessagePayload): void {

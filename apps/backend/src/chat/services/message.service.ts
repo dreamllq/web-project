@@ -9,6 +9,9 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, IsNull, MoreThan, In, Not } from 'typeorm';
 import { Message, MessageType } from '../../entities/message.entity';
 import { MessageRead } from '../../entities/message-read.entity';
+import { RoomMember } from '../../entities/room-member.entity';
+import { Room } from '../../entities/room.entity';
+import { RoomEventsService } from '../events/room-events.service';
 
 export interface CreateMessageData {
   roomId: string;
@@ -55,7 +58,12 @@ export class MessageService {
     @InjectRepository(Message)
     private readonly messageRepo: Repository<Message>,
     @InjectRepository(MessageRead)
-    private readonly messageReadRepo: Repository<MessageRead>
+    private readonly messageReadRepo: Repository<MessageRead>,
+    @InjectRepository(RoomMember)
+    private readonly memberRepo: Repository<RoomMember>,
+    @InjectRepository(Room)
+    private readonly roomRepo: Repository<Room>,
+    private readonly roomEventsService: RoomEventsService
   ) {}
 
   /**
@@ -79,7 +87,49 @@ export class MessageService {
       `Message created: id=${savedMessage.id}, roomId=${savedMessage.roomId}, senderId=${savedMessage.senderId}`
     );
 
+    // Handle hidden rooms and emit unread events to recipients
+    await this.handleMessageEventsForRecipients(data.roomId, data.senderId);
+
     return savedMessage;
+  }
+
+  /**
+   * Handle event emissions for message recipients
+   * - Unhide rooms for hidden recipients
+   * - Emit unreadUpdated events
+   */
+  private async handleMessageEventsForRecipients(roomId: string, senderId: string): Promise<void> {
+    // Get the room
+    const room = await this.roomRepo.findOne({
+      where: { id: roomId },
+    });
+
+    if (!room) {
+      return;
+    }
+
+    // Get all room members except the sender
+    const recipients = await this.memberRepo.find({
+      where: { roomId },
+    });
+
+    const recipientMembers = recipients.filter((m) => m.userId !== senderId);
+
+    for (const recipient of recipientMembers) {
+      // Check if room is hidden for this recipient
+      if (recipient.isHidden) {
+        // Unhide the room
+        recipient.isHidden = false;
+        await this.memberRepo.save(recipient);
+
+        // Emit roomUpdated to recipient
+        this.roomEventsService.emitRoomUpdated(recipient.userId, room);
+      }
+
+      // Emit unreadUpdated to recipient
+      const unreadCount = await this.getUnreadCount(roomId, recipient.userId, recipient.lastReadAt);
+      this.roomEventsService.emitUnreadUpdated(recipient.userId, roomId, unreadCount);
+    }
   }
 
   /**

@@ -10,6 +10,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, In, QueryFailedError } from 'typeorm';
 import { Room, RoomType } from '../../entities/room.entity';
 import { RoomMember, RoomMemberRole } from '../../entities/room-member.entity';
+import { RoomEventsService } from '../events/room-events.service';
 
 export interface CreateRoomData {
   type: RoomType;
@@ -40,7 +41,8 @@ export class RoomService {
     private readonly roomRepo: Repository<Room>,
     @InjectRepository(RoomMember)
     private readonly memberRepo: Repository<RoomMember>,
-    private readonly dataSource: DataSource
+    private readonly dataSource: DataSource,
+    private readonly roomEventsService: RoomEventsService
   ) {}
 
   /**
@@ -124,7 +126,15 @@ export class RoomService {
       await queryRunner.commitTransaction();
 
       // Return room with relations
-      return this.findByIdOrFail(savedRoom.id);
+      const roomWithRelations = await this.findByIdOrFail(savedRoom.id);
+
+      // Emit roomCreated event to all members
+      const members = await this.getMembers(savedRoom.id);
+      for (const member of members) {
+        this.roomEventsService.emitRoomCreated(member.userId, roomWithRelations);
+      }
+
+      return roomWithRelations;
     } catch (error) {
       await queryRunner.rollbackTransaction();
       throw error;
@@ -270,7 +280,13 @@ export class RoomService {
       );
 
       // Return room with updated relations
-      return this.findByIdOrFail(existingRoom.id);
+      const updatedRoom = await this.findByIdOrFail(existingRoom.id);
+
+      // Emit roomUpdated to both users
+      this.roomEventsService.emitRoomUpdated(userId1, updatedRoom);
+      this.roomEventsService.emitRoomUpdated(userId2, updatedRoom);
+
+      return updatedRoom;
     }
 
     // Try to create new private room
@@ -338,6 +354,9 @@ export class RoomService {
       throw new ConflictException('User is already a member of this room');
     }
 
+    // Get existing members before adding the new one (for notification)
+    const existingMembers = await this.getMembers(roomId);
+
     // Create member
     const member = this.memberRepo.create({
       roomId,
@@ -346,6 +365,11 @@ export class RoomService {
     });
 
     const savedMember = await this.memberRepo.save(member);
+
+    // Emit memberAdded event to all existing room members
+    for (const existingMember of existingMembers) {
+      this.roomEventsService.emitMemberAdded(existingMember.userId, roomId, savedMember);
+    }
 
     this.logger.debug(`Member added: roomId=${roomId}, userId=${userId}, role=${role}`);
 
@@ -404,6 +428,10 @@ export class RoomService {
     }
 
     await this.memberRepo.remove(member);
+
+    // Emit memberRemoved event to the kicked user
+    this.roomEventsService.emitMemberRemoved(userId, roomId);
+
     this.logger.debug(`Member removed: roomId=${roomId}, userId=${userId}, operator=${operatorId}`);
   }
 
@@ -615,6 +643,14 @@ export class RoomService {
       if (!isRoomMember) {
         throw new ForbiddenException('Only room members can delete the room');
       }
+    }
+
+    // Get all members before deletion to emit events
+    const members = await this.getMembers(roomId);
+
+    // Emit roomDeleted event to all members
+    for (const member of members) {
+      this.roomEventsService.emitRoomDeleted(member.userId, roomId);
     }
 
     // Delete all members first
