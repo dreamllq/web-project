@@ -21,7 +21,13 @@ import { User } from '../entities/user.entity';
 import { Message } from '../entities/message.entity';
 import { Room, RoomType } from '../entities/room.entity';
 import { RoomMember } from '../entities/room-member.entity';
-import { CreateRoomDto, AddMemberDto, EditMessageDto, MessageQueryDto } from './dto';
+import {
+  CreateRoomDto,
+  AddMemberDto,
+  EditMessageDto,
+  MessageQueryDto,
+  UpdateMemberSettingsDto,
+} from './dto';
 
 @ApiTags('chat')
 @Controller('chat')
@@ -192,6 +198,29 @@ export class ChatController {
     @Body() dto: AddMemberDto
   ): Promise<MemberResponse> {
     const member = await this.roomService.addMember(roomId, dto.userId, user.id);
+    return this.toMemberResponse(member);
+  }
+
+  /**
+   * Update current user's member settings (e.g., hide/show room)
+   * PATCH /api/v1/chat/rooms/:id/members/me
+   */
+  @Patch('rooms/:id/members/me')
+  @Version('1')
+  @ApiOperation({ summary: "Update current user's member settings for a room" })
+  @ApiParam({ name: 'id', description: 'Room ID' })
+  @ApiResponse({ status: 200, description: 'Member settings updated successfully' })
+  @ApiResponse({ status: 400, description: 'Invalid input data' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 404, description: 'Member not found in this room' })
+  async updateMemberSettings(
+    @CurrentUser() user: User,
+    @Param('id', ParseUUIDPipe) roomId: string,
+    @Body() dto: UpdateMemberSettingsDto
+  ): Promise<MemberResponse> {
+    const member = await this.roomService.updateMemberSettings(roomId, user.id, {
+      isHidden: dto.isHidden,
+    });
     return this.toMemberResponse(member);
   }
 

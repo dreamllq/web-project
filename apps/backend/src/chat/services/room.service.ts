@@ -199,11 +199,12 @@ export class RoomService {
   /**
    * Find all rooms for a user
    * Returns rooms with member info and unread counts
+   * Only returns rooms that are not hidden by the user
    */
   async findByUser(userId: string): Promise<UserRoomResult[]> {
-    // Get all room memberships for the user
+    // Get all room memberships for the user (excluding hidden rooms)
     const memberships = await this.memberRepo.find({
-      where: { userId },
+      where: { userId, isHidden: false },
       relations: ['room'],
       order: { room: { lastMessageAt: 'DESC' } },
     });
@@ -456,6 +457,38 @@ export class RoomService {
    */
   async updateLastRead(roomId: string, userId: string): Promise<void> {
     await this.memberRepo.update({ roomId, userId }, { lastReadAt: new Date() });
+  }
+
+  /**
+   * Update member settings (e.g., isHidden)
+   * Only allows user to update their own settings
+   */
+  async updateMemberSettings(
+    roomId: string,
+    userId: string,
+    settings: { isHidden?: boolean }
+  ): Promise<RoomMember> {
+    // Verify user is a member of the room
+    const member = await this.memberRepo.findOne({
+      where: { roomId, userId },
+    });
+
+    if (!member) {
+      throw new NotFoundException('Member not found in this room');
+    }
+
+    // Update settings
+    if (settings.isHidden !== undefined) {
+      member.isHidden = settings.isHidden;
+    }
+
+    const updatedMember = await this.memberRepo.save(member);
+
+    this.logger.debug(
+      `Member settings updated: roomId=${roomId}, userId=${userId}, isHidden=${settings.isHidden}`
+    );
+
+    return updatedMember;
   }
 
   /**
