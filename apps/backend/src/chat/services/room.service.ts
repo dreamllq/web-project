@@ -7,7 +7,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource, In } from 'typeorm';
+import { Repository, DataSource, In, QueryFailedError } from 'typeorm';
 import { Room, RoomType } from '../../entities/room.entity';
 import { RoomMember, RoomMemberRole } from '../../entities/room-member.entity';
 
@@ -17,6 +17,7 @@ export interface CreateRoomData {
   avatar?: string;
   ownerId?: string;
   memberIds?: string[];
+  userPairKey?: string;
 }
 
 export interface RoomWithMembers extends Room {
@@ -64,6 +65,7 @@ export class RoomService {
         avatar: data.avatar ?? null,
         ownerId: data.ownerId ?? null,
         lastMessageAt: new Date(),
+        userPairKey: data.userPairKey ?? null,
       });
 
       const savedRoom = await queryRunner.manager.save(room);
@@ -222,36 +224,78 @@ export class RoomService {
   }
 
   /**
-   * Find a private room between two users
+   * Generate userPairKey for two users
+   * Sorts userIds and joins with ':'
+   */
+  private generateUserPairKey(userId1: string, userId2: string): string {
+    return [userId1, userId2].sort().join(':');
+  }
+
+  /**
+   * Find a private room between two users using userPairKey
    * Returns null if no such room exists
    */
   async findPrivateRoom(userId1: string, userId2: string): Promise<Room | null> {
-    // Find rooms where both users are members
-    const result = await this.roomRepo
-      .createQueryBuilder('room')
-      .innerJoin('room.members', 'member1', 'member1.userId = :userId1', { userId1 })
-      .innerJoin('room.members', 'member2', 'member2.userId = :userId2', { userId2 })
-      .where('room.type = :type', { type: RoomType.PRIVATE })
-      .getOne();
+    const userPairKey = this.generateUserPairKey(userId1, userId2);
+
+    const result = await this.roomRepo.findOne({
+      where: {
+        type: RoomType.PRIVATE,
+        userPairKey,
+      },
+      relations: ['members'],
+    });
 
     return result;
   }
 
   /**
    * Get or create a private room between two users
+   * Handles concurrent creation with PostgreSQL unique constraint
    */
   async getOrCreatePrivateRoom(userId1: string, userId2: string): Promise<Room> {
+    const userPairKey = this.generateUserPairKey(userId1, userId2);
+
     // Check if room already exists
     const existingRoom = await this.findPrivateRoom(userId1, userId2);
     if (existingRoom) {
-      return existingRoom;
+      // Update room's updatedAt timestamp
+      await this.roomRepo.update(existingRoom.id, { updatedAt: new Date() });
+
+      // Unhide both members (set isHidden = false)
+      await this.memberRepo.update(
+        { roomId: existingRoom.id, userId: In([userId1, userId2]) },
+        { isHidden: false }
+      );
+
+      // Return room with updated relations
+      return this.findByIdOrFail(existingRoom.id);
     }
 
-    // Create new private room
-    return this.create({
-      type: RoomType.PRIVATE,
-      memberIds: [userId1, userId2],
-    });
+    // Try to create new private room
+    try {
+      return await this.create({
+        type: RoomType.PRIVATE,
+        memberIds: [userId1, userId2],
+        userPairKey,
+      });
+    } catch (error) {
+      // Handle concurrent creation (unique constraint violation)
+      if (error instanceof QueryFailedError) {
+        const dbError = error as QueryFailedError & { code?: string };
+        if (dbError.code === '23505') {
+          // Another concurrent request created the room, fetch and return it
+          this.logger.debug(
+            `Concurrent private room creation detected for userPairKey=${userPairKey}, fetching existing room`
+          );
+          const room = await this.findPrivateRoom(userId1, userId2);
+          if (room) {
+            return room;
+          }
+        }
+      }
+      throw error;
+    }
   }
 
   /**
