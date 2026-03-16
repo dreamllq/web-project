@@ -60,6 +60,13 @@ const nextCursor = computed(() => {
 // ============================================
 
 /**
+ * Check if should auto-scroll (user is at or near bottom)
+ */
+function shouldAutoScroll(): boolean {
+  return isAtBottom.value;
+}
+
+/**
  * Check if message is from current user
  */
 function isMyMessage(message: MessageResponse): boolean {
@@ -169,6 +176,8 @@ function getFileSize(message: MessageResponse): string {
 }
 
 /**
+ * Handle scroll event for infinite scroll and bottom detection
+ */
 function handleScroll(): void {
   if (!scrollerRef.value) return;
 
@@ -177,18 +186,27 @@ function handleScroll(): void {
 
   const { scrollTop, scrollHeight, clientHeight } = scrollerEl;
 
-  // 检测是否在顶部（触发加载更多）
-  if (scrollTop < 100) {
-    console.log('[MessageList] Near top:', {
-      scrollTop,
-      hasMore: hasMore.value,
-      isLoadingOlder: isLoadingOlder.value,
-      nextCursor: nextCursor.value,
-      currentRoomId: chatStore.currentRoomId,
-    });
+  // 每次滚动都打印日志，方便调试
+  console.log('[MessageList] scroll:', {
+    scrollTop,
+    scrollHeight,
+    clientHeight,
+    hasMore: hasMore.value,
+    isLoadingOlder: isLoadingOlder.value,
+    nextCursor: nextCursor.value,
+  });
+
+  // scrollTop === 0 时触发加载更多
+  if (scrollTop === 0) {
     if (hasMore.value && !isLoadingOlder.value && nextCursor.value) {
-      console.log('[MessageList] Triggering loadOlderMessages');
+      console.log('[MessageList] At top, triggering loadOlderMessages');
       loadOlderMessages();
+    } else {
+      console.log('[MessageList] At top but cannot load:', {
+        hasMore: hasMore.value,
+        isLoadingOlder: isLoadingOlder.value,
+        nextCursor: nextCursor.value,
+      });
     }
   }
 
@@ -200,36 +218,23 @@ function handleScroll(): void {
 
 /**
  * Scroll to bottom of message list
- * 使用多次延迟尝试确保虚拟列表高度计算完成
+ * 使用一个非常大的 scrollTop 值，浏览器会自动限制到有效最大值
  */
 function scrollToBottom(): void {
   if (!scrollerRef.value || displayMessages.value.length === 0) return;
 
-  // 多次延迟尝试，虚拟列表需要时间计算高度
-  const attemptScroll = () => {
-    if (!scrollerRef.value || displayMessages.value.length === 0) return;
+  const scrollerEl = scrollerRef.value.$el as HTMLElement;
+  if (!scrollerEl) return;
 
-    const scrollerEl = scrollerRef.value.$el as HTMLElement;
-    if (scrollerEl) {
-      scrollerEl.scrollTop = scrollerEl.scrollHeight;
-      console.log('[MessageList] scrollToBottom attempt:', {
-        scrollHeight: scrollerEl.scrollHeight,
-        clientHeight: scrollerEl.clientHeight,
-        scrollTop: scrollerEl.scrollTop,
-        messagesCount: displayMessages.value.length,
-      });
-    }
-    isAtBottom.value = true;
-    showScrollButton.value = false;
+  const doScroll = () => {
+    scrollerEl.scrollTop = Number.MAX_SAFE_INTEGER;
   };
 
-  // 多次延迟尝试
-  nextTick(() => {
-    attemptScroll();
-    setTimeout(attemptScroll, 100);
-    setTimeout(attemptScroll, 300);
-    setTimeout(attemptScroll, 500);
-  });
+  nextTick(doScroll);
+  setTimeout(doScroll, 500); // 虚拟列表可能需要时间计算高度
+
+  isAtBottom.value = true;
+  showScrollButton.value = false;
 }
 
 /**
@@ -323,22 +328,17 @@ onMounted(() => {
     scrollToBottom();
   }
 
-  // Add scroll event listener to scroller element
-  nextTick(() => {
-    if (scrollerRef.value?.$el) {
-      scrollerRef.value.$el.addEventListener('scroll', handleScroll);
-    }
-  });
-
   // Create IntersectionObserver for infinite scroll
-  // 设置 root 为 scroller 的滚动容器
   nextTick(() => {
     const scrollerEl = scrollerRef.value?.$el as HTMLElement | undefined;
+    console.log('[MessageList] onMounted scrollerEl:', scrollerEl);
+
     if (scrollerEl && topSentinelRef.value) {
       scrollObserver = new IntersectionObserver(
         (entries) => {
           const entry = entries[0];
           if (entry.isIntersecting) {
+            console.log('[MessageList] Sentinel intersecting');
             loadOlderMessages();
           }
         },
@@ -349,15 +349,13 @@ onMounted(() => {
         }
       );
       scrollObserver.observe(topSentinelRef.value);
+      console.log('[MessageList] IntersectionObserver setup complete');
     }
   });
 });
 
-// Cleanup scroll listener and observer on unmount
+// Cleanup observer on unmount
 onUnmounted(() => {
-  if (scrollerRef.value?.$el) {
-    scrollerRef.value.$el.removeEventListener('scroll', handleScroll);
-  }
   if (scrollObserver) {
     scrollObserver.disconnect();
     scrollObserver = null;
@@ -374,24 +372,27 @@ onUnmounted(() => {
       :image-size="100"
     />
 
-    <!-- Messages Container with Sentinel -->
+    <!-- Messages Container -->
     <template v-else>
-      <!-- Top Sentinel for Infinite Scroll -->
-      <div ref="topSentinelRef" class="scroll-sentinel">
-        <div v-if="isLoadingOlder" class="loading-indicator">
-          <el-icon class="is-loading"><Loading /></el-icon>
-          <span>{{ t('chat.loadingMore') }}</span>
-        </div>
-      </div>
-
       <!-- Virtual Scroller -->
       <DynamicScroller
         ref="scrollerRef"
         :items="displayMessages"
-        :min-item-size="60"
+        :min-item-size="120"
         key-field="id"
         class="scroller"
+        @scroll="handleScroll"
       >
+        <!-- Top Sentinel for Infinite Scroll - 放在虚拟列表内部的第一项 -->
+        <template #before>
+          <div ref="topSentinelRef" class="scroll-sentinel">
+            <div v-if="isLoadingOlder" class="loading-indicator">
+              <el-icon class="is-loading"><Loading /></el-icon>
+              <span>{{ t('chat.loadingMore') }}</span>
+            </div>
+          </div>
+        </template>
+
         <template #default="{ item: message, active }">
           <DynamicScrollerItem
             :item="message"

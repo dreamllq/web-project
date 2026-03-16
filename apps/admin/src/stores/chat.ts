@@ -841,8 +841,8 @@ export const useChatStore = defineStore('chat', () => {
       const existingMessages = messagesByRoom.value.get(roomId) ?? [];
 
       if (cursor) {
-        // PREPEND 消息：新加载的更老消息放在前面（DESC 顺序）
-        messagesByRoom.value.set(roomId, [...response.data.data, ...existingMessages]);
+        // APPEND 消息：新加载的更老消息追加到末尾（DESC 顺序)
+        messagesByRoom.value.set(roomId, [...existingMessages, ...response.data.data]);
       } else {
         // Initial load - replace messages (DESC: 最新在前)
         messagesByRoom.value.set(roomId, response.data.data);
