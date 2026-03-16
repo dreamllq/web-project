@@ -1,7 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { WebsocketGateway } from '../../websocket/websocket.gateway';
+import { ChatGateway } from '../chat.gateway';
 import { Room } from '../../entities/room.entity';
 import { RoomMember } from '../../entities/room-member.entity';
+
+/**
+ * User-specific room name prefix for Socket.IO rooms
+ * Users automatically join 'user:{userId}' room on connection
+ */
+export const USER_ROOM_PREFIX = 'user:';
 
 export interface RoomUpdatedPayload {
   id: string;
@@ -17,7 +23,14 @@ export interface RoomUpdatedPayload {
 export class RoomEventsService {
   private readonly logger = new Logger(RoomEventsService.name);
 
-  constructor(private readonly websocketGateway: WebsocketGateway) {}
+  constructor(private readonly chatGateway: ChatGateway) {}
+
+  /**
+   * Get the user-specific room name for a user ID
+   */
+  static getUserRoom(userId: string): string {
+    return `${USER_ROOM_PREFIX}${userId}`;
+  }
 
   /**
    * Emit room created event to specific user
@@ -31,8 +44,9 @@ export class RoomEventsService {
       ownerId: room.ownerId,
       lastMessageAt: room.lastMessageAt,
     };
-    this.websocketGateway.sendToUser(userId, 'roomCreated', payload);
-    this.logger.log(`[roomCreated] userId=${userId}, roomId=${room.id}`);
+    const userRoom = RoomEventsService.getUserRoom(userId);
+    this.chatGateway.server.to(userRoom).emit('roomCreated', payload);
+    this.logger.log(`[roomCreated] userId=${userId}, roomId=${room.id}, room=${userRoom}`);
   }
 
   /**
@@ -48,16 +62,20 @@ export class RoomEventsService {
       lastMessageAt: room.lastMessageAt,
       isHidden,
     };
-    this.websocketGateway.sendToUser(userId, 'roomUpdated', payload);
-    this.logger.log(`[roomUpdated] userId=${userId}, roomId=${room.id}, isHidden=${isHidden}`);
+    const userRoom = RoomEventsService.getUserRoom(userId);
+    this.chatGateway.server.to(userRoom).emit('roomUpdated', payload);
+    this.logger.log(
+      `[roomUpdated] userId=${userId}, roomId=${room.id}, isHidden=${isHidden}, room=${userRoom}`
+    );
   }
 
   /**
    * Emit room deleted event to specific user
    */
   emitRoomDeleted(userId: string, roomId: string): void {
-    this.websocketGateway.sendToUser(userId, 'roomDeleted', { roomId });
-    this.logger.log(`[roomDeleted] userId=${userId}, roomId=${roomId}`);
+    const userRoom = RoomEventsService.getUserRoom(userId);
+    this.chatGateway.server.to(userRoom).emit('roomDeleted', { roomId });
+    this.logger.log(`[roomDeleted] userId=${userId}, roomId=${roomId}, room=${userRoom}`);
   }
 
   /**
@@ -73,9 +91,10 @@ export class RoomEventsService {
         joinedAt: member.joinedAt,
       },
     };
-    this.websocketGateway.sendToUser(userId, 'memberAdded', payload);
+    const userRoom = RoomEventsService.getUserRoom(userId);
+    this.chatGateway.server.to(userRoom).emit('memberAdded', payload);
     this.logger.log(
-      `[memberAdded] userId=${userId}, roomId=${roomId}, newMemberId=${member.userId ?? 'unknown'}`
+      `[memberAdded] userId=${userId}, roomId=${roomId}, newMemberId=${member.userId ?? 'unknown'}, room=${userRoom}`
     );
   }
 
@@ -83,15 +102,19 @@ export class RoomEventsService {
    * Emit member removed event to specific user
    */
   emitMemberRemoved(userId: string, roomId: string): void {
-    this.websocketGateway.sendToUser(userId, 'memberRemoved', { roomId });
-    this.logger.log(`[memberRemoved] userId=${userId}, roomId=${roomId}`);
+    const userRoom = RoomEventsService.getUserRoom(userId);
+    this.chatGateway.server.to(userRoom).emit('memberRemoved', { roomId });
+    this.logger.log(`[memberRemoved] userId=${userId}, roomId=${roomId}, room=${userRoom}`);
   }
 
   /**
    * Emit unread count updated event to specific user
    */
   emitUnreadUpdated(userId: string, roomId: string, count: number): void {
-    this.websocketGateway.sendToUser(userId, 'unreadUpdated', { roomId, count });
-    this.logger.log(`[unreadUpdated] userId=${userId}, roomId=${roomId}, count=${count}`);
+    const userRoom = RoomEventsService.getUserRoom(userId);
+    this.chatGateway.server.to(userRoom).emit('unreadUpdated', { roomId, count });
+    this.logger.log(
+      `[unreadUpdated] userId=${userId}, roomId=${roomId}, count=${count}, room=${userRoom}`
+    );
   }
 }

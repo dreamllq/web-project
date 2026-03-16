@@ -145,6 +145,11 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
       // 设置用户在线状态
       await this.presenceService.setOnline(user.id);
 
+      // 🔑 自动加入用户专属 room，用于接收全局事件（如 roomUpdated）
+      const userRoom = `user:${user.id}`;
+      client.join(userRoom);
+      this.logger.log(`Client ${client.id} joined user room: ${userRoom}`);
+
       this.logger.log(`Client connected: ${client.id}, User: ${user.username} (${user.id})`);
 
       // 发送连接成功事件
