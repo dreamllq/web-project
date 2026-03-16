@@ -144,6 +144,11 @@ export const useChatStore = defineStore('chat', () => {
   const isLoadingRooms = ref(false);
   const isLoadingMessages = ref(false);
 
+  /** Pagination state for infinite scroll */
+  const hasMoreByRoom = ref<Map<string, boolean>>(new Map());
+  const nextCursorByRoom = ref<Map<string, string | null>>(new Map());
+  const isLoadingMore = ref(false);
+
   /** Error state */
   const error = ref<string | null>(null);
 
@@ -809,24 +814,37 @@ export const useChatStore = defineStore('chat', () => {
    * Fetch messages for a room via REST API
    */
   async function fetchMessages(roomId: string, cursor?: string, limit?: number): Promise<void> {
-    isLoadingMessages.value = true;
+    // 区分加载更多和初始加载
+    if (cursor) {
+      isLoadingMore.value = true;
+    } else {
+      isLoadingMessages.value = true;
+    }
     error.value = null;
 
     try {
       const response = await getRoomMessages(roomId, {
         cursor,
         limit,
-        order: 'ASC',
+        // 移除 order: 'ASC'，使用后端默认 DESC
       });
 
       initRoomData(roomId);
+
+      // 存储分页信息
+      hasMoreByRoom.value.set(roomId, response.data.hasMore);
+      nextCursorByRoom.value.set(roomId, response.data.nextCursor);
+      // 触发响应式
+      hasMoreByRoom.value = new Map(hasMoreByRoom.value);
+      nextCursorByRoom.value = new Map(nextCursorByRoom.value);
+
       const existingMessages = messagesByRoom.value.get(roomId) ?? [];
 
       if (cursor) {
-        // Append older messages (pagination)
-        messagesByRoom.value.set(roomId, [...existingMessages, ...response.data.data]);
+        // PREPEND 消息：新加载的更老消息放在前面（DESC 顺序）
+        messagesByRoom.value.set(roomId, [...response.data.data, ...existingMessages]);
       } else {
-        // Initial load - replace messages
+        // Initial load - replace messages (DESC: 最新在前)
         messagesByRoom.value.set(roomId, response.data.data);
       }
       // Messages stored in messagesByRoom, no return value needed
@@ -834,7 +852,11 @@ export const useChatStore = defineStore('chat', () => {
       error.value = err instanceof Error ? err.message : 'Failed to fetch messages';
       throw err;
     } finally {
-      isLoadingMessages.value = false;
+      if (cursor) {
+        isLoadingMore.value = false;
+      } else {
+        isLoadingMessages.value = false;
+      }
     }
   }
 
@@ -856,6 +878,9 @@ export const useChatStore = defineStore('chat', () => {
     pendingMessages.value = new Map();
     failedMessages.value = new Map();
     messageStatus.value = new Map();
+    hasMoreByRoom.value = new Map();
+    nextCursorByRoom.value = new Map();
+    isLoadingMore.value = false;
     error.value = null;
     isLoadingRooms.value = false;
     isLoadingMessages.value = false;
@@ -871,6 +896,9 @@ export const useChatStore = defineStore('chat', () => {
     unreadCounts,
     isLoadingRooms,
     isLoadingMessages,
+    hasMoreByRoom,
+    nextCursorByRoom,
+    isLoadingMore,
     error,
     isSocketConnected,
     pendingMessages,

@@ -3,7 +3,14 @@ import { computed, ref, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useChatStore } from '@/stores/chat';
 import { useAuthStore } from '@/stores/auth';
-import { Document, Picture, ChatDotRound, WarningFilled, ArrowDown } from '@element-plus/icons-vue';
+import {
+  Document,
+  Picture,
+  ChatDotRound,
+  WarningFilled,
+  ArrowDown,
+  Loading,
+} from '@element-plus/icons-vue';
 import type { MessageResponse } from '@/types/chat';
 
 // ============================================
@@ -17,18 +24,36 @@ const authStore = useAuthStore();
 // Refs
 // ============================================
 const scrollerRef = ref<InstanceType<typeof import('vue-virtual-scroller').DynamicScroller>>();
+const topSentinelRef = ref<HTMLElement | null>(null);
 const isAtBottom = ref(true);
 const showScrollButton = ref(false);
 const isInitialLoad = ref(true);
+const isLoadingOlder = ref(false);
+let scrollObserver: IntersectionObserver | null = null;
 
 // ============================================
 // Computed
 // ============================================
-const messages = computed<MessageResponse[]>(() => chatStore.currentMessages);
+// 反转显示：store 中是 DESC（最新在前），显示需要 ASC（最老在前）
+const displayMessages = computed<MessageResponse[]>(() => {
+  const raw = chatStore.currentMessages;
+  return [...raw].reverse();
+});
 
 const currentUserId = computed<string | null>(() => authStore.user?.id ?? null);
 
 const isLoading = computed(() => chatStore.isLoadingMessages);
+
+// 分页状态 - 用于无限滚动
+const hasMore = computed(() => {
+  if (!chatStore.currentRoomId) return false;
+  return chatStore.hasMoreByRoom.get(chatStore.currentRoomId) ?? true;
+});
+
+const nextCursor = computed(() => {
+  if (!chatStore.currentRoomId) return null;
+  return chatStore.nextCursorByRoom.get(chatStore.currentRoomId) ?? null;
+});
 
 // ============================================
 // Methods
@@ -148,8 +173,8 @@ function getFileSize(message: MessageResponse): string {
  */
 function scrollToBottom(): void {
   nextTick(() => {
-    if (scrollerRef.value && messages.value.length > 0) {
-      scrollerRef.value.scrollToItem(messages.value.length - 1);
+    if (scrollerRef.value && displayMessages.value.length > 0) {
+      scrollerRef.value.scrollToItem(displayMessages.value.length - 1);
       isAtBottom.value = true;
       showScrollButton.value = false;
     }
@@ -177,6 +202,33 @@ function handleScroll(): void {
  */
 function shouldAutoScroll(): boolean {
   return isAtBottom.value;
+}
+
+/**
+ * 加载更旧的消息（带滚动锚定）
+ * 用于无限滚动加载历史消息时保持视觉位置
+ */
+async function loadOlderMessages(): Promise<void> {
+  if (isLoadingOlder.value || !hasMore.value) return;
+  if (!chatStore.currentRoomId || !nextCursor.value) return;
+  if (displayMessages.value.length === 0) return; // 空房间不触发
+
+  const scrollerEl = scrollerRef.value?.$el as HTMLElement | undefined;
+  const oldScrollHeight = scrollerEl?.scrollHeight ?? 0;
+
+  isLoadingOlder.value = true;
+  try {
+    await chatStore.fetchMessages(chatStore.currentRoomId, nextCursor.value);
+  } finally {
+    isLoadingOlder.value = false;
+  }
+
+  // 滚动锚定：保持视觉位置
+  await nextTick();
+  if (scrollerEl) {
+    const addedHeight = scrollerEl.scrollHeight - oldScrollHeight;
+    scrollerEl.scrollTop = addedHeight;
+  }
 }
 
 // ============================================
@@ -207,18 +259,26 @@ watch(
 watch(
   () => chatStore.currentRoomId,
   () => {
+    isLoadingOlder.value = false;
     isInitialLoad.value = true;
     showScrollButton.value = false;
     isAtBottom.value = true;
   }
 );
 
+// Disconnect observer when no more messages to load
+watch(hasMore, (newHasMore) => {
+  if (!newHasMore && scrollObserver) {
+    scrollObserver.disconnect();
+  }
+});
+
 // ============================================
 // Lifecycle
 // ============================================
 onMounted(() => {
   // Scroll to bottom on initial mount if messages exist
-  if (messages.value.length > 0) {
+  if (displayMessages.value.length > 0) {
     nextTick(() => {
       scrollToBottom();
       isInitialLoad.value = false;
@@ -231,12 +291,37 @@ onMounted(() => {
       scrollerRef.value.$el.addEventListener('scroll', handleScroll);
     }
   });
+
+  // Create IntersectionObserver for infinite scroll
+  scrollObserver = new IntersectionObserver(
+    (entries) => {
+      const entry = entries[0];
+      if (entry.isIntersecting) {
+        loadOlderMessages();
+      }
+    },
+    {
+      rootMargin: '100px',
+      threshold: 0.1,
+    }
+  );
+
+  // Start observing the sentinel element
+  nextTick(() => {
+    if (topSentinelRef.value && scrollObserver) {
+      scrollObserver.observe(topSentinelRef.value);
+    }
+  });
 });
 
-// Cleanup scroll listener on unmount
+// Cleanup scroll listener and observer on unmount
 onUnmounted(() => {
   if (scrollerRef.value?.$el) {
     scrollerRef.value.$el.removeEventListener('scroll', handleScroll);
+  }
+  if (scrollObserver) {
+    scrollObserver.disconnect();
+    scrollObserver = null;
   }
 });
 </script>
@@ -244,109 +329,125 @@ onUnmounted(() => {
 <template>
   <div class="message-list" v-loading="isLoading">
     <!-- Empty State -->
-    <el-empty v-if="messages.length === 0" :description="t('chat.noMessages')" :image-size="100" />
+    <el-empty
+      v-if="displayMessages.length === 0"
+      :description="t('chat.noMessages')"
+      :image-size="100"
+    />
 
-    <!-- Virtual Scroller -->
-    <DynamicScroller
-      v-else
-      ref="scrollerRef"
-      :items="messages"
-      :min-item-size="60"
-      key-field="id"
-      class="scroller"
-    >
-      <template #default="{ item: message, active }">
-        <DynamicScrollerItem
-          :item="message"
-          :active="active"
-          :size-dependencies="[message.content, message.type, message.deletedAt]"
-        >
-          <div class="message-wrapper">
-            <div
-              class="message-item"
-              :class="{
-                'my-message': isMyMessage(message),
-                'system-message': isSystemMessage(message),
-                'deleted-message': isDeleted(message),
-              }"
-            >
-              <!-- System Message -->
-              <template v-if="isSystemMessage(message)">
-                <div class="system-message-content">
-                  <el-icon class="system-icon"><WarningFilled /></el-icon>
-                  <span>{{ message.content }}</span>
-                </div>
-                <span class="message-time">{{ formatTime(message.createdAt) }}</span>
-              </template>
+    <!-- Messages Container with Sentinel -->
+    <template v-else>
+      <!-- Top Sentinel for Infinite Scroll -->
+      <div ref="topSentinelRef" class="scroll-sentinel">
+        <div v-if="isLoadingOlder" class="loading-indicator">
+          <el-icon class="is-loading"><Loading /></el-icon>
+          <span>{{ t('chat.loadingMore') }}</span>
+        </div>
+      </div>
 
-              <!-- Deleted Message -->
-              <template v-else-if="isDeleted(message)">
-                <div class="deleted-content">
-                  <el-icon><WarningFilled /></el-icon>
-                  <span>{{ t('chat.deleteMessage') }}</span>
-                </div>
-                <span class="message-time">{{ formatTime(message.createdAt) }}</span>
-              </template>
-
-              <!-- Normal Message -->
-              <template v-else>
-                <!-- Message Header -->
-                <div class="message-header">
-                  <span class="sender-id">{{
-                    isMyMessage(message) ? '我' : message.senderName || message.senderId.slice(0, 8)
-                  }}</span>
+      <!-- Virtual Scroller -->
+      <DynamicScroller
+        ref="scrollerRef"
+        :items="displayMessages"
+        :min-item-size="60"
+        key-field="id"
+        class="scroller"
+      >
+        <template #default="{ item: message, active }">
+          <DynamicScrollerItem
+            :item="message"
+            :active="active"
+            :size-dependencies="[message.content, message.type, message.deletedAt]"
+          >
+            <div class="message-wrapper">
+              <div
+                class="message-item"
+                :class="{
+                  'my-message': isMyMessage(message),
+                  'system-message': isSystemMessage(message),
+                  'deleted-message': isDeleted(message),
+                }"
+              >
+                <!-- System Message -->
+                <template v-if="isSystemMessage(message)">
+                  <div class="system-message-content">
+                    <el-icon class="system-icon"><WarningFilled /></el-icon>
+                    <span>{{ message.content }}</span>
+                  </div>
                   <span class="message-time">{{ formatTime(message.createdAt) }}</span>
-                </div>
+                </template>
 
-                <!-- Message Content -->
-                <div class="message-content">
-                  <!-- Text Message -->
-                  <template v-if="message.type === 'text' || message.type === 'emoji'">
-                    <span class="text-content">{{ message.content }}</span>
-                  </template>
+                <!-- Deleted Message -->
+                <template v-else-if="isDeleted(message)">
+                  <div class="deleted-content">
+                    <el-icon><WarningFilled /></el-icon>
+                    <span>{{ t('chat.deleteMessage') }}</span>
+                  </div>
+                  <span class="message-time">{{ formatTime(message.createdAt) }}</span>
+                </template>
 
-                  <!-- Image Message -->
-                  <template v-else-if="message.type === 'image'">
-                    <div class="image-message">
-                      <el-icon class="type-icon"><Picture /></el-icon>
-                      <span>{{ message.content || t('chat.image') }}</span>
-                    </div>
-                  </template>
+                <!-- Normal Message -->
+                <template v-else>
+                  <!-- Message Header -->
+                  <div class="message-header">
+                    <span class="sender-id">{{
+                      isMyMessage(message)
+                        ? '我'
+                        : message.senderName || message.senderId.slice(0, 8)
+                    }}</span>
+                    <span class="message-time">{{ formatTime(message.createdAt) }}</span>
+                  </div>
 
-                  <!-- File Message -->
-                  <template v-else-if="message.type === 'file'">
-                    <div class="file-message">
-                      <el-icon class="type-icon"><Document /></el-icon>
-                      <div class="file-info">
-                        <span class="file-name">{{ getFileName(message) }}</span>
-                        <span v-if="getFileSize(message)" class="file-size">{{
-                          getFileSize(message)
-                        }}</span>
+                  <!-- Message Content -->
+                  <div class="message-content">
+                    <!-- Text Message -->
+                    <template v-if="message.type === 'text' || message.type === 'emoji'">
+                      <span class="text-content">{{ message.content }}</span>
+                    </template>
+
+                    <!-- Image Message -->
+                    <template v-else-if="message.type === 'image'">
+                      <div class="image-message">
+                        <el-icon class="type-icon"><Picture /></el-icon>
+                        <span>{{ message.content || t('chat.image') }}</span>
                       </div>
-                    </div>
-                  </template>
+                    </template>
 
-                  <!-- Unknown Message Type -->
-                  <template v-else>
-                    <div class="unknown-message">
-                      <el-icon class="type-icon"
-                        ><component :is="getMessageTypeIcon(message.type)"
-                      /></el-icon>
-                      <span>[{{ getMessageTypeLabel(message.type) }}]</span>
-                    </div>
-                  </template>
+                    <!-- File Message -->
+                    <template v-else-if="message.type === 'file'">
+                      <div class="file-message">
+                        <el-icon class="type-icon"><Document /></el-icon>
+                        <div class="file-info">
+                          <span class="file-name">{{ getFileName(message) }}</span>
+                          <span v-if="getFileSize(message)" class="file-size">{{
+                            getFileSize(message)
+                          }}</span>
+                        </div>
+                      </div>
+                    </template>
 
-                  <!-- Edited Indicator -->
-                  <span v-if="isEdited(message)" class="edited-indicator">{{
-                    t('chat.editMessage')
-                  }}</span>
-                </div>
-              </template>
+                    <!-- Unknown Message Type -->
+                    <template v-else>
+                      <div class="unknown-message">
+                        <el-icon class="type-icon"
+                          ><component :is="getMessageTypeIcon(message.type)"
+                        /></el-icon>
+                        <span>[{{ getMessageTypeLabel(message.type) }}]</span>
+                      </div>
+                    </template>
+
+                    <!-- Edited Indicator -->
+                    <span v-if="isEdited(message)" class="edited-indicator">{{
+                      t('chat.editMessage')
+                    }}</span>
+                  </div>
+                </template>
+              </div>
             </div>
-          </div>
-        </DynamicScrollerItem>
-      </template>
-    </DynamicScroller>
+          </DynamicScrollerItem>
+        </template>
+      </DynamicScroller>
+    </template>
 
     <!-- Scroll to Bottom Button -->
     <transition name="fade">
@@ -597,5 +698,26 @@ onUnmounted(() => {
 .fade-leave-to {
   opacity: 0;
   transform: translateY(10px);
+}
+
+/* Scroll Sentinel for Infinite Scroll */
+.scroll-sentinel {
+  height: 1px;
+  width: 100%;
+  flex-shrink: 0;
+}
+
+.loading-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  color: #909399;
+  font-size: 13px;
+}
+
+.loading-indicator .el-icon {
+  font-size: 16px;
 }
 </style>
