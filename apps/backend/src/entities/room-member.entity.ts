@@ -41,6 +41,9 @@ export class RoomMember {
   @Column({ type: 'boolean', default: false })
   muted: boolean;
 
+  @Column({ name: 'is_hidden', type: 'boolean', default: false })
+  isHidden: boolean;
+
   @CreateDateColumn({ name: 'joined_at' })
   joinedAt: Date;
 

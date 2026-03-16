@@ -49,6 +49,9 @@ export class Room {
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 
+  @Column({ name: 'user_pair_key', type: 'varchar', length: 73, nullable: true })
+  userPairKey: string | null;
+
   // Relations - use lazy import to avoid circular dependency
   @ManyToOne(() => require('./user.entity').User)
   @JoinColumn({ name: 'owner_id' })
