@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
 import { ChatGateway } from '../chat.gateway';
 import { Room } from '../../entities/room.entity';
 import { RoomMember } from '../../entities/room-member.entity';
@@ -23,7 +23,10 @@ export interface RoomUpdatedPayload {
 export class RoomEventsService {
   private readonly logger = new Logger(RoomEventsService.name);
 
-  constructor(private readonly chatGateway: ChatGateway) {}
+  constructor(
+    @Inject(forwardRef(() => ChatGateway))
+    private readonly chatGateway: ChatGateway
+  ) {}
 
   /**
    * Get the user-specific room name for a user ID
