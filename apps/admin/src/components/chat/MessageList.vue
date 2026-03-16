@@ -498,7 +498,6 @@ onUnmounted(() => {
         :title="t('chat.scrollToBottom')"
       >
         <el-icon :size="20"><ArrowDown /></el-icon>
-        <span class="new-message-badge">新消息</span>
       </button>
     </transition>
   </div>
