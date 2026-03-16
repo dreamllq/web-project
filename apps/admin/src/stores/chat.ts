@@ -109,7 +109,8 @@ interface RoomCreatedPayload {
 
 interface RoomUpdatedPayload {
   id: string;
-  name?: string;
+  name?: string | null;
+  type?: string;
   isHidden?: boolean;
   lastMessage?: { content: string; senderId: string; senderName: string; createdAt: number };
 }
@@ -530,28 +531,41 @@ export const useChatStore = defineStore('chat', () => {
    * Handle room updated event - update room in list
    */
   function handleRoomUpdated(data: RoomUpdatedPayload): void {
-    console.log('[Chat] Received roomUpdated event:', data);
+    console.log('[Chat] ===== roomUpdated event received =====');
+    console.log('[Chat] Payload:', JSON.stringify(data, null, 2));
+    console.log('[Chat] Current rooms count:', rooms.value.length);
+    console.log('[Chat] Room IDs in list:', rooms.value.map((r) => r.room.id).join(', '));
 
     const index = rooms.value.findIndex((r) => r.room.id === data.id);
+    console.log('[Chat] FindIndex result:', index);
+
     if (index === -1) {
+      console.log('[Chat] Room NOT in list, checking isHidden...');
+      console.log('[Chat] data.isHidden value:', data.isHidden, 'type:', typeof data.isHidden);
+
       // Room not in list - check if it was unhidden
       if (data.isHidden === false) {
         // Room was unhidden, fetch fresh room list to include it
-        console.log('[Chat] Room unhidden, refreshing room list:', data.id);
+        console.log('[Chat] ✅ Room was UNHIDDEN, calling fetchRooms() to refresh list');
         fetchRooms();
       } else {
-        console.log('[Chat] Room not in list, may need to fetch:', data.id);
+        console.log('[Chat] ⚠️ Room not in list and isHidden is not false, skipping');
       }
       return;
     }
 
+    console.log('[Chat] Room FOUND in list at index', index, ', updating...');
+
     // Update room data
     if (data.name !== undefined) {
+      console.log('[Chat] Updating room name:', data.name);
       rooms.value[index].room.name = data.name;
     }
     if (data.lastMessage !== undefined) {
+      console.log('[Chat] Updating lastMessageAt');
       rooms.value[index].room.lastMessageAt = new Date(data.lastMessage.createdAt).toISOString();
     }
+    console.log('[Chat] ===== roomUpdated handling complete =====');
   }
 
   /**

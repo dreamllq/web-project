@@ -99,12 +99,17 @@ export class MessageService {
    * - Emit unreadUpdated events
    */
   private async handleMessageEventsForRecipients(roomId: string, senderId: string): Promise<void> {
+    this.logger.log(
+      `[handleMessageEventsForRecipients] START - roomId=${roomId}, senderId=${senderId}`
+    );
+
     // Get the room
     const room = await this.roomRepo.findOne({
       where: { id: roomId },
     });
 
     if (!room) {
+      this.logger.warn(`[handleMessageEventsForRecipients] Room not found: ${roomId}`);
       return;
     }
 
@@ -113,23 +118,45 @@ export class MessageService {
       where: { roomId },
     });
 
+    this.logger.log(`[handleMessageEventsForRecipients] Found ${recipients.length} total members`);
+
     const recipientMembers = recipients.filter((m) => m.userId !== senderId);
+    this.logger.log(
+      `[handleMessageEventsForRecipients] Processing ${recipientMembers.length} recipients (excluding sender)`
+    );
 
     for (const recipient of recipientMembers) {
+      this.logger.log(
+        `[handleMessageEventsForRecipients] Checking recipient ${recipient.userId}: isHidden=${recipient.isHidden}`
+      );
+
       // Check if room is hidden for this recipient
       if (recipient.isHidden) {
+        this.logger.log(
+          `[handleMessageEventsForRecipients] 🔄 Room is HIDDEN for user ${recipient.userId}, unhiding...`
+        );
+
         // Unhide the room
         recipient.isHidden = false;
         await this.memberRepo.save(recipient);
 
-        // Emit roomUpdated to recipient
-        this.roomEventsService.emitRoomUpdated(recipient.userId, room);
+        this.logger.log(
+          `[handleMessageEventsForRecipients] ✅ Room unhidden, emitting roomUpdated to user ${recipient.userId}`
+        );
+
+        // Emit roomUpdated to recipient with isHidden=false
+        this.roomEventsService.emitRoomUpdated(recipient.userId, room, false);
       }
 
       // Emit unreadUpdated to recipient
       const unreadCount = await this.getUnreadCount(roomId, recipient.userId, recipient.lastReadAt);
+      this.logger.log(
+        `[handleMessageEventsForRecipients] Emitting unreadUpdated to user ${recipient.userId}: count=${unreadCount}`
+      );
       this.roomEventsService.emitUnreadUpdated(recipient.userId, roomId, unreadCount);
     }
+
+    this.logger.log(`[handleMessageEventsForRecipients] END`);
   }
 
   /**

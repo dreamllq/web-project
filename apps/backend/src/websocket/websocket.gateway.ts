@@ -108,11 +108,18 @@ export class WebsocketGateway implements OnGatewayConnection, OnGatewayDisconnec
    */
   sendToUser(userId: string, event: string, data: unknown): void {
     const sockets = this.userSockets.get(userId);
+    this.logger.log(`[sendToUser] Attempting to send '${event}' to user ${userId}`);
+
     if (sockets && sockets.length > 0) {
+      this.logger.log(`[sendToUser] Found ${sockets.length} socket(s) for user ${userId}`);
       sockets.forEach((socket) => {
         socket.emit(event, data);
       });
-      this.logger.debug(`Sent event '${event}' to user ${userId}`);
+      this.logger.log(`[sendToUser] ✅ Sent event '${event}' to user ${userId}`);
+    } else {
+      this.logger.warn(
+        `[sendToUser] ⚠️ No active sockets for user ${userId}, event '${event}' not delivered`
+      );
     }
   }
 
