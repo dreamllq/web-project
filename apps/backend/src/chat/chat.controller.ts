@@ -11,6 +11,7 @@ import {
   ParseUUIDPipe,
   Version,
   ForbiddenException,
+  BadRequestException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
 import { ChatService } from './chat.service';
@@ -51,6 +52,11 @@ export class ChatController {
   @ApiResponse({ status: 400, description: 'Invalid room data' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   async createRoom(@CurrentUser() user: User, @Body() dto: CreateRoomDto): Promise<RoomResponse> {
+    // Private rooms must use the dedicated endpoint: POST /chat/private-rooms
+    if (dto.type === RoomType.PRIVATE) {
+      throw new BadRequestException('Use POST /chat/private-rooms to create private rooms');
+    }
+
     const createData: CreateRoomData = {
       type: dto.type,
       name: dto.name,
@@ -59,15 +65,8 @@ export class ChatController {
       memberIds: dto.memberIds,
     };
 
-    // For private rooms, ensure current user is included in members
-    if (dto.type === RoomType.PRIVATE) {
-      if (!dto.memberIds || dto.memberIds.length !== 1) {
-        createData.memberIds = [user.id, ...(dto.memberIds ?? [])];
-      } else {
-        createData.memberIds = [user.id, dto.memberIds[0]];
-      }
-    } else if (dto.type === RoomType.GROUP) {
-      // For group rooms, add owner to members if not already included
+    // For group rooms, add owner to members if not already included
+    if (dto.type === RoomType.GROUP) {
       if (!dto.memberIds || !dto.memberIds.includes(user.id)) {
         createData.memberIds = [user.id, ...(dto.memberIds ?? [])];
       }

@@ -95,11 +95,31 @@ export interface EditMessageDto {
 // ============================================
 
 /**
- * Create a new chat room
+ * Create a new chat room (group or broadcast only)
  * POST /v1/chat/rooms
+ * Note: For private rooms, use createPrivateRoom() instead
  */
 export function createRoom(data: CreateRoomDto): Promise<{ data: Room }> {
   return api.post('/v1/chat/rooms', data);
+}
+
+/**
+ * Create or get a private room with another user
+ * POST /v1/chat/private-rooms
+ */
+export interface CreatePrivateRoomDto {
+  targetUserId: string;
+}
+
+export interface PrivateRoomResponse {
+  roomId: string;
+  isHidden: boolean;
+}
+
+export function createPrivateRoom(
+  data: CreatePrivateRoomDto
+): Promise<{ data: PrivateRoomResponse }> {
+  return api.post('/v1/chat/private-rooms', data);
 }
 
 /**

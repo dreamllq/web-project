@@ -3,7 +3,7 @@ import { ref, computed, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, type FormInstance, type FormRules, type UploadProps } from 'element-plus';
 import { Plus, User, ChatDotSquare, Delete } from '@element-plus/icons-vue';
-import { createRoom, uploadFile } from '@/api/chat';
+import { createRoom, createPrivateRoom, uploadFile } from '@/api/chat';
 import { extractApiError } from '@/api';
 import MemberSelector from './MemberSelector.vue';
 import type { RoomType, Room } from '@/types/chat';
@@ -235,17 +235,23 @@ async function handleSubmit(): Promise<void> {
       if (formData.value.memberIds.length > 0) {
         createData.memberIds = formData.value.memberIds;
       }
+
+      // 调用 API 创建群聊房间
+      const response = await createRoom(createData);
+      const room = response.data;
+      ElMessage.success(t('chat.createRoomSuccess'));
+      emit('success', room);
     } else {
-      // 私聊模式
-      createData.memberIds = formData.value.memberIds;
+      // 私聊模式 - 使用专用接口
+      const response = await createPrivateRoom({
+        targetUserId: formData.value.memberIds[0],
+      });
+      // 私聊接口返回 roomId，需要构造 room 对象
+      const room = { id: response.data.roomId } as Room;
+      ElMessage.success(t('chat.createRoomSuccess'));
+      emit('success', room);
     }
 
-    // 调用 API 创建聊天室
-    const response = await createRoom(createData);
-    const room = response.data;
-
-    ElMessage.success(t('chat.createRoomSuccess'));
-    emit('success', room);
     dialogVisible.value = false;
   } catch (error: unknown) {
     const apiError = extractApiError(error);
