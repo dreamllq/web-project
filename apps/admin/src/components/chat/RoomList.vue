@@ -2,7 +2,7 @@
 import { useI18n } from 'vue-i18n';
 import { User, ChatDotRound, Promotion } from '@element-plus/icons-vue';
 import { useChatStore } from '@/stores/chat';
-import type { RoomType } from '@/types/chat';
+import type { RoomType, UserRoomResponse } from '@/types/chat';
 
 // ============================================
 // Composables
@@ -40,6 +40,15 @@ function getRoomTypeLabel(type: RoomType): string {
     default:
       return '';
   }
+}
+
+/** Get display name for room */
+function getRoomDisplayName(userRoom: UserRoomResponse): string {
+  // For private rooms, show other user's name
+  if (userRoom.room.type === 'private' && userRoom.otherUser) {
+    return userRoom.otherUser.nickname || userRoom.otherUser.username;
+  }
+  return userRoom.room.name || getRoomTypeLabel(userRoom.room.type);
 }
 
 /** Check if room has online users */
@@ -80,7 +89,7 @@ function handleRoomSelect(roomId: string): void {
         <div class="room-info">
           <div class="room-header">
             <span class="room-name">
-              {{ userRoom.room.name || getRoomTypeLabel(userRoom.room.type) }}
+              {{ getRoomDisplayName(userRoom) }}
             </span>
             <el-badge
               v-if="userRoom.unreadCount > 0"

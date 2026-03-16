@@ -16,8 +16,14 @@ import {
   setOnReconnect,
   setOnTokenRefresh,
 } from '@/socket';
-import { getRooms, getRoomMessages } from '@/api/chat';
-import { refreshAccessToken } from '@/api';
+import {
+  getRooms,
+  getRoomMessages,
+  leaveRoom as leaveRoomApi,
+  getRoomMembers as getRoomMembersApi,
+  removeRoomMember as removeRoomMemberApi,
+} from '@/api/chat';
+import { refreshAccessToken, extractApiError } from '@/api';
 import { useAuthStore } from '@/stores/auth';
 import type {
   SendMessagePayload,
@@ -125,6 +131,29 @@ export const useChatStore = defineStore('chat', () => {
   /** All rooms with membership info */
   const rooms = ref<UserRoomResponse[]>([]);
 
+  /** Hidden room IDs (for private rooms that user wants to hide locally) - persisted in localStorage */
+  const HIDDEN_ROOMS_KEY = 'chat_hidden_room_ids';
+
+  function loadHiddenRoomIds(): Set<string> {
+    try {
+      const stored = localStorage.getItem(HIDDEN_ROOMS_KEY);
+      return stored ? new Set(JSON.parse(stored)) : new Set();
+    } catch {
+      return new Set();
+    }
+  }
+
+  const hiddenRoomIds = ref<Set<string>>(loadHiddenRoomIds());
+
+  /** Save hiddenRoomIds to localStorage */
+  function saveHiddenRoomIds(): void {
+    try {
+      localStorage.setItem(HIDDEN_ROOMS_KEY, JSON.stringify([...hiddenRoomIds.value]));
+    } catch {
+      // Ignore localStorage errors
+    }
+  }
+
   /** Current active room ID */
   const currentRoomId = ref<string | null>(null);
 
@@ -206,6 +235,12 @@ export const useChatStore = defineStore('chat', () => {
       total += count;
     });
     return total;
+  });
+
+  /** Visible rooms (excludes hidden private rooms) */
+  const visibleRooms = computed<UserRoomResponse[]>(() => {
+    const hidden = hiddenRoomIds.value;
+    return rooms.value.filter((r) => !hidden.has(r.room.id));
   });
 
   // ============================================
@@ -625,7 +660,9 @@ export const useChatStore = defineStore('chat', () => {
 
     try {
       const response = await getRooms();
-      rooms.value = response.data.data;
+      // Filter out hidden private rooms
+      const hidden = hiddenRoomIds.value;
+      rooms.value = response.data.data.filter((room) => !hidden.has(room.room.id));
 
       // Initialize unread counts from room data
       rooms.value.forEach((room) => {
@@ -655,21 +692,66 @@ export const useChatStore = defineStore('chat', () => {
     currentRoomId.value = roomId;
     initRoomData(roomId);
 
+    // Mark messages as read
+    markAsRead(roomId);
+
     // Load historical messages for the room
     fetchMessages(roomId);
   }
 
   /**
-   * Leave a chat room via WebSocket
+   * Leave a room
+   * - Group rooms: Call REST API to actually leave
+   * - Private rooms: Just hide from local view (no API call)
    */
-  function leaveRoom(roomId: string): void {
-    const socket = getSocket();
-    if (!socket || !isConnected()) {
-      throw new Error('Socket not connected');
+  async function leaveRoom(roomId: string): Promise<void> {
+    const roomIndex = rooms.value.findIndex((r) => r.room.id === roomId);
+    if (roomIndex === -1) return;
+
+    const roomData = rooms.value[roomIndex];
+    const isPrivate = roomData.room.type === 'private';
+
+    if (isPrivate) {
+      // Private room: just hide from local view
+      hiddenRoomIds.value.add(roomId);
+      hiddenRoomIds.value = new Set(hiddenRoomIds.value);
+      saveHiddenRoomIds();
+      // Also remove from rooms array so UI updates immediately
+      rooms.value.splice(roomIndex, 1);
+    } else {
+      // Group room: call REST API to actually leave
+      try {
+        await leaveRoomApi(roomId);
+        // Remove from rooms array
+        rooms.value.splice(roomIndex, 1);
+      } catch (error) {
+        const apiError = extractApiError(error);
+        ElMessage.error(apiError.displayMessage);
+        throw error;
+      }
     }
 
-    socket.emit('leaveRoom', { roomId });
+    // Cleanup related state
+    messagesByRoom.value.delete(roomId);
+    onlineUsersByRoom.value.delete(roomId);
+    typingUsersByRoom.value.delete(roomId);
+    unreadCounts.value.delete(roomId);
+    pendingMessages.value.delete(roomId);
+    failedMessages.value.delete(roomId);
+    hasMoreByRoom.value.delete(roomId);
+    nextCursorByRoom.value.delete(roomId);
 
+    // Trigger reactivity
+    messagesByRoom.value = new Map(messagesByRoom.value);
+    onlineUsersByRoom.value = new Map(onlineUsersByRoom.value);
+    typingUsersByRoom.value = new Map(typingUsersByRoom.value);
+    unreadCounts.value = new Map(unreadCounts.value);
+    pendingMessages.value = new Map(pendingMessages.value);
+    failedMessages.value = new Map(failedMessages.value);
+    hasMoreByRoom.value = new Map(hasMoreByRoom.value);
+    nextCursorByRoom.value = new Map(nextCursorByRoom.value);
+
+    // Clear current room if it's the one we're leaving
     if (currentRoomId.value === roomId) {
       currentRoomId.value = null;
     }
@@ -861,6 +943,50 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   /**
+   * Fetch room members via REST API
+   */
+  async function fetchRoomMembers(roomId: string): Promise<
+    Array<{
+      id: string;
+      roomId: string;
+      userId: string;
+      role: 'owner' | 'admin' | 'member';
+      joinedAt: string;
+      lastReadAt: string;
+      user?: {
+        id: string;
+        username: string;
+        nickname: string | null;
+        avatarUrl: string | null;
+      };
+    }>
+  > {
+    try {
+      const response = await getRoomMembersApi(roomId);
+      return response.data.data;
+    } catch (error) {
+      const apiError = extractApiError(error);
+      ElMessage.error(apiError.displayMessage);
+      throw error;
+    }
+  }
+
+  /**
+   * Remove a member from a room (admin/owner only)
+   */
+  async function removeRoomMember(roomId: string, userId: string): Promise<void> {
+    try {
+      await removeRoomMemberApi(roomId, userId);
+      // Refresh members list
+      await fetchRoomMembers(roomId);
+    } catch (error) {
+      const apiError = extractApiError(error);
+      ElMessage.error(apiError.displayMessage);
+      throw error;
+    }
+  }
+
+  /**
    * Clear all chat state (e.g., on logout)
    */
   function clearState(): void {
@@ -889,6 +1015,7 @@ export const useChatStore = defineStore('chat', () => {
   return {
     // State
     rooms,
+    hiddenRoomIds,
     currentRoomId,
     messagesByRoom,
     onlineUsersByRoom,
@@ -911,6 +1038,7 @@ export const useChatStore = defineStore('chat', () => {
     currentTypingUsers,
     currentOnlineUsers,
     totalUnreadCount,
+    visibleRooms,
 
     // Actions
     connectSocket,
@@ -923,6 +1051,8 @@ export const useChatStore = defineStore('chat', () => {
     sendTyping,
     markAsRead,
     fetchMessages,
+    fetchRoomMembers,
+    removeRoomMember,
     clearState,
     requestNotificationPermission,
     retryMessage,

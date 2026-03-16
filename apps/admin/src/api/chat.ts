@@ -71,6 +71,21 @@ export interface RoomMember {
   lastReadAt: string;
 }
 
+export interface MemberWithUserResponse {
+  id: string;
+  roomId: string;
+  userId: string;
+  role: RoomMemberRole;
+  joinedAt: string;
+  lastReadAt: string;
+  user?: {
+    id: string;
+    username: string;
+    nickname: string | null;
+    avatarUrl: string | null;
+  };
+}
+
 export interface EditMessageDto {
   content: string;
 }
@@ -112,6 +127,36 @@ export function getRoomMessages(
  */
 export function addRoomMember(roomId: string, data: AddMemberDto): Promise<{ data: RoomMember }> {
   return api.post(`/v1/chat/rooms/${roomId}/members`, data);
+}
+
+/**
+ * Leave a room (remove self from room)
+ * DELETE /v1/chat/rooms/:id/members/me
+ * Note: Private rooms will return 403 Forbidden
+ */
+export function leaveRoom(roomId: string): Promise<{ data: { success: boolean } }> {
+  return api.delete(`/v1/chat/rooms/${roomId}/members/me`);
+}
+
+/**
+ * Get members of a room
+ * GET /v1/chat/rooms/:id/members
+ */
+export function getRoomMembers(
+  roomId: string
+): Promise<{ data: { data: MemberWithUserResponse[] } }> {
+  return api.get(`/v1/chat/rooms/${roomId}/members`);
+}
+
+/**
+ * Remove a member from a room (admin/owner only)
+ * DELETE /v1/chat/rooms/:id/members/:userId
+ */
+export function removeRoomMember(
+  roomId: string,
+  userId: string
+): Promise<{ data: { success: boolean } }> {
+  return api.delete(`/v1/chat/rooms/${roomId}/members/${userId}`);
 }
 
 // ============================================

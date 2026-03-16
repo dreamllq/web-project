@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { ref, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { ChatDotRound, Search, MoreFilled, User } from '@element-plus/icons-vue';
 import { useChatStore } from '@/stores/chat';
+import MemberManagerDialog from './MemberManagerDialog.vue';
 
 // ============================================
 // Composables
@@ -19,13 +20,29 @@ const emit = defineEmits<{
 }>();
 
 // ============================================
+// State
+// ============================================
+const showMemberDialog = ref(false);
+
+// ============================================
 // Computed
 // ============================================
 const currentRoom = computed(() => chatStore.currentRoom);
 
 const roomName = computed(() => {
   if (!currentRoom.value) return '';
+  // For private rooms, show other user's name
+  if (currentRoom.value.room.type === 'private' && currentRoom.value.otherUser) {
+    return currentRoom.value.otherUser.nickname || currentRoom.value.otherUser.username;
+  }
   return currentRoom.value.room.name ?? t('chat.privateRoom');
+});
+
+const leaveButtonLabel = computed(() => {
+  if (!currentRoom.value) return t('chat.leaveRoom');
+  return currentRoom.value.room.type === 'private'
+    ? t('chat.hideConversation')
+    : t('chat.leaveRoom');
 });
 
 const roomTypeLabel = computed(() => {
@@ -57,22 +74,24 @@ function handleSearch() {
 }
 
 function handleManageMembers() {
-  // TODO: Implement members management dialog
-  ElMessage.info(t('chat.members'));
+  showMemberDialog.value = true;
 }
 
 async function handleLeaveRoom() {
   if (!currentRoom.value) return;
 
+  const isPrivate = currentRoom.value.room.type === 'private';
+  const confirmMessage = isPrivate ? t('chat.hideConversation') + '?' : t('chat.leaveRoom') + '?';
+
   try {
-    await ElMessageBox.confirm(t('chat.leaveRoom') + '?', {
+    await ElMessageBox.confirm(confirmMessage, {
       confirmButtonText: t('common.confirm'),
       cancelButtonText: t('common.cancel'),
       type: 'warning',
     });
 
-    chatStore.leaveRoom(currentRoom.value.room.id);
-    ElMessage.success(t('chat.leaveRoom'));
+    await chatStore.leaveRoom(currentRoom.value.room.id);
+    ElMessage.success(isPrivate ? t('chat.conversationHidden') : t('chat.leftRoom'));
   } catch {
     // User cancelled
   }
@@ -112,12 +131,14 @@ async function handleLeaveRoom() {
               {{ t('chat.members') }}
             </el-dropdown-item>
             <el-dropdown-item divided @click="handleLeaveRoom">
-              {{ t('chat.leaveRoom') }}
+              {{ leaveButtonLabel }}
             </el-dropdown-item>
           </el-dropdown-menu>
         </template>
       </el-dropdown>
     </div>
+
+    <MemberManagerDialog v-model="showMemberDialog" :room-id="currentRoom?.room.id || ''" />
   </div>
 </template>
 

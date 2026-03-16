@@ -197,6 +197,20 @@ export interface MarkReadPayload {
 // ============================================
 
 /**
+ * 其他用户信息响应 (私聊房间对方用户)
+ */
+export interface OtherUserResponse {
+  /** 用户 ID */
+  id: string;
+  /** 用户名 */
+  username: string;
+  /** 昵称 */
+  nickname: string | null;
+  /** 头像 URL */
+  avatarUrl: string | null;
+}
+
+/**
  * 房间响应类型
  */
 export interface RoomResponse {
@@ -230,6 +244,8 @@ export interface UserRoomResponse {
   unreadCount: number;
   /** 最后已读时间 */
   lastReadAt: string;
+  /** 私聊房间的对方用户信息 */
+  otherUser?: OtherUserResponse;
 }
 
 /**
@@ -296,4 +312,24 @@ export interface MemberResponse {
   joinedAt: string;
   /** 最后已读时间 */
   lastReadAt: string;
+}
+
+/**
+ * 成员响应类型 (含用户信息)
+ */
+export interface MemberWithUserResponse {
+  /** 成员记录 ID */
+  id: string;
+  /** 房间 ID */
+  roomId: string;
+  /** 用户 ID */
+  userId: string;
+  /** 角色 */
+  role: MemberRole;
+  /** 加入时间 */
+  joinedAt: string;
+  /** 最后已读时间 */
+  lastReadAt: string;
+  /** 用户信息 */
+  user?: OtherUserResponse;
 }

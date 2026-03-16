@@ -644,6 +644,11 @@
       "gestures": "手势",
       "hearts": "爱心",
       "objects": "物品"
-    }
+    },
+    "noMembers": "暂无成员",
+    "memberRemoved": "成员已移除",
+    "hideConversation": "隐藏对话",
+    "conversationHidden": "对话已隐藏",
+    "leftRoom": "已离开聊天室"
   }
 }

@@ -10,6 +10,7 @@ import {
   UseGuards,
   ParseUUIDPipe,
   Version,
+  ForbiddenException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
 import { ChatService } from './chat.service';
@@ -93,7 +94,9 @@ export class ChatController {
     );
 
     return {
-      data: roomsWithUnread.map((roomData) => this.toUserRoomResponse(roomData)),
+      data: await Promise.all(
+        roomsWithUnread.map((roomData) => this.toUserRoomResponse(roomData, user.id))
+      ),
     };
   }
 
@@ -192,6 +195,67 @@ export class ChatController {
     return this.toMemberResponse(member);
   }
 
+  /**
+   * Leave a room
+   * DELETE /api/v1/chat/rooms/:id/members/me
+   */
+  @Delete('rooms/:id/members/me')
+  @Version('1')
+  @ApiOperation({ summary: 'Leave a room' })
+  @ApiParam({ name: 'id', description: 'Room ID' })
+  @ApiResponse({ status: 200, description: 'Left room successfully' })
+  @ApiResponse({ status: 403, description: 'Cannot leave private rooms' })
+  async leaveRoom(
+    @CurrentUser() user: User,
+    @Param('id', ParseUUIDPipe) roomId: string
+  ): Promise<{ success: boolean }> {
+    await this.roomService.removeMember(roomId, user.id, user.id);
+    return { success: true };
+  }
+
+  /**
+   * Get members of a room
+   * GET /api/v1/chat/rooms/:id/members
+   */
+  @Get('rooms/:id/members')
+  @Version('1')
+  @ApiOperation({ summary: 'Get members of a room' })
+  @ApiParam({ name: 'id', description: 'Room ID' })
+  @ApiResponse({ status: 200, description: 'List of members' })
+  @ApiResponse({ status: 403, description: 'Not a member of this room' })
+  async getRoomMembers(
+    @CurrentUser() user: User,
+    @Param('id', ParseUUIDPipe) roomId: string
+  ): Promise<RoomMembersResponse> {
+    // Verify user is a member first
+    const isMember = await this.roomService.isMember(roomId, user.id);
+    if (!isMember) {
+      throw new ForbiddenException('Not a member of this room');
+    }
+    const members = await this.roomService.getMembers(roomId);
+    return { data: members.map((m) => this.toMemberWithUserResponse(m)) };
+  }
+
+  /**
+   * Remove a member from a room
+   * DELETE /api/v1/chat/rooms/:id/members/:userId
+   */
+  @Delete('rooms/:id/members/:userId')
+  @Version('1')
+  @ApiOperation({ summary: 'Remove a member from a room' })
+  @ApiParam({ name: 'id', description: 'Room ID' })
+  @ApiParam({ name: 'userId', description: 'User ID to remove' })
+  @ApiResponse({ status: 200, description: 'Member removed successfully' })
+  @ApiResponse({ status: 403, description: 'Not authorized to remove members' })
+  async removeMember(
+    @CurrentUser() user: User,
+    @Param('id', ParseUUIDPipe) roomId: string,
+    @Param('userId', ParseUUIDPipe) userId: string
+  ): Promise<{ success: boolean }> {
+    await this.roomService.removeMember(roomId, userId, user.id);
+    return { success: true };
+  }
+
   // ========== Private Helper Methods ==========
 
   private toRoomResponse(room: Room): RoomResponse {
@@ -207,12 +271,32 @@ export class ChatController {
     };
   }
 
-  private toUserRoomResponse(roomData: UserRoomResult & { unreadCount: number }): UserRoomResponse {
+  private async toUserRoomResponse(
+    roomData: UserRoomResult & { unreadCount: number },
+    currentUserId: string
+  ): Promise<UserRoomResponse> {
+    let otherUser: OtherUserResponse | undefined;
+
+    // For private rooms, get the other user's info
+    if (roomData.room.type === RoomType.PRIVATE) {
+      const members = await this.roomService.getMembers(roomData.room.id);
+      const otherMember = members.find((m) => m.userId !== currentUserId);
+      if (otherMember?.user) {
+        otherUser = {
+          id: otherMember.user.id,
+          username: otherMember.user.username,
+          nickname: otherMember.user.nickname,
+          avatarUrl: otherMember.user.avatarUrl,
+        };
+      }
+    }
+
     return {
       room: this.toRoomResponse(roomData.room),
       role: roomData.role,
       unreadCount: roomData.unreadCount,
       lastReadAt: roomData.lastReadAt,
+      otherUser,
     };
   }
 
@@ -242,6 +326,25 @@ export class ChatController {
       lastReadAt: member.lastReadAt,
     };
   }
+
+  private toMemberWithUserResponse(member: RoomMember): MemberWithUserResponse {
+    return {
+      id: member.id,
+      roomId: member.roomId,
+      userId: member.userId,
+      role: member.role,
+      joinedAt: member.joinedAt,
+      lastReadAt: member.lastReadAt,
+      user: member.user
+        ? {
+            id: member.user.id,
+            username: member.user.username,
+            nickname: member.user.nickname,
+            avatarUrl: member.user.avatarUrl,
+          }
+        : undefined,
+    };
+  }
 }
 
 // ========== Response Interfaces ==========
@@ -262,6 +365,7 @@ export interface UserRoomResponse {
   role: string;
   unreadCount: number;
   lastReadAt: Date;
+  otherUser?: OtherUserResponse;
 }
 
 export interface RoomListResponse {
@@ -295,4 +399,25 @@ export interface MemberResponse {
   role: string;
   joinedAt: Date;
   lastReadAt: Date;
+}
+
+export interface OtherUserResponse {
+  id: string;
+  username: string;
+  nickname: string | null;
+  avatarUrl: string | null;
+}
+
+export interface MemberWithUserResponse {
+  id: string;
+  roomId: string;
+  userId: string;
+  role: string;
+  joinedAt: Date;
+  lastReadAt: Date;
+  user?: OtherUserResponse;
+}
+
+export interface RoomMembersResponse {
+  data: MemberWithUserResponse[];
 }

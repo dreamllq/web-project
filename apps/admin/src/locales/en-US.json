@@ -643,6 +643,11 @@
       "gestures": "Gestures",
       "hearts": "Hearts",
       "objects": "Objects"
-    }
+    },
+    "noMembers": "No members",
+    "memberRemoved": "Member removed",
+    "hideConversation": "Hide Conversation",
+    "conversationHidden": "Conversation hidden",
+    "leftRoom": "Left room"
   }
 }
