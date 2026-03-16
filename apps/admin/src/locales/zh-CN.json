@@ -649,6 +649,8 @@
     "memberRemoved": "成员已移除",
     "hideConversation": "隐藏对话",
     "conversationHidden": "对话已隐藏",
-    "leftRoom": "已离开聊天室"
+    "leftRoom": "已离开聊天室",
+    "loadingMore": "加载更多消息...",
+    "scrollToBottom": "滚动到底部"
   }
 }

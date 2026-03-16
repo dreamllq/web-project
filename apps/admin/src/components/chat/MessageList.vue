@@ -187,14 +187,14 @@ function handleScroll(): void {
   const { scrollTop, scrollHeight, clientHeight } = scrollerEl;
 
   // 每次滚动都打印日志，方便调试
-  console.log('[MessageList] scroll:', {
-    scrollTop,
-    scrollHeight,
-    clientHeight,
-    hasMore: hasMore.value,
-    isLoadingOlder: isLoadingOlder.value,
-    nextCursor: nextCursor.value,
-  });
+  // console.log('[MessageList] scroll:', {
+  //   scrollTop,
+  //   scrollHeight,
+  //   clientHeight,
+  //   hasMore: hasMore.value,
+  //   isLoadingOlder: isLoadingOlder.value,
+  //   nextCursor: nextCursor.value,
+  // });
 
   // scrollTop === 0 时触发加载更多
   if (scrollTop === 0) {

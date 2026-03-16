@@ -648,6 +648,8 @@
     "memberRemoved": "Member removed",
     "hideConversation": "Hide Conversation",
     "conversationHidden": "Conversation hidden",
-    "leftRoom": "Left room"
+    "leftRoom": "Left room",
+    "loadingMore": "Loading more messages...",
+    "scrollToBottom": "Scroll to bottom"
   }
 }
