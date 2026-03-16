@@ -23,6 +23,7 @@ import { Room, RoomType } from '../entities/room.entity';
 import { RoomMember } from '../entities/room-member.entity';
 import {
   CreateRoomDto,
+  CreatePrivateRoomDto,
   AddMemberDto,
   EditMessageDto,
   MessageQueryDto,
@@ -74,6 +75,24 @@ export class ChatController {
 
     const room = await this.roomService.create(createData);
     return this.toRoomResponse(room);
+  }
+
+  /**
+   * Get or create a private room with another user
+   * POST /api/v1/chat/private-rooms
+   */
+  @Post('private-rooms')
+  @Version('1')
+  @ApiOperation({ summary: 'Get or create a private room with another user' })
+  @ApiResponse({ status: 200, description: 'Private room info' })
+  @ApiResponse({ status: 400, description: 'Invalid target user' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async getOrCreatePrivateRoom(
+    @CurrentUser() user: User,
+    @Body() dto: CreatePrivateRoomDto
+  ): Promise<PrivateRoomResponse> {
+    const result = await this.chatService.getOrCreatePrivateRoom(user.id, dto.targetUserId);
+    return result;
   }
 
   /**
@@ -353,6 +372,7 @@ export class ChatController {
       role: member.role,
       joinedAt: member.joinedAt,
       lastReadAt: member.lastReadAt,
+      isHidden: member.isHidden,
     };
   }
 
@@ -401,6 +421,11 @@ export interface RoomListResponse {
   data: UserRoomResponse[];
 }
 
+export interface PrivateRoomResponse {
+  roomId: string;
+  isHidden: boolean;
+}
+
 export interface MessageResponse {
   id: string;
   roomId: string;
@@ -428,6 +453,7 @@ export interface MemberResponse {
   role: string;
   joinedAt: Date;
   lastReadAt: Date;
+  isHidden: boolean;
 }
 
 export interface OtherUserResponse {

@@ -421,13 +421,20 @@ export class ChatService {
    * @param userId 当前用户ID
    * @param targetUserId 目标用户ID
    */
-  async getOrCreatePrivateRoom(userId: string, targetUserId: string): Promise<{ roomId: string }> {
+  async getOrCreatePrivateRoom(
+    userId: string,
+    targetUserId: string
+  ): Promise<{ roomId: string; isHidden: boolean }> {
     if (userId === targetUserId) {
       throw new BadRequestException('Cannot create a private room with yourself');
     }
 
     const room = await this.roomService.getOrCreatePrivateRoom(userId, targetUserId);
 
-    return { roomId: room.id };
+    // Get current user's member info to return isHidden status
+    const memberInfo = await this.roomService.getMemberInfo(room.id, userId);
+    const isHidden = memberInfo?.isHidden ?? false;
+
+    return { roomId: room.id, isHidden };
   }
 }
