@@ -351,7 +351,8 @@ export const useChatStore = defineStore('chat', () => {
         roomMessages[existingIndex] = message;
       } else {
         // New message from others, add to list
-        roomMessages.push(message);
+        // Use unshift: 消息存储为 DESC 顺序（最新在前），新消息应插入数组头部
+        roomMessages.unshift(message);
       }
       messagesByRoom.value.set(data.roomId, [...roomMessages]);
     }
@@ -805,7 +806,8 @@ export const useChatStore = defineStore('chat', () => {
     initRoomData(payload.roomId);
     const roomMessages = messagesByRoom.value.get(payload.roomId);
     if (roomMessages) {
-      roomMessages.push(optimisticMessage);
+      // Use unshift: 消息存储为 DESC 顺序（最新在前），新消息应插入数组头部
+      roomMessages.unshift(optimisticMessage);
       messagesByRoom.value.set(payload.roomId, [...roomMessages]);
     }
 
